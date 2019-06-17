@@ -1,0 +1,47 @@
+#
+# Copyright (C) 2003, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1492 2013-11-02 19:15:49Z wkliao $
+#
+# @configure_input@
+
+srcdir  = @srcdir@
+VPATH   = @srcdir@
+
+include ../../macros.make
+
+INCLUDES  = -I../../src/lib
+LDFLAGS  += -L../../src/lib
+LIBS     := -lpnetcdf $(LIBS) @LCOV_LIB@
+
+SRCS    = test_inq_format.c cdf_type.c
+
+OBJS    = $(SRCS:.c=.o)
+PROGS   = $(SRCS:.c=)
+
+GARBAGE      = $(PROGS) testfile.nc
+PACKING_LIST = $(SRCS) Makefile.in
+
+all: $(PROGS)
+	set -e ; cd ../data && $(MAKE) $(MFLAGS) all
+
+$(LIBRARY):
+	set -e ; cd $(BUILDDIR)/src && $(MAKE) $(MFLAGS) all
+
+test_inq_format: test_inq_format.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+cdf_type: cdf_type.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+testing check verbose_testing: all
+	$(TEST_SEQRUN) ./test_inq_format
+	$(TEST_SEQRUN) ./cdf_type $(TEST_OUTDIR)/testfile.nc
+
+ptest:
+
+include $(srcdir)/../../rules.make
+
+.NOTPARALLEL: testing check verbose_testing ptest
+

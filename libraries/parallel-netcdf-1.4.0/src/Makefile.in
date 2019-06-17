@@ -1,0 +1,35 @@
+#
+# Copyright (C) 2003, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1468 2013-10-26 16:53:18Z wkliao $
+#
+# @configure_input@
+
+srcdir = @srcdir@
+VPATH  = @srcdir@
+
+include ../macros.make
+
+SUBDIRS = lib
+ifeq (@has_fortran@, yes)
+   SUBDIRS += libf
+   SUBDIRS += libf90
+endif
+# build utils after libf and libf90
+SUBDIRS += utils
+
+PACKING_LIST = Makefile.in
+
+PACKING_SUBDIRS = lib libf libf90 utils
+
+all:
+	@set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) ; ) ; done
+
+install:
+	@set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) install ; ) ; done
+
+uninstall:
+	@set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) uninstall ; ) ; done
+
+include $(srcdir)/../rules.make

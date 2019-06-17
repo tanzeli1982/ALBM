@@ -1,0 +1,51 @@
+#
+# Copyright (C) 2003, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1492 2013-11-02 19:15:49Z wkliao $
+#
+# @configure_input@
+
+srcdir  = @srcdir@
+VPATH   = @srcdir@
+
+include ../../macros.make
+
+INCLUDES  = -I../../src/lib -I$(srcdir)/../common -I$(srcdir)
+LDFLAGS  += -L../../src/lib
+LIBS     := -lpnetcdf $(LIBS) @LCOV_LIB@
+
+SRCS    = test_subarray.c \
+          test_darray.c \
+          test_nonblocking.c
+
+HEADERS = test_dtype.h
+
+OBJS    = $(SRCS:.c=.o)
+PROGS   = $(SRCS:.c=)
+
+GARBAGE      = $(PROGS)
+PACKING_LIST = $(SRCS) $(HEADERS) Makefile.in README
+
+all: $(PROGS)
+
+$(LIBRARY):
+	set -e ; cd $(BUILDDIR)/src && $(MAKE) $(MFLAGS) all
+
+test_subarray: test_subarray.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+test_darray: test_darray.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+test_nonblocking: test_nonblocking.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+testing check verbose_testing:
+
+ptest:
+
+include $(srcdir)/../../rules.make
+
+.NOTPARALLEL: testing check verbose_testing ptest
+

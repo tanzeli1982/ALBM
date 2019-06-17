@@ -1,0 +1,107 @@
+#
+# Copyright (C) 2012, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1492 2013-11-02 19:15:49Z wkliao $
+#
+# @configure_input@
+
+srcdir = @srcdir@
+VPATH  = @srcdir@
+
+include ../../macros.make
+
+INCLUDES  = -I../../src/lib
+FPPFLAGS += -I../../src/libf @FC_MODINC@../../src/libf90
+LDFLAGS  += -L../../src/lib
+LIBS     := -lpnetcdf $(LIBS)
+
+C_SRCS = pnetcdf-write-from-master.c \
+         pnetcdf-read-from-master.c \
+         pnetcdf-write-nfiles.c \
+         pnetcdf-read-nfiles.c \
+         pnetcdf-write-standard.c \
+         pnetcdf-read-standard.c \
+         pnetcdf-write-flexible.c \
+         pnetcdf-read-flexible.c \
+         pnetcdf-write-nb.c \
+         pnetcdf-read-nb.c \
+         pnetcdf-write-buffered.c \
+         pnetcdf-permute.c
+
+F77_SRCS = pnetcdf-write-bufferedf77.f
+
+F90_SRCS = pnetcdf-write-bufferedf.f90
+
+PROGS  = $(C_SRCS:.c=)
+OBJS   = $(C_SRCS:.c=.o)
+ifeq (@has_fortran@, yes)
+PROGS += $(F77_SRCS:.f=)
+OBJS  += $(F77_SRCS:.f=.o)
+PROGS += $(F90_SRCS:.f90=)
+OBJS  += $(F90_SRCS:.f90=.o)
+endif
+
+GARBAGE      = $(PROGS) *.nc
+PACKING_LIST = $(C_SRCS) $(F77_SRCS) $(F90_SRCS) Makefile.in depend
+
+all: $(PROGS)
+
+$(LIBRARY):
+	set -e ; cd $(BUILDDIR)/src && $(MAKE) $(MFLAGS) all
+
+pnetcdf-write-from-master: pnetcdf-write-from-master.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-read-from-master: pnetcdf-read-from-master.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-write-nfiles: pnetcdf-write-nfiles.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-read-nfiles: pnetcdf-read-nfiles.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-write-standard: pnetcdf-write-standard.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-read-standard: pnetcdf-read-standard.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-write-flexible: pnetcdf-write-flexible.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-read-flexible: pnetcdf-read-flexible.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-write-nb: pnetcdf-write-nb.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-read-nb: pnetcdf-read-nb.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-write-buffered: pnetcdf-write-buffered.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-write-bufferedf: pnetcdf-write-bufferedf.o $(LIBRARY)
+	$(LINK.F90) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-write-bufferedf77: pnetcdf-write-bufferedf77.o $(LIBRARY)
+	$(LINK.f) $< $(LDFLAGS) $(LIBS)
+
+pnetcdf-permute: pnetcdf-permute.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+ptest: $(PROGS)
+	@for i in $(PROGS); do ( \
+	echo "-----------------------------------------------------" ; \
+	echo "$(TEST_MPIRUN) -n 4 ./$$i $(TEST_OUTDIR)/testfile.nc" ; \
+	echo "-----------------------------------------------------" ; \
+	$(TEST_MPIRUN) -n 4 ./$$i $(TEST_OUTDIR)/testfile.nc \
+	; ) ; done
+
+include $(srcdir)/depend
+include $(srcdir)/../../rules.make
+
+.NOTPARALLEL: testing check verbose_testing ptest
+

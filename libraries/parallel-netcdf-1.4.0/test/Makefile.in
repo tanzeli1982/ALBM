@@ -1,0 +1,63 @@
+#
+# Copyright (C) 2003, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1503 2013-11-16 18:01:59Z wkliao $
+#
+# @configure_input@
+
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include ../macros.make
+
+SUBDIRS = common \
+          nc_test \
+          test_int \
+          test_float \
+          test_double \
+          test_double_int \
+          test_dtype \
+          C \
+          fandc \
+          largefile \
+          nonblocking \
+          cdf_format \
+          header \
+          testcases \
+          data
+
+ifeq (@has_fortran@, yes)
+SUBDIRS += nf_test
+SUBDIRS += nf90_test
+SUBDIRS += F90
+endif
+
+ifeq (@enable_subfiling@, yes)
+SUBDIRS += subfile
+endif
+
+# Packing subdirs must include all directories
+# thus, configure must enable fortran and subfiling in order to run "make dist"
+PACKING_SUBDIRS = $(SUBDIRS)
+
+PACKING_LIST = Makefile.in
+ifeq (@enable_subfiling@, no)
+PACKING_LIST += subfile
+endif
+
+all:
+	set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) all ; ) ; done
+
+# Eventually, this target will run all of the relevant tests
+check testing: all
+	set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) testing ; ) ; done
+
+verbose_check verbose_testing: all
+	set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) verbose_testing ; ) ; done
+
+ptest: all
+	set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) ptest ; ) ; done
+
+include $(srcdir)/../rules.make
+

@@ -1,0 +1,39 @@
+#
+# Copyright (C) 2012, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1468 2013-10-26 16:53:18Z wkliao $
+#
+# @configure_input@
+
+srcdir  = @srcdir@
+VPATH   = @srcdir@
+
+include ../macros.make
+
+GARBAGE      =
+
+SUBDIRS = C tutorial
+
+ifeq (@has_fortran@, yes)
+SUBDIRS += F77
+SUBDIRS += F90
+endif
+
+PACKING_LIST = Makefile.in README
+
+PACKING_SUBDIRS = C tutorial F77 F90
+
+all:
+	@set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) ; ) ; done
+ptest:
+	@set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) ptest ; ) ; done
+
+install:
+	@set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) install ; ) ; done
+
+uninstall:
+	@set -e; for i in $(SUBDIRS); do ( cd $$i && $(MAKE) $(MFLAGS) uninstall ; ) ; done
+
+include $(srcdir)/../rules.make
+

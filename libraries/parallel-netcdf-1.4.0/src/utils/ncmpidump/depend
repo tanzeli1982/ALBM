@@ -1,0 +1,13 @@
+dumplib.o: ../../../src/lib/pnetcdf.h
+dumplib.o: dumplib.c
+dumplib.o: dumplib.h
+ncmpidump.o: ../../../src/lib/pnetcdf.h
+ncmpidump.o: dumplib.h
+ncmpidump.o: ncmpidump.c
+ncmpidump.o: ncmpidump.h
+ncmpidump.o: vardata.h
+vardata.o: ../../../src/lib/pnetcdf.h
+vardata.o: dumplib.h
+vardata.o: ncmpidump.h
+vardata.o: vardata.c
+vardata.o: vardata.h

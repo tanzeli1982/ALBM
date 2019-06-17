@@ -1,0 +1,41 @@
+#
+# Copyright (C) 2003, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1485 2013-11-02 14:57:31Z wkliao $
+#
+# @configure_input@
+
+srcdir = @srcdir@
+VPATH  = @srcdir@
+
+include ../../macros.make
+
+INCLUDES  = -I. -I$(srcdir)
+
+SRCS    = testutils.c
+
+HEADERS = testutils.h
+
+OBJS    = $(SRCS:.c=.o)
+
+PROGS   = libtestutils.a
+
+GARBAGE      = $(PROGS)
+PACKING_LIST = $(SRCS) $(HEADERS) Makefile.in
+
+all: $(PROGS)
+
+libtestutils.a: $(OBJS)
+	$(AR) $(ARFLAGS) $@ $<
+
+testutils.o: testutils.c testutils.h
+
+testing check verbose_testing:
+
+ptest:
+
+include $(srcdir)/../../rules.make
+
+.NOTPARALLEL: testing check verbose_testing ptest
+

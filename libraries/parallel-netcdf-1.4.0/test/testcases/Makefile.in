@@ -1,0 +1,115 @@
+#
+# Copyright (C) 2003, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1492 2013-11-02 19:15:49Z wkliao $
+#
+# @configure_input@
+
+srcdir = @srcdir@
+VPATH  = @srcdir@
+
+include ../../macros.make
+
+INCLUDES  = -I../../src/lib -I$(srcdir)/../common
+FPPFLAGS += -I../../src/libf @FC_MODINC@../../src/libf90
+LDFLAGS  += -L../../src/lib
+LIBS     := -lpnetcdf $(LIBS) @LCOV_LIB@
+
+NCMPIGEN  = ../../src/utils/ncmpigen/ncmpigen
+NCMPIDIFF = ../../src/utils/ncmpidiff/ncmpidiff
+
+C_SRCS   = ncmpi_vars_null_stride.c \
+           vectors.c \
+           collective_error.c \
+           test_varm.c \
+           alignment_test.c \
+           flexible.c \
+           nonblocking.c
+
+CXX_SRCS = redef1.cpp
+
+F77_SRCS   = bigrecords.f
+
+PROGS    = $(C_SRCS:.c=)
+OBJS     = $(C_SRCS:.c=.o)
+
+ifeq (@has_fortran@, yes)
+PROGS   += $(F77_SRCS:.f=)
+OBJS    += $(F77_SRCS:.f=.o)
+endif
+
+ifeq (@has_mpicxx@, yes)
+PROGS   += $(CXX_SRCS:.cpp=)
+OBJS    += $(CXX_SRCS:.cpp=.o)
+endif
+
+GARBAGE      = $(PROGS) *.nc
+PACKING_LIST = $(C_SRCS) $(F77_SRCS) $(CXX_SRCS) Makefile.in depend \
+               geopotential.ncdump \
+               redef-good.ncdump \
+               interop1.sh \
+               redef1.sh
+
+all: $(PROGS)
+
+$(LIBRARY):
+	set -e ; cd $(BUILDDIR)/src && $(MAKE) $(MFLAGS) all
+
+ncmpi_vars_null_stride: ncmpi_vars_null_stride.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+vectors: vectors.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+bigrecords: bigrecords.o $(LIBRARY)
+	$(LINK.f) $< $(LDFLAGS) $(LIBS)
+
+redef1: redef1.o $(LIBRARY)
+	$(LINK.cxx) $< $(LDFLAGS) $(LIBS)
+
+collective_error: collective_error.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+test_varm: test_varm.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+alignment_test: alignment_test.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+flexible: flexible.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+nonblocking: nonblocking.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+testing check verbose_testing : $(PROGS)
+	$(RM) -f $(TEST_OUTDIR)/testfile.nc $(TEST_OUTDIR)/redef1.nc
+	$(TEST_SEQRUN) ./ncmpi_vars_null_stride $(TEST_OUTDIR)/testfile.nc
+	$(TEST_SEQRUN) ./vectors                $(TEST_OUTDIR)/testfile.nc
+	$(TEST_SEQRUN) ./test_varm              $(TEST_OUTDIR)/testfile.nc
+	$(TEST_SEQRUN) ./alignment_test         $(TEST_OUTDIR)/testfile.nc
+	$(TEST_SEQRUN) ./nonblocking            $(TEST_OUTDIR)/testfile.nc
+	$(TEST_SEQRUN) ./flexible               $(TEST_OUTDIR)/testfile.nc
+ifeq (@has_fortran@, yes)
+	$(TEST_SEQRUN) ./bigrecords             $(TEST_OUTDIR)/testfile.nc
+endif
+ifeq (@has_mpicxx@, yes)
+	$(TEST_SEQRUN) ./redef1                 $(TEST_OUTDIR)/testfile.nc
+	$(TEST_SEQRUN) $(NCMPIGEN) -v 2 -o $(TEST_OUTDIR)/redef1.nc $(srcdir)/redef-good.ncdump
+	$(TEST_SEQRUN) $(NCMPIDIFF) $(TEST_OUTDIR)/testfile.nc $(TEST_OUTDIR)/redef1.nc
+endif
+
+# Some of these tests are designed to run on one processes,
+# Run them on 4 processes to see if they can handle well
+ptest: $(PROGS)
+	$(RM) -f $(TEST_OUTDIR)/testfile.nc $(TEST_OUTDIR)/redef1.nc
+	@for i in $(PROGS); do ( \
+	$(TEST_MPIRUN) -n 4 ./$$i $(TEST_OUTDIR)/testfile.nc \
+	; ) ; done
+
+include $(srcdir)/../../rules.make
+include $(srcdir)/depend
+
+.NOTPARALLEL: testing check verbose_testing ptest
+

@@ -1,0 +1,63 @@
+#
+# Copyright (C) 2003, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1492 2013-11-02 19:15:49Z wkliao $
+#
+# @configure_input@
+
+
+srcdir = @srcdir@
+VPATH  = @srcdir@
+
+include ../../macros.make
+
+INCLUDES  = -I../../src/lib -I$(srcdir)/../common
+FPPFLAGS += -I../../src/libf @FC_MODINC@../../src/libf90
+LDFLAGS  += -L../../src/lib -L../common
+LIBS     := -lpnetcdf $(LIBS) $(MATHLIB) @LCOV_LIB@
+
+C_SRCS = pnctest.c \
+         csnap.c
+
+F77_SRCS = pnf_test.f \
+           pnctestf.f
+
+F90_SRCS =
+
+PROGS  = $(C_SRCS:.c=)
+OBJS   = $(C_SRCS:.c=.o)
+ifeq (@has_fortran@, yes)
+PROGS += $(F77_SRCS:.f=)   $(F90_SRCS:.f90=)
+OBJS  += $(F77_SRCS:.f=.o) $(F90_SRCS:.f90=.o)
+endif
+
+GARBAGE      = $(PROGS) *.nc
+PACKING_LIST = $(C_SRCS) $(F77_SRCS) $(F90_SRCS) Makefile.in depend
+
+all: $(PROGS)
+
+$(LIBRARY):
+	set -e ; cd $(BUILDDIR)/src && $(MAKE) $(MFLAGS) all
+
+pnctest: pnctest.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+csnap:  csnap.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pnctestf: pnctestf.o $(LIBRARY)
+	$(LINK.f) $< $(LDFLAGS) $(LIBS)
+
+pnf_test:  pnf_test.o $(LIBRARY)
+	$(LINK.f) $< $(LDFLAGS) $(LIBS)
+
+testing check verbose_testing:
+
+ptest:
+
+include $(srcdir)/../../rules.make
+include $(srcdir)/depend
+
+.NOTPARALLEL: testing check verbose_testing ptest
+

@@ -1,0 +1,55 @@
+#
+# Copyright (C) 2003, Northwestern University and Argonne National Laboratory
+# See COPYRIGHT notice in top-level directory.
+#
+# $Id: Makefile.in 1492 2013-11-02 19:15:49Z wkliao $
+#
+# @configure_input@
+
+srcdir	= @srcdir@
+VPATH	= @srcdir@
+
+include ../../macros.make
+
+INCLUDES  = -I../../src/lib -I$(srcdir)/../common
+LDFLAGS  += -L../../src/lib -L../common
+LIBS     := -lpnetcdf $(LIBS) @LCOV_LIB@
+
+SRCS    = pres_temp_4D_wr.c \
+          pres_temp_4D_rd.c
+
+OBJS    = $(SRCS:.c=.o)
+PROGS   = $(SRCS:.c=)
+
+GARBAGE      = $(PROGS) *.nc
+PACKING_LIST = $(SRCS) Makefile.in
+
+all: $(PROGS)
+
+$(LIBRARY):
+	set -e ; cd $(BUILDDIR)/src && $(MAKE) $(MFLAGS) all
+
+pres_temp_4D_wr.o: pres_temp_4D_wr.c 
+
+pres_temp_4D_wr: pres_temp_4D_wr.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+pres_temp_4D_rd.o: pres_temp_4D_rd.c 
+
+pres_temp_4D_rd: pres_temp_4D_rd.o $(LIBRARY)
+	$(LINK.c) $< $(LDFLAGS) $(LIBS)
+
+check testing verbose_testing: $(PROGS)
+	$(TEST_SEQRUN) ./pres_temp_4D_wr $(TEST_OUTDIR)/testfile.nc
+	$(TEST_SEQRUN) ./pres_temp_4D_rd $(TEST_OUTDIR)/testfile.nc
+
+
+ptest: $(PROGS)
+	@for i in $(PROGS); do ( \
+	$(TEST_MPIRUN) -n 4 ./$$i $(TEST_OUTDIR)/testfile.nc \
+	; ) ; done
+
+include $(srcdir)/../../rules.make
+
+.NOTPARALLEL: testing check verbose_testing ptest
+
