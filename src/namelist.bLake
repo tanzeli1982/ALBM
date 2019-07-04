@@ -41,34 +41,34 @@
  solar_dir = './Solar/'
  gas_dir = './Gases/'
  albedo_dir = './Albedo/'
- co2_file = '$RCAC_SCRATCH/Data/others/cmip5_co2.nc'
- o3_file = '$RCAC_SCRATCH/Data/others/o3_Amon_rcp45_r1i1p1_197801-210012.nc'
- aod_file = '$RCAC_SCRATCH/Data/others/aod550_Amon_rcp45_r1i1p1_197801-210012.nc'
+ co2_file = '/qfs/projects/taim/Data/others/cmip5_co2.nc'
+ o3_file = '/qfs/projects/taim/Data/others/o3_Amon_rcp45_r1i1p1_197801-210012.nc'
+ aod_file = '/qfs/projects/taim/Data/others/aod550_Amon_rcp45_r1i1p1_197801-210012.nc'
 /
 
 &rundata
  forcing_tstep = 'day'
- tas_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tas_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- tasmax_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tasmax_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- tasmin_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tasmin_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- hurs_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/hurs_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- ps_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/ps_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- pr_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/pr_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- prsn_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/prsn_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- rsds_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/rsds_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- rlds_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/rlds_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- wind_file = '$RCAC_SCRATCH/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/sfcWind_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- tref_file = '$RCAC_SCRATCH/ECMWF/ecmwf_ref_1990s.nc'
- soc_file = '$RCAC_SCRATCH/Data/bLake/Gridded/soc_005deg.nc'
- veg_file = '$RCAC_SCRATCH/Data/bLake/Gridded/GLCFTreeCover.nc'
- wlnd_file = '$RCAC_SCRATCH/Data/nclimate/Gridded/glwd.nc'
+ tas_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tas_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ tasmax_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tasmax_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ tasmin_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tasmin_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ hurs_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/hurs_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ ps_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/ps_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ pr_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/pr_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ prsn_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/prsn_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ rsds_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/rsds_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ rlds_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/rlds_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ wind_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/sfcWind_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ tref_file = '/qfs/projects/taim/Data/others/ecmwf_ref_1990s.nc'
+ soc_file = '/qfs/projects/taim/Data/bLake/Gridded/soc_005deg.nc'
+ veg_file = '/qfs/projects/taim/Data/bLake/Gridded/GLCFTreeCover.nc'
+ wlnd_file = '/qfs/projects/taim/Data/bLake/Gridded/glwd.nc'
 /
 
 &archive
  archive_tstep = 'day'
- archive_dir = './'
+ archive_dir = '/qfs/projects/taim/Data/bLake/region-level/'
 /
 
 &dbg
- DEBUG = .True.
+ DEBUG = .False.
 /

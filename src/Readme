@@ -5,11 +5,4 @@
 5) Scientific questions include how should represent lakes in coarse-res climate models
 6) Using the calibrated model to study the future changes of lake thermal regimes
 
-
-To-do list
-1) Read lake file; 2) lake bathymetry; 3) Initialize lake state variables; 4) read input forcings (spinup 1.5 years)
-5) write outputs (lake dimension is record dimension); 6) make sure thermal-related tuning parameters are default values; 
-7) check season flags; 8) check season or latitude related parameters in radiation model
-9) input is 10-m wind but before input is 2-m wind; 10) consistent light attenuation and bathymetry
-11) pr includes prsn?; 12) remove those unused outputs
-Done list: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+7) Change the spatial discretization method to the MUSCL scheme based finite volume method

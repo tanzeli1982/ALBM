@@ -20,8 +20,8 @@ f90comp = mpif90 $(FFLAGS) -c
 f90link = mpif90 $(LDFLAGS) -o
 # source file search variable VPATH = : : :
 # Makefile
-ALBM:	$(objects)
-		$(f90link) ALBM $(objects) $(LIBS)
+ALBM.exe :	$(objects)
+		$(f90link) ALBM.exe $(objects) $(LIBS)
 bLake.o :	bLake.f90				simulation_mod.o				\
 				bayesian_mod.o			read_data_mod.o				\
 				sensitivity_mod.o
@@ -126,5 +126,5 @@ shr_kind_mod.o :	shr_kind_mod.f90
 # Cleaning everything
 .PHONY :	clean
 clean :		
-		-rm -f ALBM $(objects) $(modules)
+		-rm -f ALBM.exe $(objects) $(modules)
 # End of the makefile
