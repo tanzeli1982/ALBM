@@ -1,8 +1,9 @@
 &general
  run_mode = 'regular'
- lake_file = './Lake_GLEON-ISIMIP.nc'
- lake_range = 15766, 15766
- opt_file = './optpar.dat'
+ lake_file = './Lakes_ISIMIP.nc'
+ lake_range = 1, 59
+ bthmtry_dir = './Bathymetry/'
+ opt_dir = './Parameters/'
 /
 
 &simulation
@@ -10,10 +11,11 @@
  Bubble_Module = .False.
  Diagenesis_Module = .False.
  Carbon_Module = .False.
- Start_Year = 2006
+ Hydro_Module = .False.
+ Start_Year = 1979
  Start_Month = 1
  Start_Day = 1
- End_Year = 2100
+ End_Year = 2017
  End_Month = 1
  End_Day = 1
  Spinup_Month = 7
@@ -48,16 +50,8 @@
 
 &rundata
  forcing_tstep = 'day'
- tas_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tas_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- tasmax_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tasmax_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- tasmin_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/tasmin_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- hurs_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/hurs_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- ps_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/ps_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- pr_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/pr_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- prsn_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/prsn_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- rsds_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/rsds_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- rlds_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/rlds_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
- wind_file = '/qfs/projects/taim/Data/ISIMIP/ISIMIP2b/rcp60/HadGEM2-ES/sfcWind_day_HadGEM2-ES_rcp60_r1i1p1_EWEMBI_20060101-20991231.nc'
+ forcing_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/'
+ hydro_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/'
  tref_file = '/qfs/projects/taim/Data/others/ecmwf_ref_1990s.nc'
  soc_file = '/qfs/projects/taim/Data/bLake/Gridded/soc_005deg.nc'
  veg_file = '/qfs/projects/taim/Data/bLake/Gridded/GLCFTreeCover.nc'
@@ -66,7 +60,7 @@
 
 &archive
  archive_tstep = 'day'
- archive_dir = '/qfs/projects/taim/Data/bLake/region-level/'
+ archive_dir = '/qfs/projects/taim/Data/bLake/Site-level/'
 /
 
 &dbg
