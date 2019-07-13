@@ -28,11 +28,14 @@ module shr_typedef_mod
    end type
    type LakeInfo
       integer  :: id                   ! lake id
+      character(len=32) :: name        ! lake name
       integer  :: itype                ! lake type identifier
       real(r8) :: latitude             ! lake latitude
       real(r8) :: longitude            ! lake longitude
-      real(r8) :: depth                ! lake depth (m)
+      real(r8) :: depth                ! lake maximum depth (m)
+      real(r8) :: basin                ! lake mean depth (m)
       real(r8) :: Asurf                ! lake surface area (m2)
+      real(r8) :: Abasin               ! lake basin area (m2)
       real(r8) :: zalt                 ! lake altitude (km)
       real(r8) :: kext                 ! chla and CDOM light attenuation (m-1)
       real(r8) :: excice               ! land excessive ice fraction

@@ -1,9 +1,10 @@
 &general
  run_mode = 'regular'
  lake_file = './Lakes_ISIMIP.nc'
+ lakeid_file = './Lakes_ISIMIP_id.list'
  lake_range = 1, 59
  bthmtry_dir = './Bathymetry/'
- opt_dir = './Parameters/'
+ param_dir = './Parameters/'
 /
 
 &simulation
@@ -15,7 +16,7 @@
  Start_Year = 1979
  Start_Month = 1
  Start_Day = 1
- End_Year = 2017
+ End_Year = 2016
  End_Month = 1
  End_Day = 1
  Spinup_Month = 7

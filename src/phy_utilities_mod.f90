@@ -1176,24 +1176,22 @@ contains
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Construct depth and area grids
+   ! Purpose: Construct the lake depth grid
    !
    !------------------------------------------------------------------------------
-   subroutine BuildLakeBathymetry(info, Zw, dZw, Zs, dZs, Az, dAz)
+   subroutine ConstructDepthVector(info, Zw, dZw, Zs, dZs)
       implicit none
       type(LakeInfo), intent(in) :: info     ! lake information object
       real(r8), intent(out) :: Zw(:)         ! water depth vector
       real(r8), intent(out) :: dZw(:)        ! water grid thickness
       real(r8), intent(out) :: Zs(:)         ! sediment depth vector
       real(r8), intent(out) :: dZs(:)        ! sediment grid thickness
-      real(r8), intent(out) :: Az(:)         ! water depth cross-section
-      real(r8), intent(out) :: dAz(:)        ! cross-section difference
       real(r8), parameter :: KArr(20) = (/0.0733, 0.0914, 0.1017, &
             0.1088, 0.1143, 0.1188, 0.1225, 0.1257, 0.1285, &
             0.1310, 0.1333, 0.1354, 0.1373, 0.1390, 0.1407, &
             0.1422, 0.1436, 0.1449, 0.1462, 0.1474/)
       real(r8) :: K1, K2, denom, pp
-      integer :: nw, ns, nz, ii, idx
+      integer :: nw, ns, ii, idx
 
       ! for water column
       nw = size(Zw) - 1
@@ -1242,18 +1240,6 @@ contains
             dZs(ii) = 0.5 * (Zs(ii) - Zs(ii-1))
          else
             dZs(ii) = 0.5 * (Zs(ii+1) - Zs(ii-1))
-         end if
-      end do
-      ! for cross section
-      Az = info%Asurf
-      nz = size(Az)
-      do ii = 1, nz, 1
-         if (ii==1) then
-            dAz(ii) = 0.5 * (Az(ii) - Az(ii+1))
-         else if (ii==nz) then
-            dAz(ii) = 0.5 * (Az(ii) + Az(ii-1))
-         else
-            dAz(ii) = 0.5 * (Az(ii-1) - Az(ii+1))
          end if
       end do
    end subroutine

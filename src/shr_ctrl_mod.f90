@@ -48,14 +48,14 @@ module shr_ctrl_mod
    real(r8), parameter :: Bubtol = 1.0d-6
    ! general group
    integer :: lake_range(2)
-   character(cx) :: lake_file
-   character(cx) :: opt_file
+   character(cx) :: lake_file, lakeid_file
+   character(cx) :: bthmtry_dir, param_dir
    character(len=32) :: run_mode
    ! debug group
    logical :: DEBUG
    ! simulation group
    logical :: Thermal_Module, Bubble_Module, Diagenesis_Module
-   logical :: Carbon_Module
+   logical :: Carbon_Module, Hydro_Module
    integer :: Start_Year, Start_Month, Start_Day, End_Year
    integer :: End_Month, End_Day
    integer :: Spinup_Month, Spinup_Day, nSpinup
@@ -64,12 +64,7 @@ module shr_ctrl_mod
    integer :: WATER_LAYER
    ! run data group
    character(len=32) :: forcing_tstep
-   character(cx) :: tas_file, tasmax_file, tasmin_file
-   character(cx) :: hurs_file
-   character(cx) :: ps_file
-   character(cx) :: pr_file, prsn_file
-   character(cx) :: rsds_file, rlds_file
-   character(cx) :: wind_file
+   character(cx) :: forcing_dir, hydro_dir 
    character(cx) :: tref_file
    character(cx) :: soc_file
    character(cx) :: wlnd_file

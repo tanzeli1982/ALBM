@@ -173,7 +173,7 @@ contains
                      ': run diverges at step ', hindx
             end if
             nextstep = 50.0_r8
-         else if (curstep>=0.1) then
+         else 
             ncount = 0   ! restart the counter
          end if
          t = t + curstep

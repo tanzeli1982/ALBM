@@ -47,8 +47,13 @@ contains
       odata = 0.0_r8
       do ii = 1, nvar, 1
          str = calib_vars(ii)
-         write(fullname, "(A,I0,A)") trim(obs_dir) // trim(str) // &
-            '_obs_', lake_info%id, ".dat"
+         if (len_trim(lakeid_file)==0) then
+            write(fullname, "(A,I0,A)") trim(obs_dir) // trim(str) // &
+               '_obs_', lake_info%id, '.dat'
+         else
+            fullname = trim(obs_dir) // trim(str) // '_obs_' // &
+               trim(lake_info%name) // '.dat'
+         end if 
 
          fcost = -9999.0_r8
          ! depth usually measured from the bottom of the ice layer
