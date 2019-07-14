@@ -248,22 +248,39 @@ contains
 
       ! initialize depth vectors
       call ConstructDepthVector(lake_info, m_Zw, m_Zs, m_dZw, m_dZs)
-      call ReadLakeBathymetry(lake_info, m_Zw, m_Az, m_dAz)
+      if (len_trim(bthmtry_dir)==0) then
+         call BuildLakeBathymetry(lake_info, m_Zw, m_Az, m_dAz)
+      else
+         call ReadLakeBathymetry(lake_info, m_Zw, m_Az, m_dAz)
+      end if
       call ReadStaticData(veg_file, loc180, 'ftree', m_ftree)
       call ReadStaticData(wlnd_file, loc180, 'glwd', m_fwlnd)
       call ReadStaticData(soc_file, loc180, 'soc', Ncinterp, m_soc)
       call ReadStaticData(tref_file, loc180, 't2m', Ncinterp, m_radPars%tref)
       ! initialize formal air forcing data
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'tas',  m_airTemp)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmax', m_airTempMax)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmin',  m_airTempMin)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'hurs',  m_airRH)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'pr',  m_airPr)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'prsn',  m_airPrsn)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'ps',  m_airPs)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'srfWind',  m_airWind)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'rsds',  m_airSWRad)
-      call ReadSiteTSData(lake_info, time, forcing_tstep, 'rlds',  m_airLWRad)
+      if (len_trim(forcing_dir)==0) then
+         call Read2DTSData(tas_file, time, loc180, 'tas', m_airTemp)
+         call Read2DTSData(tasmax_file, time, loc180, 'tasmax', m_airTempMax)
+         call Read2DTSData(tasmin_file, time, loc180, 'tasmin', m_airTempMin)
+         call Read2DTSData(hurs_file, time, loc180, 'hurs', m_airRH)
+         call Read2DTSData(pr_file, time, loc180, 'pr', m_airPr)
+         call Read2DTSData(prsn_file, time, loc180, 'prsn', m_airPrsn)
+         call Read2DTSData(ps_file, time, loc180, 'ps', m_airPs)
+         call Read2DTSData(wind_file, time, loc180, 'sfcWind', m_airWind)
+         call Read2DTSData(rsds_file, time, loc180, 'rsds', m_airSWRad)
+         call Read2DTSData(rlds_file, time, loc180, 'rlds', m_airLWRad)
+      else
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tas',  m_airTemp)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmax', m_airTempMax)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmin',  m_airTempMin)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'hurs',  m_airRH)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'pr',  m_airPr)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'prsn',  m_airPrsn)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'ps',  m_airPs)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'sfcWind',  m_airWind)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'rsds',  m_airSWRad)
+         call ReadSiteTSData(lake_info, time, forcing_tstep, 'rlds',  m_airLWRad)
+      end if
       ! initialize long-term forcing data
       call ReadGlobalTSData(co2_file, time, 'co2_rcp26', m_aCO2) 
       call Read2DTSData(o3_file, time, loc180, 'tro3', m_aO3)

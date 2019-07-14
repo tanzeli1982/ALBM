@@ -1176,7 +1176,7 @@ contains
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Construct the lake depth grid
+   ! Purpose: Construct the lake depth grid and bathymetry
    !
    !------------------------------------------------------------------------------
    subroutine ConstructDepthVector(info, Zw, Zs, dZw, dZs)
@@ -1243,6 +1243,28 @@ contains
          end if
       end do
    end subroutine
+
+   subroutine BuildLakeBathymetry(info, Zw, Az, dAz)
+      implicit none
+      type(LakeInfo), intent(in) :: info     ! lake information object
+      real(r8), intent(in) :: Zw(:)          ! water depth vector
+      real(r8), intent(out) :: Az(:)         ! water depth cross-section
+      real(r8), intent(out) :: dAz(:)        ! cross-section difference
+      integer :: ii, nz
+
+      ! for cross section
+      Az = info%Asurf
+      nz = size(Az)
+      do ii = 1, nz, 1
+         if (ii==1) then
+            dAz(ii) = 0.5 * (Az(ii) - Az(ii+1))
+         else if (ii==nz) then
+            dAz(ii) = 0.5 * (Az(ii) + Az(ii-1))
+         else
+            dAz(ii) = 0.5 * (Az(ii-1) - Az(ii+1))
+         end if
+      end do 
+   end subroutine 
 
    !------------------------------------------------------------------------------
    !

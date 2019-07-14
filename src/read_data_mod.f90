@@ -147,7 +147,7 @@ contains
          end if
       end do
       ! interpolate
-      call Interp1dcubic(tmpZw, tmpAz, Zw, Az)
+      call Interp1d(tmpZw, tmpAz, Zw, Az)
       nz = size(Az)
       do ii = 1, nz, 1
          if (ii==1) then
@@ -204,7 +204,7 @@ contains
       character(cx) :: fullname
       integer :: error
       namelist /general/ run_mode, lake_file, lakeid_file, lake_range, &
-                         bthmtry_dir, param_dir
+                         bthmtry_dir, param_dir, opt_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
                             Carbon_Module, Hydro_Module, Start_Year, &
                             Start_Month,  Start_Day, End_Year, End_Month, &
@@ -215,9 +215,12 @@ contains
       namelist /radiation/ solar_dir, gas_dir, albedo_dir, co2_file, &
                            o3_file, aod_file
       namelist /rundata/ forcing_tstep, forcing_dir, hydro_dir, tref_file, & 
-                         soc_file, veg_file, wlnd_file
+                         soc_file, veg_file, wlnd_file, tas_file, &
+                         tasmax_file, tasmin_file, hurs_file, ps_file, &
+                         pr_file, prsn_file, rsds_file, rlds_file, &
+                         wind_file
       namelist /archive/ archive_tstep, archive_dir
-      namelist /dbg/ DEBUG
+      namelist /dbg/ DEBUG, RESUBMIT
       
       call GetFullFileName(filename, fullname)
       open(unit=fid, file=trim(fullname), status="old", action="read", &
@@ -269,6 +272,41 @@ contains
       close(unit=fid)
 
       call To_lower(run_mode, run_mode)
+
+      ! check the consistency of namelist
+      if (len_trim(opt_file)==0 .and. len_trim(param_dir)==0) then
+         call Endrun("Must set either opt_file or param_dir")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(tas_file)==0) then
+         call Endrun("Must set either forcing_dir or tas_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(tasmax_file)==0) then
+         call Endrun("Must set either forcing_dir or tasmax_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(tasmin_file)==0) then
+         call Endrun("Must set either forcing_dir or tasmin_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(hurs_file)==0) then
+         call Endrun("Must set either forcing_dir or hurs_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(ps_file)==0) then
+         call Endrun("Must set either forcing_dir or ps_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(pr_file)==0) then
+         call Endrun("Must set either forcing_dir or pr_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(prsn_file)==0) then
+         call Endrun("Must set either forcing_dir or prsn_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(rsds_file)==0) then
+         call Endrun("Must set either forcing_dir or rsds_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(rlds_file)==0) then
+         call Endrun("Must set either forcing_dir or rlds_file")
+      end if
+      if (len_trim(forcing_dir)==0 .and. len_trim(wind_file)==0) then
+         call Endrun("Must set either forcing_dir or wind_file")
+      end if
    end subroutine
 
    subroutine BcastSimulationSettings()
@@ -287,6 +325,8 @@ contains
       call MPI_BCAST(bthmtry_dir, len(bthmtry_dir), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
       call MPI_BCAST(param_dir, len(param_dir), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(opt_file, len(opt_file), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
       ! simulation group
       call MPI_BCAST(Thermal_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
@@ -311,16 +351,16 @@ contains
       call MPI_BCAST(NMAXSAMPLE, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(sample_range, size(sample_range), MPI_INTEGER, 0, &
                      MPI_COMM_WORLD, err)
-      call MPI_BCAST(obs_dir, len(obs_dir), MPI_CHARACTER, 0, MPI_COMM_WORLD, &
-                     err)
-      call MPI_BCAST(obs_var, len(obs_var), MPI_CHARACTER, 0, MPI_COMM_WORLD, &
-                     err)
+      call MPI_BCAST(obs_dir, len(obs_dir), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(obs_var, len(obs_var), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
       call MPI_BCAST(obs_weight, len(obs_weight), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
-      call MPI_BCAST(mc_file, len(mc_file), MPI_CHARACTER, 0, MPI_COMM_WORLD, &
-                     err)
-      call MPI_BCAST(sa_file, len(sa_file), MPI_CHARACTER, 0, MPI_COMM_WORLD, &
-                     err)
+      call MPI_BCAST(mc_file, len(mc_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(sa_file, len(sa_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
       ! radiation group
       call MPI_BCAST(solar_dir, len(solar_dir), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
@@ -347,15 +387,36 @@ contains
                      MPI_COMM_WORLD, err)
       call MPI_BCAST(wlnd_file, len(wlnd_file), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
-      call MPI_BCAST(veg_file,len(veg_file),MPI_CHARACTER, &
-                     0, MPI_COMM_WORLD, err)
+      call MPI_BCAST(veg_file,len(veg_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(tas_file, len(tas_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(tasmax_file, len(tasmax_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(tasmin_file, len(tasmin_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(hurs_file, len(hurs_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(ps_file, len(ps_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(pr_file, len(pr_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(prsn_file, len(prsn_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(rsds_file, len(rsds_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(rlds_file, len(rlds_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
+      call MPI_BCAST(wind_file, len(wind_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
       ! archive group
-      call MPI_BCAST(archive_tstep, len(archive_tstep), MPI_CHARACTER, &
-                     0, MPI_COMM_WORLD, err)
+      call MPI_BCAST(archive_tstep, len(archive_tstep), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
       call MPI_BCAST(archive_dir, len(archive_dir), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
       ! debug group
       call MPI_BCAST(DEBUG, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
+      call MPI_BCAST(RESUBMIT, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -369,7 +430,7 @@ contains
       character(cx) :: fullname
       integer :: error
       namelist /general/ run_mode, lake_file, lakeid_file, lake_range, &
-                         bthmtry_dir, param_dir
+                         bthmtry_dir, param_dir, opt_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
                             Carbon_Module, Hydro_Module, Start_Year, &
                             Start_Month, Start_Day, End_Year, End_Month, &
@@ -380,9 +441,12 @@ contains
       namelist /radiation/ solar_dir, gas_dir, albedo_dir, co2_file, &
                            o3_file, aod_file
       namelist /rundata/ forcing_tstep, forcing_dir, hydro_dir,  tref_file, &
-                         soc_file, veg_file, wlnd_file
+                         soc_file, veg_file, wlnd_file, tas_file, &
+                         tasmax_file, tasmin_file, hurs_file, ps_file, &
+                         pr_file, prsn_file, rsds_file, rlds_file, &
+                         wind_file
       namelist /archive/ archive_tstep, archive_dir
-      namelist /dbg/ DEBUG
+      namelist /dbg/ DEBUG, RESUBMIT
 
       call GetFullFileName(filename,fullname)
       open(unit=fid, file=trim(fullname), status="replace", action="write", &
@@ -541,14 +605,18 @@ contains
       character(len=15) :: delimstr
       integer :: error, indx, ii
 
-      if (len_trim(lakeid_file)==0) then
-         write(filename, "(A,I0,A)") trim(param_dir) // 'optpar_', &
-            lake_info%id, '.dat'
+      if (len_trim(opt_file)==0) then
+         if (len_trim(lakeid_file)==0) then
+            write(filename, "(A,I0,A)") trim(param_dir) // 'optpar_', &
+               lake_info%id, '.dat'
+         else
+            filename = trim(param_dir) // 'optpar_' // &
+               trim(lake_info%name) // '.dat'
+         end if
+         call GetFullFileName(filename, fullname)
       else
-         filename = trim(param_dir) // 'optpar_' // &
-            trim(lake_info%name) // '.dat'
+         call GetFullFileName(opt_file, fullname)
       end if
-      call GetFullFileName(filename, fullname)
       open(unit=fid, file=trim(fullname), status="old", action="read", &
          iostat=error)
       if (error/=0) then
@@ -1076,33 +1144,37 @@ contains
       character(len=*), intent(in) :: tstep
       character(len=*), intent(in) :: varname
       real(r8), intent(out) :: odata(:)
+       character(len=32) :: fname = "ReadSiteDTSData"
       character(cx) :: filename, fullname
       integer(kind=MPI_OFFSET_KIND) :: nstart(1)
       integer(kind=MPI_OFFSET_KIND) :: ncount(1)
       integer :: ncid, varid, date_varid
-      integer :: JDN0, JDN1, JDNb, date
+      integer :: JDN0, JDN1, JDNb, date(1)
       integer :: year, month, day
       real(r8) :: filled_value
 
       ! inquire data info
       if (len_trim(lakeid_file)==0) then
-         write(filename, "(A,I0,A)") trim(forcing_dir) // 'forcing_obs_', &
-            info%id, '.nc'
+         write(filename, "(A,I0,A)") trim(forcing_dir), info%id, '.nc'
       else
-         filename = trim(forcing_dir) // 'forcing_obs_' // trim(info%name) // '.dat'
+         filename = trim(forcing_dir) // trim(info%name) // '.nc'
       end if
       call GetFullFileName(filename, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
-                  MPI_INFO_NULL, ncid) )
+      if (trim(run_mode)=='regular') then
+         call check( fname, nf90mpi_open(MPI_COMM_SELF, trim(fullname), &
+                     NF90_NOWRITE, MPI_INFO_NULL, ncid) )
+      else
+         call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
+                     NF90_NOWRITE, MPI_INFO_NULL, ncid) )
+      end if
       call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
       call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
       call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
 
       ! read data start and end date
-      call check( nf90mpi_begin_indep_data(ncid) )
-      call check( nf90mpi_get_var(ncid, date_varid, date) )
-      call check( nf90mpi_end_indep_data(ncid) )
-      call YYMMDD2Date(date, year, month, day)
+      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
+                  (/1_i8/), (/1_i8/)) )
+      call YYMMDD2Date(date(1), year, month, day)
       call Date2JDN(year, month, day, JDNb)
       call Date2JDN(time%year0, time%month0, time%day0, JDN0)
       call Date2JDN(time%year1, time%month1, time%day1, JDN1)
@@ -1123,8 +1195,7 @@ contains
       !end if
 
       if (DEBUG .and. masterproc) then
-         print *, "Read climate var " // trim(varname) // " from " // &
-            trim(fullname)
+         print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
 
@@ -1149,7 +1220,7 @@ contains
       integer :: ncid, varid, lon_dimid, lat_dimid
       integer :: lon_varid, lat_varid, date_varid
       integer :: lonindx, latindx, lonerr, laterr
-      integer :: date, JDN0, JDN1, JDNb, timeIndx(2)
+      integer :: date(1), JDN0, JDN1, JDNb, timeIndx(2)
       integer :: year, month, day
       real(r8), allocatable :: tmplons(:), tmplats(:)
       real(r8), allocatable :: tmpArr(:,:,:)
@@ -1193,18 +1264,17 @@ contains
       call check( fname, nf90mpi_get_att(ncid, varid, "_FillValue", &
                   filled_val) )
 
-      call check( nf90mpi_begin_indep_data(ncid) )
-      call check( nf90mpi_get_var(ncid, date_varid, date) )
-      call check( nf90mpi_end_indep_data(ncid) )
+      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
+                  (/1_i8/), (/1_i8/)) ) 
       if (trim(date_units)=='YYYYMMDD') then
-         call YYMMDD2Date(date, year, month, day)
+         call YYMMDD2Date(date(1), year, month, day)
          call Date2JDN(year, month, day, JDNb)
          call Date2JDN(time%year0, time%month0, time%day0, JDN0)
          call Date2JDN(time%year1, time%month1, time%day1, JDN1)
          timeIndx = (/JDN0-JDNb+1, JDN1-JDN0/)
       else if (trim(date_units)=='YYYYMM') then
          date = 100 * date + 1
-         call YYMMDD2Date(date, year, month, day)
+         call YYMMDD2Date(date(1), year, month, day)
          if (time%day1==1) then 
             timeIndx = (/12*(time%year0-year)+time%month0, &
                12*(time%year1-time%year0)-time%month0+time%month1/)
@@ -1214,7 +1284,7 @@ contains
          end if
       else if (trim(date_units)=='YYYY') then
          date = 10000 * date + 101
-         call YYMMDD2Date(date, year, month, day)
+         call YYMMDD2Date(date(1), year, month, day)
          if (time%month1==1 .and. time%day1==1) then
             timeIndx = (/time%year0-year+1, time%year1-time%year0/)
          else
@@ -1525,7 +1595,7 @@ contains
       character(cx) :: fullname
       character(len=32) :: date_units
       integer :: ncid, varid, date_varid
-      integer :: date, JDN0, JDN1, JDNb, timeIndx(2)
+      integer :: date(1), JDN0, JDN1, JDNb, timeIndx(2)
       integer :: year, month, day
 
       call GetFullFileName(filename, fullname)
@@ -1534,18 +1604,17 @@ contains
       call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
       call check( nf90mpi_get_att(ncid, date_varid, "units", date_units) )
       call check( fname, nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_begin_indep_data(ncid) )
-      call check( nf90mpi_get_var(ncid, date_varid, date) )
-      call check( nf90mpi_end_indep_data(ncid) )
+      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
+                  (/1_i8/), (/1_i8/)) )
       if (trim(date_units)=='YYYYMMDD') then
-         call YYMMDD2Date(date, year, month, day)
+         call YYMMDD2Date(date(1), year, month, day)
          call Date2JDN(year, month, day, JDNb)
          call Date2JDN(time%year0, time%month0, time%day0, JDN0)
          call Date2JDN(time%year1, time%month1, time%day1, JDN1)
          timeIndx = (/JDN0-JDNb+1, JDN1-JDN0/)
       else if (trim(date_units)=='YYYYMM') then
          date = 100 * date + 1
-         call YYMMDD2Date(date, year, month, day)
+         call YYMMDD2Date(date(1), year, month, day)
          if (time%day1==1) then
             timeIndx = (/12*(time%year0-year)+time%month0, &
                12*(time%year1-time%year0)-time%month0+time%month1/)
@@ -1555,7 +1624,7 @@ contains
          end if
       else if (trim(date_units)=='YYYY') then
          date = 10000 * date + 101
-         call YYMMDD2Date(date, year, month, day)
+         call YYMMDD2Date(date(1), year, month, day)
          if (time%month1==1 .and. time%day1==1) then
             timeIndx = (/time%year0-year+1, time%year1-time%year0/)
          else

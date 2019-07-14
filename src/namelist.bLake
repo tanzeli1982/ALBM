@@ -51,7 +51,7 @@
 
 &rundata
  forcing_tstep = 'day'
- forcing_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/'
+ forcing_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/forcing_obs_'
  hydro_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/'
  tref_file = '/qfs/projects/taim/Data/others/ecmwf_ref_1990s.nc'
  soc_file = '/qfs/projects/taim/Data/bLake/Gridded/soc_005deg.nc'
@@ -66,4 +66,5 @@
 
 &dbg
  DEBUG = .False.
+ RESUBMIT = .False.
 /

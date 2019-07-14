@@ -49,10 +49,11 @@ module shr_ctrl_mod
    ! general group
    integer :: lake_range(2)
    character(cx) :: lake_file, lakeid_file
-   character(cx) :: bthmtry_dir, param_dir
+   character(cx) :: bthmtry_dir
+   character(cx) :: param_dir, opt_file
    character(len=32) :: run_mode
    ! debug group
-   logical :: DEBUG
+   logical :: DEBUG, RESUBMIT
    ! simulation group
    logical :: Thermal_Module, Bubble_Module, Diagenesis_Module
    logical :: Carbon_Module, Hydro_Module
@@ -69,6 +70,12 @@ module shr_ctrl_mod
    character(cx) :: soc_file
    character(cx) :: wlnd_file
    character(cx) :: veg_file
+   character(cx) :: tas_file, tasmax_file, tasmin_file
+   character(cx) :: hurs_file
+   character(cx) :: ps_file
+   character(cx) :: pr_file, prsn_file
+   character(cx) :: rsds_file, rlds_file
+   character(cx) :: wind_file
    ! archive group
    character(len=32) :: archive_tstep
    character(cx) :: archive_dir

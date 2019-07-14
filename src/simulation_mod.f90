@@ -44,7 +44,7 @@ contains
 
       ! check the end sample id, if not end, refresh the sample range
       ! and restart with a new job
-      if (masterproc .and. (.NOT. DEBUG)) then
+      if (masterproc .and. RESUBMIT) then
          if (maxid<ntotlake) then
             lake_next_range = lake_range
             lake_range = (/minid+ndid, min(maxid+ndid,ntotlake)/)
@@ -92,7 +92,7 @@ contains
       type(SimTime) :: time
       
       call ReadLakeTotalNumber(nlake)
-      if (minid==1) then
+      if (minid==1 .or. DEBUG) then
          time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
                      End_Month, End_Day)
          call CreateOutputFile(NWLAYER+1, 'zw', 'water layer depth', 'm') 
