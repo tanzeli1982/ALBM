@@ -134,6 +134,7 @@ contains
 
       i4ret = SIGNALQQ(SIG$FPE, hand_fpe)
       ! read lake information (i.e. depth, location ...)
+      call ReadLakeName(lakeId)
       call ReadOptimumParameters(OptParams)
       call LoadSensitiveParameters(OptParams)
       call ReadLakeInfo(lakeId)

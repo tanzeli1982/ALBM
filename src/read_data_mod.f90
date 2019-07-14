@@ -67,7 +67,6 @@ contains
       call ReadLakeInfoData(lakeId, 'ice', excice)  ! fraction
       call ReadLakeInfoData(lakeId, 'thrmkst', thrmkst)
       call ReadLakeInfoData(lakeId, 'hydroconn', hydroconn)
-      call ReadLakeName(lakeId) 
       lake_info%id = lakeId
       lake_info%latitude = lat
       lake_info%longitude = lon
@@ -126,7 +125,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(fullname))
       end if
-      read(unit=fid, fmt='(A9, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt="(A9,I)", iostat=error) tmpstr, nline
       allocate(tmpZw(nline))
       allocate(tmpAz(nline))
       read(fid, "(A512)", iostat=error) tmpstr
@@ -543,10 +542,11 @@ contains
       integer :: error, indx, ii
 
       if (len_trim(lakeid_file)==0) then
-         write(filename, "(A,I0,A)") trim(param_dir) // 'opt_', &
+         write(filename, "(A,I0,A)") trim(param_dir) // 'optpar_', &
             lake_info%id, '.dat'
       else
-         filename = trim(param_dir) // 'opt_' // trim(lake_info%name) // '.dat'
+         filename = trim(param_dir) // 'optpar_' // &
+            trim(lake_info%name) // '.dat'
       end if
       call GetFullFileName(filename, fullname)
       open(unit=fid, file=trim(fullname), status="old", action="read", &
@@ -664,6 +664,9 @@ contains
       character(len=32) :: lname
       integer :: nline, ii, id, error
 
+      if (len_trim(lakeid_file)==0) then
+         return
+      end if
       call GetFullFileName(lakeid_file, fullname)
       open(unit=fid, file=trim(fullname), status="old", action="read", &
            iostat=error)

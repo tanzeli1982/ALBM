@@ -148,6 +148,7 @@ contains
       i4ret = SIGNALQQ(SIG$FPE, hand_fpe)
       ! read lake information (i.e. depth, location ...)
       lakeId = lake_range(1)
+      call ReadLakeName(lakeId)
       call LoadSensitiveParameters(sample)
       call ReadLakeInfo(lakeId)
       time = SimTime(Start_Year,Start_Month,Start_Day,End_Year, &

@@ -1179,12 +1179,12 @@ contains
    ! Purpose: Construct the lake depth grid
    !
    !------------------------------------------------------------------------------
-   subroutine ConstructDepthVector(info, Zw, dZw, Zs, dZs)
+   subroutine ConstructDepthVector(info, Zw, Zs, dZw, dZs)
       implicit none
       type(LakeInfo), intent(in) :: info     ! lake information object
       real(r8), intent(out) :: Zw(:)         ! water depth vector
-      real(r8), intent(out) :: dZw(:)        ! water grid thickness
       real(r8), intent(out) :: Zs(:)         ! sediment depth vector
+      real(r8), intent(out) :: dZw(:)        ! water grid thickness
       real(r8), intent(out) :: dZs(:)        ! sediment grid thickness
       real(r8), parameter :: KArr(20) = (/0.0733, 0.0914, 0.1017, &
             0.1088, 0.1143, 0.1188, 0.1225, 0.1257, 0.1285, &

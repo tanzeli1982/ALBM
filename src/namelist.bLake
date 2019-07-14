@@ -56,7 +56,7 @@
  tref_file = '/qfs/projects/taim/Data/others/ecmwf_ref_1990s.nc'
  soc_file = '/qfs/projects/taim/Data/bLake/Gridded/soc_005deg.nc'
  veg_file = '/qfs/projects/taim/Data/bLake/Gridded/GLCFTreeCover.nc'
- wlnd_file = '/qfs/projects/taim/Data/bLake/Gridded/glwd.nc'
+ wlnd_file = '/qfs/projects/taim/Data/nclimate/Gridded/glwd.nc'
 /
 
 &archive
