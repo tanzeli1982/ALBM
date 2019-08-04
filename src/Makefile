@@ -10,11 +10,11 @@ FFLAGS = -traceback -CB -fpe0 -g
 else
 FFLAGS = -O3 -traceback -fpe0
 endif
-FFLAGS += -I$(NETCDF_HOME)/include $(LAPACK_INCLUDE_F95) -I/usr/include
-#FFLAGS += -I$(NETCDF_HOME)/include -I/usr/include
+FFLAGS += -I$(NETCDF_HOME)/include -I/usr/include
+#FFLAGS += -I$(NETCDF_HOME)/include $(LAPACK_INCLUDE_F95) -I/usr/include
 LDFLAGS =
-LIBS = -L$(NETCDF_HOME)/lib -lpnetcdf $(LINK_LAPACK95) -L/usr/lib64
-#LIBS = -L$(NETCDF_HOME)/lib -lpnetcdf -L/usr/lib64
+LIBS = -L$(NETCDF_HOME)/lib -lpnetcdf -L/usr/lib64
+#LIBS = -L$(NETCDF_HOME)/lib -lpnetcdf -L/usr/lib64 $(LINK_LAPACK95) -lblas -llapack
 
 f90comp = mpif90 $(FFLAGS) -c
 f90link = mpif90 $(LDFLAGS) -o
