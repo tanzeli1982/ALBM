@@ -878,7 +878,7 @@ contains
             iz2 = nz
             par = 0.0_r8
          else
-            call DichotomySectionSearch(depthHist(:,idx), depth, iz1)
+            call BinarySearch(depthHist(:,idx), depth, iz1)
             iz2 = iz1 + 1
             z1 = depthHist(iz1,idx)
             z2 = depthHist(iz2,idx)
@@ -997,7 +997,7 @@ contains
          if (depth>=depthHist(nz,idx)) then
             iz2 = nz
          else
-            call DichotomySectionSearch(depthHist(:,idx), depth, iz2)
+            call BinarySearch(depthHist(:,idx), depth, iz2)
          end if
          do jj = 1, nz, 1
             if (depthHist(jj,idx)>=0) then
@@ -1258,8 +1258,8 @@ contains
       call check( nf90mpi_get_var_all(ncid, lon_varid, tmplons) )
       call check( nf90mpi_get_var_all(ncid, lat_varid, tmplats) )
       ! search for corresponding indice
-      call DichotomySectionSearch(tmplons, plon, lonindx)
-      call DichotomySectionSearch(tmplats, plat, latindx)
+      call BinarySearch(tmplons, plon, lonindx)
+      call BinarySearch(tmplats, plat, latindx)
       call check( fname, nf90mpi_inq_varid(ncid, trim(varname), varid) )
       call check( fname, nf90mpi_get_att(ncid, varid, "_FillValue", &
                   filled_val) )
@@ -1372,8 +1372,8 @@ contains
       end if
       call check( nf90mpi_get_var_all(ncid, lon_varid, tmplons) )
       call check( nf90mpi_get_var_all(ncid, lat_varid, tmplats) )
-      call DichotomySectionSearch(tmplons, plon, lonindx)
-      call DichotomySectionSearch(tmplats, plat, latindx)
+      call BinarySearch(tmplons, plon, lonindx)
+      call BinarySearch(tmplats, plat, latindx)
 
       call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
       call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_val) )
@@ -1532,8 +1532,8 @@ contains
       call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
       call check( nf90mpi_get_var_all(ncid, lon_varid, tmplons) )
       call check( nf90mpi_get_var_all(ncid, lat_varid, tmplats) )
-      call DichotomySectionSearch(tmplons, plon, lonindx)
-      call DichotomySectionSearch(tmplats, plat, latindx)
+      call BinarySearch(tmplons, plon, lonindx)
+      call BinarySearch(tmplats, plat, latindx)
       deallocate(tmplons)
       deallocate(tmplats)
 

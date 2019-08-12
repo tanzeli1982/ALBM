@@ -33,12 +33,13 @@ module shr_param_mod
 !28 Param_Feta: light attenuation correction factor for chla and CDOM
 !29 Param_Wstr: wind shielding factor of mixing 
 !30 Param_Ktscale: turbulence diffusivity scaling factor 
+!31 Param_Hscale: sensible and latent heat transfer coefficent scaling factor
 !----------------------------------------------------------------------------
    use shr_kind_mod,    only : r8, cx => SHR_KIND_CX 
    
    implicit none
 
-   integer, parameter :: NPARAM = 30
+   integer, parameter :: NPARAM = 31
    ! thermal related parameters
    integer, parameter :: Param_Ks = 1, Param_Cps = 2, Param_Por = 3, &
                          Param_Rous = 4
@@ -66,6 +67,7 @@ module shr_param_mod
    ! thermodynamics
    integer, parameter :: Param_Feta = 28
    integer, parameter :: Param_Wstr = 29, Param_Ktscale = 30
+   integer, parameter :: Param_Hscale = 31
    ! sensitive parameter collection
    real(r8) :: sa_params(NPARAM)
    ! maximum sample size

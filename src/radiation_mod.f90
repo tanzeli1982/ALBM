@@ -16,7 +16,7 @@ module radiation_mod
 !---------------------------------------------------------------------------------
    use shr_kind_mod,       only : i8, r8
    use shr_ctrl_mod, e8 => SHR_CTRL_E8, e30 => INFINITESIMAL_E8
-   use math_utilities_mod, only : DichotomySectionSearch
+   use math_utilities_mod, only : BinarySearch
    use phy_const_mod
    use bg_utilities_mod,   only : CalcAcWater, CalcAcIce
    use bg_utilities_mod,   only : CalcAcSnow, CalcAcGrayIce
@@ -1683,7 +1683,7 @@ contains
       integer :: indx, nn
 
       nn = size(vwvlm)
-      call DichotomySectionSearch(vwvlm, wvln, indx)
+      call BinarySearch(vwvlm, wvln, indx)
       if (indx<nn) then
          if (abs(wvln-vwvlm(indx))<=epsilm) then
             iabs_indx = indx

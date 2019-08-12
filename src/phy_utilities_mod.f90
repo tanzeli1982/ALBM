@@ -10,6 +10,7 @@ module phy_utilities_mod
                                     inft => INFINITESIMAL_E8
    use phy_const_mod
    use shr_typedef_mod,       only: SimTime, LakeInfo
+   use shr_param_mod
 
    interface CalcPistonVelocity
       module procedure CalcPistonVelocitySR
@@ -573,13 +574,15 @@ contains
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: CalcLatentHeatWaterAero
       real(r8) :: vps, vap, qs, q, Lv
+      real(r8) :: adjCe
 
+      adjCe = sa_params(Param_Hscale) * Ce
       vps = CalcSatVP(waterTemp)
       vap = 0.01 * RH * vps
       qs = CalcSpecificHumidity(vps)
       q = CalcSpecificHumidity(vap)
       Lv = GetSpecificLatentHeat4Evap(waterTemp)
-      CalcLatentHeatWaterAero = max( Roua*Lv*Ce*wind*(qs-q), 0d0 )
+      CalcLatentHeatWaterAero = max( Roua*Lv*adjCe*wind*(qs-q), 0d0 )
       return
    end function
 
@@ -612,12 +615,14 @@ contains
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: CalcLatentHeatIce
       real(r8) :: vap, vps, qs, q
+      real(r8) :: adjCe
 
+      adjCe = sa_params(Param_Hscale) * Ce
       vps = CalcSatVP(waterTemp)
       vap = 0.01 * RH * vps
       qs = CalcSpecificHumidity(vps)
       q = CalcSpecificHumidity(vap)
-      CalcLatentHeatIce = max( Roua*Ls*Ce*wind*(qs-q), 0d0 )
+      CalcLatentHeatIce = max( Roua*Ls*adjCe*wind*(qs-q), 0d0 )
       return
    end function
 
@@ -626,9 +631,11 @@ contains
       real(r8), intent(in) :: waterTemp      ! units: K
       real(r8), intent(in) :: surfTemp       ! units: K
       real(r8), intent(in) :: wind           ! units: m/s
+      real(r8) :: adjCh
       real(r8) :: CalcSensibleHeat
 
-      CalcSensibleHeat = Roua*Cpa*Ch*wind*(waterTemp-surfTemp)
+      adjCh = sa_params(Param_Hscale) * Ch
+      CalcSensibleHeat = Roua*Cpa*adjCh*wind*(waterTemp-surfTemp)
       return
    end function
 

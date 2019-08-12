@@ -629,7 +629,7 @@ contains
    !  example: Call SORTQQ (LOC(array), length, SRT$INTEGER2)
    !
    !------------------------------------------------------------------------------
-   subroutine DichotomySectionSearch(array, obj, idx)
+   subroutine BinarySearch(array, obj, idx)
       implicit none
       real(r8), intent(in) :: array(:)
       real(r8), intent(in) :: obj
@@ -786,7 +786,7 @@ contains
                yi(ii) = yy(ndef)
             end if
          else
-            call DichotomySectionSearch(xx, xi(ii), idx)
+            call BinarySearch(xx, xi(ii), idx)
             par = (xi(ii) - xx(idx)) / (xx(idx+1) - xx(idx))
             yi(ii) = yy(idx) * (1.0 - par) + yy(idx+1) * par
          end if
@@ -820,7 +820,7 @@ contains
                yi(ii,:) = yy(ndef,:)
             end if
          else
-            call DichotomySectionSearch(xx, xi(ii), idx)
+            call BinarySearch(xx, xi(ii), idx)
             par = (xi(ii) - xx(idx)) / (xx(idx+1) - xx(idx))
             yi(ii,:) = yy(idx,:) * (1.0 - par) + yy(idx+1,:) * par
          end if
@@ -846,7 +846,7 @@ contains
          else if (xi(ii)>=xx(ndef)) then
             yi(ii) = yy(ndef)
          else
-            call DichotomySectionSearch(xx, xi(ii), idx)
+            call BinarySearch(xx, xi(ii), idx)
             if (idx==1) then
                dkm = (yy(idx+1) - yy(idx)) / (xx(idx+1) - xx(idx))
                dkh = (yy(idx+2) - yy(idx+1)) / (xx(idx+2) - xx(idx+1))
@@ -1109,5 +1109,25 @@ contains
          std(ii) = std(ii) / bound
       end do
    end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Calculate depth averaged lake physical variable
+   !
+   !------------------------------------------------------------------------------
+   function GetDepthAvgState(varZ, Zrange, Zw, Vz)
+      implicit none
+      real(r8), intent(in) :: varZ(:)     ! lake state variable (e.g., temp)
+      real(r8), intent(in) :: Zrange(2)   ! depth range (m)
+      real(r8), intent(in) :: Zw(:)       ! lake depth profile (m)
+      real(r8), intent(in) :: Vz(:)       ! lake volume profile (m^3)
+      real(r8) :: GetDepthAvgState
+      integer :: indx0, indx1
+
+      call BinarySearch(Zw, Zrange(1), indx0)
+      call BinarySearch(Zw, Zrange(2), indx1)
+      call WeightMean(varZ(indx0:indx1), Vz(indx0:indx1), GetDepthAvgState)
+      return
+   end function
 
 end module math_utilities_mod

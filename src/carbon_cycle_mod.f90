@@ -726,7 +726,7 @@ contains
          return
       end if
 
-      call DichotomySectionSearch(m_wrho, m_surfData%dQsi, idxTop)
+      call BinarySearch(m_wrho, m_surfData%dQsi, idxTop)
       idxBtm = WATER_LAYER + 1
       vol = sum( m_dZw(idxTop:idxBtm) * m_Az(idxTop:idxBtm) )
       if (m_Hice<e8) then

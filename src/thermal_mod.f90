@@ -449,7 +449,7 @@ contains
       if (m_Hice<e8) then
          w10 = m_surfData%wind 
          As = 1d-6 * lake_info%Asurf
-         Wstr = sa_params(Param_Wstr) * (1.0 - exp(-0.3*As))
+         Wstr = min(sa_params(Param_Wstr)*(1.0-exp(-0.3*As)), 1.0)
          call CalcTotalKineticPower(lake_info, w10, Pkin)
          m_Ekin = m_Ekin + Wstr * Pkin * dt
       else
