@@ -8,7 +8,8 @@ outputs := $(wildcard bLakeJob.sub.*)
 ifeq ($(DEBUG), 1)
 FFLAGS = -traceback -CB -fpe0 -g
 else
-FFLAGS = -O3 -traceback -fpe0
+#FFLAGS = -O3 -fast -traceback -fpe0
+FFLAGS = -O3 -fast
 endif
 FFLAGS += -I$(NETCDF_HOME)/include -I/usr/include
 #FFLAGS += -I$(NETCDF_HOME)/include $(LAPACK_INCLUDE_F95) -I/usr/include

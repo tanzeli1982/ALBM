@@ -1,10 +1,10 @@
-1) Three tuning parameters: light attenuation scaling factor, wind turbulence efficiency factor, snow density
+1) Three tuning parameters: light attenuation scaling factor, wind turbulence efficiency factor, snow density, Ce and Ch scaling factor
 2) Two bathymetry schemes: cylinder and cone (or truncated cone) https://zh.wikipedia.org/wiki/%E5%9C%86%E5%8F%B0
-3) it should be noted that radiation transfer scheme has some parameters specific for northern high latitudes
-4) With/without considering water-sediment heat fluxes
-5) Scientific questions include how should represent lakes in coarse-res climate models
-6) Using the calibrated model to study the future changes of lake thermal regimes
+3) With/without considering water-sediment heat fluxes
+4) Scientific questions include how should represent lakes in coarse-res climate models
+5) Using the calibrated model to study the future changes of lake thermal regimes
 
-7) Change the spatial discretization method to the MUSCL scheme based finite volume method
-8) Replace SOC with lake and reservoir sediment OC data
-9) Add a lake hydrology module (the bottom layer index and thickness should be updated continuously but the total available layers do not change; it is possible the initialized depth is larger than the real lake depth to study the lake evolution)
+6) Change the spatial discretization method to the MUSCL scheme based finite volume method
+7) Replace SOC with lake and reservoir sediment OC data
+8) Add a lake hydrology module (the bottom layer index and thickness should be updated continuously but the total available layers do not change; it is possible the initialized depth is larger than the real lake depth to study the lake evolution)
+9) Change to Fortran-contiguous for 2-D arrays (column-wise operation) - RungeKutta2D Norm direction needs to be reversed. See MACES for an example 
