@@ -25,11 +25,13 @@ fi
 
 arg=$( echo $1 | tr '[:upper:]' '[:lower:]' )
 if [ -z "$arg" ]; then
-   gmake -j8
+   gmake OPT=1 -j8
+elif [ $arg = 'trace' ]; then
+   gmake TRACE=1 -j8
 elif [ $arg = 'clean' ]; then
    gmake $arg -j8
 elif [ $arg = 'debug' ]; then
-   gmake DEBUG=1 -j8
+   gmake DEBUG=1 TRACE=1 -j8
 else
    echo "Wrong Argument: $1!!!"
 fi
