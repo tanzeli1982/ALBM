@@ -204,7 +204,7 @@ contains
       character(cx) :: fullname
       integer :: error
       namelist /general/ run_mode, lake_file, lakeid_file, lake_range, &
-                         bthmtry_dir, param_dir, opt_file
+                         bthmtry_dir, param_dir, param_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
                             Carbon_Module, Hydro_Module, Start_Year, &
                             Start_Month,  Start_Day, End_Year, End_Month, &
@@ -274,8 +274,8 @@ contains
       call To_lower(run_mode, run_mode)
 
       ! check the consistency of namelist
-      if (len_trim(opt_file)==0 .and. len_trim(param_dir)==0) then
-         call Endrun("Must set either opt_file or param_dir")
+      if (len_trim(param_file)==0 .and. len_trim(param_dir)==0) then
+         call Endrun("Must set either param_file or param_dir")
       end if
       if (len_trim(forcing_dir)==0 .and. len_trim(tas_file)==0) then
          call Endrun("Must set either forcing_dir or tas_file")
@@ -326,7 +326,7 @@ contains
                      MPI_COMM_WORLD, err)
       call MPI_BCAST(param_dir, len(param_dir), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
-      call MPI_BCAST(opt_file, len(opt_file), MPI_CHARACTER, 0, &
+      call MPI_BCAST(param_file, len(param_file), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
       ! simulation group
       call MPI_BCAST(Thermal_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
@@ -430,7 +430,7 @@ contains
       character(cx) :: fullname
       integer :: error
       namelist /general/ run_mode, lake_file, lakeid_file, lake_range, &
-                         bthmtry_dir, param_dir, opt_file
+                         bthmtry_dir, param_dir, param_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
                             Carbon_Module, Hydro_Module, Start_Year, &
                             Start_Month, Start_Day, End_Year, End_Month, &
@@ -605,7 +605,7 @@ contains
       character(len=15) :: delimstr
       integer :: error, indx, ii
 
-      if (len_trim(opt_file)==0) then
+      if (len_trim(param_file)==0) then
          if (len_trim(lakeid_file)==0) then
             write(filename, "(A,I0,A)") trim(param_dir) // 'optpar_', &
                lake_info%id, '.dat'
@@ -615,7 +615,7 @@ contains
          end if
          call GetFullFileName(filename, fullname)
       else
-         call GetFullFileName(opt_file, fullname)
+         call GetFullFileName(param_file, fullname)
       end if
       open(unit=fid, file=trim(fullname), status="old", action="read", &
          iostat=error)

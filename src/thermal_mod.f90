@@ -100,7 +100,7 @@ contains
       w10 = m_surfData%wind
       wind = ConvertWindSpeed(w10, 2.0d0) 
       lat = lake_info%latitude
-      fmm_hr = Roua * Cd10 * (w10**3)
+      fmm_hr = Roua * Cd10 * (w10**2)
       ! wind-driven eddy diffusivity
       call CalcBruntVaisalaFreq(m_dZw, m_wrho, freq)
       if (m_Hice<e8) then
@@ -591,7 +591,7 @@ contains
       implicit none
       real(r8), intent(out) :: sh      ! upward sensible heat (W/m2)
       real(r8), intent(out) :: lh      ! upward latent heat (W/m2)
-      real(r8), intent(out) :: fmm     ! momentum energy flux (W/m2)
+      real(r8), intent(out) :: fmm     ! momentum flux (kg/m/s2)
       real(r8), intent(out) :: lw      ! upward longwave radiation (W/m2)
       real(r8), intent(out) :: hnet    ! net downward heat flux (W/m2)
       real(r8), intent(out) :: fsed    ! net upward sed heat flux (W/m2)

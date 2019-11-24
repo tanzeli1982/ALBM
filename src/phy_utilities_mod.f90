@@ -615,14 +615,12 @@ contains
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: CalcLatentHeatIce
       real(r8) :: vap, vps, qs, q
-      real(r8) :: adjCe
 
-      adjCe = sa_params(Param_Hscale) * Ce
       vps = CalcSatVP(waterTemp)
       vap = 0.01 * RH * vps
       qs = CalcSpecificHumidity(vps)
       q = CalcSpecificHumidity(vap)
-      CalcLatentHeatIce = max( Roua*Ls*adjCe*wind*(qs-q), 0d0 )
+      CalcLatentHeatIce = max( Roua*Ls*Ce*wind*(qs-q), 0d0 )
       return
    end function
 

@@ -101,25 +101,25 @@ contains
          call CreateOutputFile(time, 'icethick', 'ice cover thickness', &
                               'm', -9999.0_r4)
          call CreateOutputFile(time, 'sensheatf', 'upward sensible ' // &
-                              'heat flux', 'W/m2', -9999.0_r4)
+                              'heat flux', 'W m-2', -9999.0_r4)
          call CreateOutputFile(time, 'latentheatf', 'upward latent ' // &
-                              'heat flux', 'W/m2', -9999.0_r4)
+                              'heat flux', 'W m-2', -9999.0_r4)
          call CreateOutputFile(time, 'momf', 'momentum energy flux', &
-                              'W/m2', -9999.0_r4)
+                              'kg m-1 s-2', -9999.0_r4)
          call CreateOutputFile(time, 'lwup', 'upward longwave radiation', &
-                              'W/m2', -9999.0_r4)
+                              'W m-2', -9999.0_r4)
          call CreateOutputFile(time, 'lakeheatf', 'downward net heat flux', &
-                              'W/m2', -9999.0_r4)
+                              'W m-2', -9999.0_r4)
          call CreateOutputFile(time, 'swdw', 'downward shortwave radiation', &
-                              'W/m2', -9999.0_r4)
+                              'W m-2', -9999.0_r4)
          call CreateOutputFile(time, 'swup', 'upward shortwave radiation', &
-                              'W/m2', -9999.0_r4)
+                              'W m-2', -9999.0_r4)
          call CreateOutputFile(time, 'sedheatf', 'upward sediment heat ' // &
-                              'flux', 'W/m2', -9999.0_r4)
+                              'flux', 'W m-2', -9999.0_r4)
          call CreateOutputFile(time, NWLAYER+1, 'watertemp', 'water ' // &
                               'temperature', 'K', -9999.0_r4)
          call CreateOutputFile(time, NWLAYER+1, 'turbdiffheat', &
-                               'Turbulent diffusivity of heat', 'm2/s', &
+                               'Turbulent diffusivity of heat', 'm2 s-1', &
                                -9999.0_r4)
       end if
    end subroutine

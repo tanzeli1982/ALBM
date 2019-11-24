@@ -22,7 +22,7 @@ module data_buffer_mod
    ! hourly boundary conditions
    real(r4), allocatable :: m_shHist(:)   ! sensible heat
    real(r4), allocatable :: m_lhHist(:)   ! latent heat
-   real(r4), allocatable :: m_fmmHist(:)  ! momentum energy flux
+   real(r4), allocatable :: m_fmmHist(:)  ! momentum flux
    real(r4), allocatable :: m_lwHist(:)   ! upward longwave radiation
    real(r4), allocatable :: m_hnetHist(:) ! downward net heat flux
    real(r4), allocatable :: m_swdwHist(:) ! downward shortwave radiation

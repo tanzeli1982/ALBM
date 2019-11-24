@@ -52,7 +52,7 @@ module shr_ctrl_mod
    character(cx) :: lakeid_file = ""
    character(cx) :: bthmtry_dir = ""
    character(cx) :: param_dir = ""
-   character(cx) :: opt_file = ""
+   character(cx) :: param_file = ""
    character(len=32) :: run_mode = ""
    ! debug group
    logical :: DEBUG, RESUBMIT
