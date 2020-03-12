@@ -1,2 +1,0 @@
-ncmpivalid.o: ../../../src/lib/pnetcdf.h
-ncmpivalid.o: ncmpivalid.c
