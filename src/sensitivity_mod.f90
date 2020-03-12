@@ -54,7 +54,7 @@ contains
             sample_range = (/minid+ndid, min(maxid+ndid,NMAXSAMPLE)/)
             call WriteSimulationSettings(arg)
             call GetFullFileName('bLakeJob.sub', script)
-            script = "qsub " // trim(script)
+            script = "sbatch " // trim(script)
             err = system(trim(script))
             print "(A, I0)", "A new job is submitted. Return = ", err
             sample_range = sample_next_range

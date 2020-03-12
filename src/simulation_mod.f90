@@ -50,7 +50,7 @@ contains
             lake_range = (/minid+ndid, min(maxid+ndid,ntotlake)/)
             call WriteSimulationSettings(arg)
             call GetFullFileName('bLakeJob.sub', script)
-            script = "qsub " // trim(script)
+            script = "sbatch " // trim(script)
             err = system(trim(script))
             print "(A, I0)", "A new job is submitted. Return = ", err
             lake_range = lake_next_range
