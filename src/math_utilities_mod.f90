@@ -5,11 +5,10 @@ module math_utilities_mod
 ! This module serves for the implementation of some basic physical utilities
 !
 !---------------------------------------------------------------------------------
-   use shr_kind_mod,       only : r8, r4, i8, NaN
+   use shr_kind_mod,       only : r8, r4, i8
    use shr_ctrl_mod,       only : inft => INFINITESIMAL_E8, inf => INFINITE_E8, &
                                   TOL_E8
    use shr_typedef_mod,    only : RungeKuttaCache1D, RungeKuttaCache2D
-   use ifport
 
    implicit none
    integer, parameter :: adaptive_mode = 101, fixed_mode = 102
@@ -57,6 +56,11 @@ module math_utilities_mod
       module procedure GetLeastValue1d
       module procedure GetLeastValue2d
       module procedure GetLeastValue3d
+   end interface
+
+   interface BinarySearch
+      module procedure BinarySearchInt
+      module procedure BinarySearchReal
    end interface
 
 contains
@@ -629,10 +633,60 @@ contains
    !  example: Call SORTQQ (LOC(array), length, SRT$INTEGER2)
    !
    !------------------------------------------------------------------------------
-   subroutine BinarySearch(array, obj, idx)
+   subroutine BinarySearchReal(array, obj, idx)
       implicit none
       real(r8), intent(in) :: array(:)
       real(r8), intent(in) :: obj
+      integer, intent(out) :: idx
+      integer :: middle, first, last
+      logical :: ascend
+
+      first = 1
+      last = size(array)
+      ascend = (array(first)<array(last))
+      if (ascend) then
+         if (obj<=array(first)) then
+            idx = 1
+            return
+         else if (obj>=array(last)) then
+            idx = last
+            return
+         end if
+      else
+         if (obj>=array(first)) then
+            idx = 1
+            return
+         else if (obj<=array(last)) then
+            idx = last
+            return
+         end if
+      end if
+      do while (last>first)
+         middle = (first+last)/2
+         if (array(middle)==obj) then
+            last = middle
+            exit
+         else if (array(middle)<obj) then
+            if (ascend) then
+               first = middle + 1
+            else
+               last = middle
+            end if
+         else
+            if (ascend) then
+               last = middle
+            else
+               first = middle + 1
+            end if
+         end if
+      end do
+      idx = last - 1
+   end subroutine
+
+   subroutine BinarySearchInt(array, obj, idx)
+      implicit none
+      integer, intent(in) :: array(:)
+      integer, intent(in) :: obj
       integer, intent(out) :: idx
       integer :: middle, first, last
       logical :: ascend
@@ -699,7 +753,7 @@ contains
       do while (dx>1.0d-6)
          if (iter>MAXITER) then
             print *, "Newton iteration number is more than 100!!" 
-            root = NaN 
+            root = 1d36 
             exit
          end if
          call ofunc(xcur, fVal)

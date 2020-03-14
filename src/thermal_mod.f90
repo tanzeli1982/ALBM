@@ -674,8 +674,8 @@ contains
       end if
 
       ! 2.75 is a compensation for non-CO2 substances
-      DCO2 = 2.75 * m_waterSubCon(Wco2,:) * 1.0d-9 * MasCO2
-      DCH4 = m_waterSubCon(Wch4,:) * 1.0d-9 * MasCH4
+      DCO2 = 0.0 !2.75 * m_waterSubCon(Wco2,:) * 1.0d-9 * MasCO2
+      DCH4 = 0.0 !m_waterSubCon(Wch4,:) * 1.0d-9 * MasCH4
       ! update water density
       where (m_waterTemp<T0)
          m_wrho = Roui

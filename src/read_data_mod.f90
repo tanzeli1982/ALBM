@@ -125,7 +125,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(fullname))
       end if
-      read(unit=fid, fmt="(A9,I)", iostat=error) tmpstr, nline
+      read(unit=fid, fmt="(A9,I3)", iostat=error) tmpstr, nline
       allocate(tmpZw(nline))
       allocate(tmpAz(nline))
       read(fid, "(A512)", iostat=error) tmpstr
@@ -309,116 +309,6 @@ contains
       end if
    end subroutine
 
-   subroutine BcastSimulationSettings()
-      implicit none
-      integer :: err
-
-      ! general group
-      call MPI_BCAST(run_mode, len(run_mode), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(lake_file, len(lake_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(lakeid_file, len(lakeid_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(lake_range, size(lake_range), MPI_INTEGER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(bthmtry_dir, len(bthmtry_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(param_dir, len(param_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(param_file, len(param_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      ! simulation group
-      call MPI_BCAST(Thermal_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Bubble_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Diagenesis_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Carbon_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Hydro_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Start_Year, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Start_Month, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Start_Day, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(End_Year, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(End_Month, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(End_Day, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Spinup_Month, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(Spinup_Day, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(nSpinup, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      ! resolution group
-      call MPI_BCAST(NWLAYER, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(NSLAYER, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(NRLAYER, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      ! bayesian group
-      call MPI_BCAST(NMAXSAMPLE, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(sample_range, size(sample_range), MPI_INTEGER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(obs_dir, len(obs_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(obs_var, len(obs_var), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(obs_weight, len(obs_weight), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(mc_file, len(mc_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(sa_file, len(sa_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      ! radiation group
-      call MPI_BCAST(solar_dir, len(solar_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(gas_dir, len(gas_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(albedo_dir, len(gas_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(co2_file, len(co2_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(o3_file, len(o3_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(aod_file, len(aod_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      ! rundata group
-      call MPI_BCAST(forcing_tstep, len(forcing_tstep), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(forcing_dir, len(forcing_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(hydro_dir, len(hydro_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(tref_file, len(tref_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(soc_file, len(soc_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(wlnd_file, len(wlnd_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(veg_file,len(veg_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(tas_file, len(tas_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(tasmax_file, len(tasmax_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(tasmin_file, len(tasmin_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(hurs_file, len(hurs_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(ps_file, len(ps_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(pr_file, len(pr_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(prsn_file, len(prsn_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(rsds_file, len(rsds_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(rlds_file, len(rlds_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(wind_file, len(wind_file), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      ! archive group
-      call MPI_BCAST(archive_tstep, len(archive_tstep), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      call MPI_BCAST(archive_dir, len(archive_dir), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
-      ! debug group
-      call MPI_BCAST(DEBUG, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
-      call MPI_BCAST(RESUBMIT, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
-   end subroutine
-
    !------------------------------------------------------------------------------
    !
    ! Purpose: Write all model simulation settings for re-run job
@@ -508,16 +398,13 @@ contains
       integer, intent(out) :: nlake
       character(cx) :: fullname
       character(len=32) :: fname = "ReadLakeTotalNumber" 
-      integer(kind=MPI_OFFSET_KIND) :: ncohort
       integer :: ncid, dimid
 
       call GetFullFileName(lake_file, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                  NF90_NOWRITE, MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_inq_dimid(ncid, "lake", dimid) )
-      call check( nf90mpi_inquire_dimension(ncid, dimid, len=ncohort) )
-      call check( nf90mpi_close(ncid) )
-      nlake = INT(ncohort)
+      call check( nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
+      call check( nf90_inq_dimid(ncid, "lake", dimid) )
+      call check( nf90_inquire_dimension(ncid, dimid, len=nlake) )
+      call check( nf90_close(ncid) )
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -537,31 +424,24 @@ contains
 
       call GetFullFileName(sa_file, fullname)
       ! create the sample output file
-      if (masterproc) then
-         call GetGMTime(gmtime)
-         write(histstr,"(I4, A, I2.2, A, I2.2, ' ', I2.2, ':', " // &
-            "I2.2, ':', I2.2, A)") gmtime(1), '-', gmtime(2), '-', &
-            gmtime(3), gmtime(4), gmtime(5), gmtime(6), &
-            " GMT from ALBM by zeli tan"
-      end if
-      call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
+      call GetGMTime(gmtime)
+      write(histstr,"(I4, A, I2.2, A, I2.2, ' ', I2.2, ':', " // &
+         "I2.2, ':', I2.2, A)") gmtime(1), '-', gmtime(2), '-', &
+         gmtime(3), gmtime(4), gmtime(5), gmtime(6), &
+         " GMT from ALBM by zeli tan"
 
-      call check( nf90mpi_create(MPI_COMM_WORLD, trim(fullname), &
-                  NF90_CLOBBER, MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_def_dim(ncid, "rec", INT8(nrec), rec_dimid) )
-      call check( nf90mpi_def_dim(ncid, "id", NFMPI_UNLIMITED, &
+      call check( nf90_create(trim(fullname), NF90_CLOBBER, ncid) )
+      call check( nf90_def_dim(ncid, "rec", nrec, rec_dimid) )
+      call check( nf90_def_dim(ncid, "id", NF90_UNLIMITED, &
                   sample_dimid) )
-      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "history", &
+      call check( nf90_put_att(ncid, NF90_GLOBAL, "history", &
                   trim(histstr)) )
       call DefNcVariable(ncid, (/rec_dimid, sample_dimid/), "sa", &
                   "sample return value", "n/a", fillval, fillval, varid)
-      call check( nf90mpi_enddef(ncid) )
-      call check( nf90mpi_close(ncid) )
+      call check( nf90_enddef(ncid) )
+      call check( nf90_close(ncid) )
 
-      if (masterproc) then
-         print *, 'Create sample result file ' // trim(fullname)
-      end if
+      print *, 'Create sample result file ' // trim(fullname)
    end subroutine
 
    subroutine WriteSampleResults(sp_range, results)
@@ -570,7 +450,7 @@ contains
       real(r8), intent(inout) :: results(:,:)
       character(len=32) :: fname = "WriteSampleResults"
       character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: nstart(2), ncount(2)
       integer :: ncid, varid, minid, maxid
       integer :: nrec
 
@@ -580,15 +460,11 @@ contains
       call GetFullFileName(sa_file, fullname)
       nstart = (/1, minid/)
       ncount = (/nrec, maxid-minid+1/)
-      call check( fname, nf90mpi_open(MPI_COMM_SELF, trim(fullname), &
-                  NF90_WRITE, MPI_INFO_NULL, ncid) )
-      call check( fname, nf90mpi_inq_varid(ncid, "sa", varid) )
-      call check( fname, nf90mpi_put_var_all(ncid, varid, results, &
-                  nstart, ncount) )
-      call check( fname, nf90mpi_close(ncid) )
-      if (masterproc) then
-         print *, 'Save sample results in ' // trim(fullname)
-      end if
+      call check( fname, nf90_open(trim(fullname), NF90_WRITE, ncid) )
+      call check( fname, nf90_inq_varid(ncid, "sa", varid) )
+      call check( fname, nf90_put_var(ncid, varid, results, nstart, ncount) )
+      call check( fname, nf90_close(ncid) )
+      print *, 'Save sample results in ' // trim(fullname)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -673,22 +549,20 @@ contains
       character(len=*), intent(in) :: varname
       real(r8), intent(out) :: odata
       character(len=32) :: fname = "ReadLakeInfoRealData"
-      integer(kind=MPI_OFFSET_KIND) :: nstart(1), ncount(1)
+      integer :: nstart(1), ncount(1)
       character(cx) :: fullname
       integer :: ncid, varid
       real(r4) :: val(1)
 
       call GetFullFileName(lake_file, fullname)
-      call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                  NF90_NOWRITE, MPI_INFO_NULL, ncid) )
-      call check( fname, nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
+      call check( fname, nf90_inq_varid(ncid, trim(varname), varid) )
       nstart = lakeId 
       ncount = 1
-      call check( fname, nf90mpi_get_var_all(ncid, varid, val, &
-                  nstart, ncount) )
-      call check( fname, nf90mpi_close(ncid) )
+      call check( fname, nf90_get_var(ncid, varid, val, nstart, ncount) )
+      call check( fname, nf90_close(ncid) )
       odata = val(1)
-      if (DEBUG .and. masterproc) then
+      if (DEBUG) then
          print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
@@ -699,22 +573,20 @@ contains
       character(len=*), intent(in) :: varname
       integer, intent(out) :: odata
       character(len=32) :: fname = "ReadLakeInfoIntData"
-      integer(kind=MPI_OFFSET_KIND) :: nstart(1), ncount(1)
+      integer :: nstart(1), ncount(1)
       character(cx) :: fullname
       integer :: ncid, varid
       integer(i1) :: val(1)
 
       call GetFullFileName(lake_file, fullname)
-      call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                  NF90_NOWRITE, MPI_INFO_NULL, ncid) )
-      call check( fname, nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
+      call check( fname, nf90_inq_varid(ncid, trim(varname), varid) )
       nstart = lakeId
       ncount = 1
-      call check( fname, nf90mpi_get_var_all(ncid, varid, val, &
-                  nstart, ncount) )
-      call check( fname, nf90mpi_close(ncid) )
+      call check( fname, nf90_get_var(ncid, varid, val, nstart, ncount) )
+      call check( fname, nf90_close(ncid) )
       odata = val(1)
-      if (DEBUG .and. masterproc) then
+      if (DEBUG) then
          print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
@@ -742,7 +614,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(fullname))
       end if
-      read(unit=fid, fmt='(A7, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A7, I3)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       do ii = 1, nline, 1
@@ -793,7 +665,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(filename))
       end if
-      read(unit=fid, fmt='(A14, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A14, I4)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       fcost = 0.0_r8
@@ -808,7 +680,7 @@ contains
          if (date<timeHist(1) .or. date>timeHist(nt)) then
             cycle 
          end if
-         idx = BSEARCHQQ(LOC(date),LOC(timeHist),INT8(nt),SRT$INTEGER4)
+         call BinarySearch(timeHist, date, idx)
          fsim = 0.0_r8
          nrec = 0
          do jj = max(1,idx-24*ntday), min(nt,idx+24*ntday), 1
@@ -853,7 +725,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(filename))
       end if
-      read(unit=fid, fmt='(A14, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A14, I3)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       fcost = 0.0_r8
@@ -868,7 +740,7 @@ contains
          if (date<timeHist(1) .or. date>timeHist(nt)) then
             cycle
          end if
-         idx = BSEARCHQQ(LOC(date),LOC(timeHist),INT8(nt),SRT$INTEGER4)
+         call BinarySearch(timeHist, date, idx)
          if (depth<=depthHist(1,idx)) then
             iz1 = 1
             iz2 = 1
@@ -923,7 +795,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(filename))
       end if
-      read(unit=fid, fmt='(A14, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A14, I3)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       fcost = 0.0_r8
@@ -938,7 +810,7 @@ contains
          if (date<timeHist(1) .or. date>timeHist(nt)) then
             cycle
          end if
-         idx = BSEARCHQQ(LOC(date),LOC(timeHist),INT8(nt),SRT$INTEGER4)
+         call BinarySearch(timeHist, date, idx)
          fsim = varHist(idx) 
          ferr = max( 0.01*fobs_std*fobs, std )
          fcost = fcost + ((fobs-fsim) / ferr)**2
@@ -976,7 +848,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(filename))
       end if
-      read(unit=fid, fmt='(A14, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A14, I3)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       fcost = 0.0_r8
@@ -993,7 +865,7 @@ contains
             cycle
          end if
          depth = 2.0 * secchi
-         idx = BSEARCHQQ(LOC(date),LOC(timeHist),INT8(nt),SRT$INTEGER4)
+         call BinarySearch(timeHist, date, idx)
          if (depth>=depthHist(nz,idx)) then
             iz2 = nz
          else
@@ -1047,20 +919,20 @@ contains
                                   b2start, b2count, b3start, b3count, b4start, &
                                   b4count)
       implicit none
-      integer(kind=MPI_OFFSET_KIND), intent(in) :: lonindx, latindx
-      integer(kind=MPI_OFFSET_KIND), intent(in) :: nreslon
-      integer(kind=MPI_OFFSET_KIND), intent(in) :: nreslat
-      integer(kind=MPI_OFFSET_KIND), intent(in) :: nrange
+      integer, intent(in) :: lonindx, latindx
+      integer, intent(in) :: nreslon
+      integer, intent(in) :: nreslat
+      integer, intent(in) :: nrange
       integer, intent(out) :: target_lonid(2*nrange)
       integer, intent(out) :: target_latid(2*nrange)
-      integer(kind=MPI_OFFSET_KIND), intent(out) :: b1start(2)
-      integer(kind=MPI_OFFSET_KIND), intent(out) :: b1count(2)
-      integer(kind=MPI_OFFSET_KIND), intent(out) :: b2start(2)
-      integer(kind=MPI_OFFSET_KIND), intent(out) :: b2count(2)
-      integer(kind=MPI_OFFSET_KIND), intent(out) :: b3start(2)
-      integer(kind=MPI_OFFSET_KIND), intent(out) :: b3count(2)
-      integer(kind=MPI_OFFSET_KIND), intent(out) :: b4start(2)
-      integer(kind=MPI_OFFSET_KIND), intent(out) :: b4count(2)
+      integer, intent(out) :: b1start(2)
+      integer, intent(out) :: b1count(2)
+      integer, intent(out) :: b2start(2)
+      integer, intent(out) :: b2count(2)
+      integer, intent(out) :: b3start(2)
+      integer, intent(out) :: b3count(2)
+      integer, intent(out) :: b4start(2)
+      integer, intent(out) :: b4count(2)
       integer :: indx0, ii
 
       if (lonindx>=nrange .and. lonindx+nrange<=nreslon .and. &
@@ -1084,11 +956,11 @@ contains
          target_latid = (/(ii, ii = latindx-nrange+1, latindx+nrange)/)
          b1start = (/nreslon - nrange + lonindx + 1, latindx - nrange + 1/)
          b1count = (/nrange - lonindx, nrange/)
-         b2start = (/1_i8, latindx - nrange + 1/)
+         b2start = (/1, latindx - nrange + 1/)
          b2count = (/nrange + lonindx, nrange/)
          b3start = (/nreslon - nrange + lonindx + 1, latindx + 1/)
          b3count = (/nrange - lonindx, nrange/)
-         b4start = (/1_i8, latindx + 1/)
+         b4start = (/1, latindx + 1/)
          b4count = (/nrange + lonindx, nrange/)
       else if (lonindx+nrange>nreslon .and. latindx>=nrange .and. &
             latindx+nrange<=nreslat) then
@@ -1099,11 +971,11 @@ contains
          target_latid = (/(ii, ii = latindx-nrange+1, latindx+nrange)/)
          b1start = (/lonindx - nrange + 1, latindx - nrange + 1/)
          b1count = (/nreslon - lonindx + nrange, nrange/)
-         b2start = (/1_i8, latindx - nrange + 1/)
+         b2start = (/1, latindx - nrange + 1/)
          b2count = (/nrange - nreslon + lonindx, nrange/)
          b3start = (/lonindx - nrange + 1, latindx + 1/)
          b3count = (/nreslon - lonindx + nrange, nrange/)
-         b4start = (/1_i8, latindx + 1/)
+         b4start = (/1, latindx + 1/)
          b4count = (/nrange - nreslon + lonindx, nrange/)
       else if (lonindx>=nrange .and. lonindx+nrange<=nreslon .and. &
             latindx<nrange) then
@@ -1111,13 +983,13 @@ contains
          target_lonid = (/(ii, ii = lonindx-nrange+1, lonindx+nrange)/)
          target_latid(1:indx0-1) = (/(ii, ii = 1, nrange-latindx)/)
          target_latid(indx0:2*nrange) = (/(ii, ii = 1, nrange+latindx)/)
-         b1start = (/lonindx - nrange + 1, 1_i8/)
+         b1start = (/lonindx - nrange + 1, 1/)
          b1count = (/nrange, nrange - latindx/)
-         b2start = (/lonindx + 1, 1_i8/)
+         b2start = (/lonindx + 1, 1/)
          b2count = (/nrange, nrange - latindx/)
-         b3start = (/lonindx - nrange + 1, 1_i8/)
+         b3start = (/lonindx - nrange + 1, 1/)
          b3count = (/nrange, nrange + latindx/)
-         b4start = (/lonindx + 1, 1_i8/)
+         b4start = (/lonindx + 1, 1/)
          b4count = (/nrange, nrange + latindx/)
       else if (lonindx>=nrange .and. lonindx+nrange<=nreslon .and. &
             latindx+nrange>nreslat) then
@@ -1146,8 +1018,8 @@ contains
       real(r8), intent(out) :: odata(:)
        character(len=32) :: fname = "ReadSiteDTSData"
       character(cx) :: filename, fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(1)
-      integer(kind=MPI_OFFSET_KIND) :: ncount(1)
+      integer :: nstart(1)
+      integer :: ncount(1)
       integer :: ncid, varid, date_varid
       integer :: JDN0, JDN1, JDNb, date(1)
       integer :: year, month, day
@@ -1161,19 +1033,16 @@ contains
       end if
       call GetFullFileName(filename, fullname)
       if (trim(run_mode)=='regular') then
-         call check( fname, nf90mpi_open(MPI_COMM_SELF, trim(fullname), &
-                     NF90_NOWRITE, MPI_INFO_NULL, ncid) )
+         call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
       else
-         call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                     NF90_NOWRITE, MPI_INFO_NULL, ncid) )
+         call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
       end if
-      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
-      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
+      call check( nf90_inq_varid(ncid, "date", date_varid) )
+      call check( nf90_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90_get_att(ncid, varid, "_FillValue", filled_value) )
 
       ! read data start and end date
-      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
-                  (/1_i8/), (/1_i8/)) )
+      call check( nf90_get_var(ncid, date_varid, date, (/1/), (/1/)) )
       call YYMMDD2Date(date(1), year, month, day)
       call Date2JDN(year, month, day, JDNb)
       call Date2JDN(time%year0, time%month0, time%day0, JDN0)
@@ -1187,14 +1056,14 @@ contains
          nstart = JDN0 - JDNb + 1
          ncount = JDN1 - JDN0
       end if
-      call check( nf90mpi_get_var_all(ncid, varid, odata, nstart, ncount) )
-      call check( nf90mpi_close(ncid) )
+      call check( nf90_get_var(ncid, varid, odata, nstart, ncount) )
+      call check( nf90_close(ncid) )
 
       !if (count(odata<=filled_value)>0) then
       !   call Endrun("Invalid forcing data " // trim(varname))
       !end if
 
-      if (DEBUG .and. masterproc) then
+      if (DEBUG) then
          print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
@@ -1215,8 +1084,8 @@ contains
       character(len=32) :: fname = "Read2DTSData"
       character(cx) :: fullname
       character(len=32) :: date_units
-      integer(kind=MPI_OFFSET_KIND) :: b1start(3), b1count(3)
-      integer(kind=MPI_OFFSET_KIND) :: nreslon, nreslat
+      integer :: b1start(3), b1count(3)
+      integer :: nreslon, nreslat
       integer :: ncid, varid, lon_dimid, lat_dimid
       integer :: lon_varid, lat_varid, date_varid
       integer :: lonindx, latindx, lonerr, laterr
@@ -1229,43 +1098,40 @@ contains
       plon = loc(1) 
       plat = loc(2) 
       call GetFullFileName(filename, fullname)
-      call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                  NF90_NOWRITE, MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
-      call check( nf90mpi_get_att(ncid, date_varid, "units", date_units) )
-      lonerr = nf90mpi_inq_dimid(ncid, "longitude", lon_dimid)
+      call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
+      call check( nf90_inq_varid(ncid, "date", date_varid) )
+      call check( nf90_get_att(ncid, date_varid, "units", date_units) )
+      lonerr = nf90_inq_dimid(ncid, "longitude", lon_dimid)
       if (lonerr/=NF90_NOERR) then
-         call check( nf90mpi_inq_dimid(ncid, "lon", lon_dimid) )
+         call check( nf90_inq_dimid(ncid, "lon", lon_dimid) )
       end if
-      laterr = nf90mpi_inq_dimid(ncid, "latitude", lat_dimid)
+      laterr = nf90_inq_dimid(ncid, "latitude", lat_dimid)
       if (laterr/=NF90_NOERR) then
-         call check( nf90mpi_inq_dimid(ncid, "lat", lat_dimid) )
+         call check( nf90_inq_dimid(ncid, "lat", lat_dimid) )
       end if
-      call check( nf90mpi_inquire_dimension(ncid, lon_dimid, len = nreslon) )
-      call check( nf90mpi_inquire_dimension(ncid, lat_dimid, len = nreslat) )
+      call check( nf90_inquire_dimension(ncid, lon_dimid, len = nreslon) )
+      call check( nf90_inquire_dimension(ncid, lat_dimid, len = nreslat) )
       allocate(tmplons(nreslon))
       allocate(tmplats(nreslat))
       if (lonerr==NF90_NOERR) then
-         call check( nf90mpi_inq_varid(ncid, "longitude", lon_varid) )
+         call check( nf90_inq_varid(ncid, "longitude", lon_varid) )
       else
-         call check( nf90mpi_inq_varid(ncid, "lon", lon_varid) )
+         call check( nf90_inq_varid(ncid, "lon", lon_varid) )
       end if
       if (laterr==NF90_NOERR) then
-         call check( nf90mpi_inq_varid(ncid, "latitude", lat_varid) )
+         call check( nf90_inq_varid(ncid, "latitude", lat_varid) )
       else
-         call check( nf90mpi_inq_varid(ncid, "lat", lat_varid) )
+         call check( nf90_inq_varid(ncid, "lat", lat_varid) )
       end if
-      call check( nf90mpi_get_var_all(ncid, lon_varid, tmplons) )
-      call check( nf90mpi_get_var_all(ncid, lat_varid, tmplats) )
+      call check( nf90_get_var(ncid, lon_varid, tmplons) )
+      call check( nf90_get_var(ncid, lat_varid, tmplats) )
       ! search for corresponding indice
       call BinarySearch(tmplons, plon, lonindx)
       call BinarySearch(tmplats, plat, latindx)
-      call check( fname, nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( fname, nf90mpi_get_att(ncid, varid, "_FillValue", &
-                  filled_val) )
+      call check( fname, nf90_inq_varid(ncid, trim(varname), varid) )
+      call check( fname, nf90_get_att(ncid, varid, "_FillValue", filled_val) )
 
-      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
-                  (/1_i8/), (/1_i8/)) ) 
+      call check( nf90_get_var(ncid, date_varid, date, (/1/), (/1/)) ) 
       if (trim(date_units)=='YYYYMMDD') then
          call YYMMDD2Date(date(1), year, month, day)
          call Date2JDN(year, month, day, JDNb)
@@ -1295,15 +1161,14 @@ contains
       allocate(tmpArr(1,1,timeIndx(2)))
       b1start = (/lonindx, latindx, timeIndx(1)/)
       b1count = (/1, 1, timeIndx(2)/)
-      call check( fname, nf90mpi_get_var_all(ncid, varid, tmpArr, &
-                  b1start, b1count) )
+      call check( fname, nf90_get_var(ncid, varid, tmpArr, b1start, b1count) )
       odata = tmpArr(1,1,:)
-      call check( nf90mpi_close(ncid) )
+      call check( nf90_close(ncid) )
 
       deallocate(tmpArr)
       deallocate(tmplons)
       deallocate(tmplats)
-      if (DEBUG .and. masterproc) then
+      if (DEBUG) then
          print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
@@ -1322,13 +1187,13 @@ contains
       integer, intent(in) :: interp
       real(r8), intent(out) :: odata
       character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND), parameter :: nrange2 = 10
-      integer(kind=MPI_OFFSET_KIND) :: b1start(2), b1count(2)
-      integer(kind=MPI_OFFSET_KIND) :: b2start(2), b2count(2)
-      integer(kind=MPI_OFFSET_KIND) :: b3start(2), b3count(2)
-      integer(kind=MPI_OFFSET_KIND) :: b4start(2), b4count(2)
-      integer(kind=MPI_OFFSET_KIND) :: nreslon, nreslat
-      integer(kind=MPI_OFFSET_KIND) :: idx, jdx, nrange
+      integer, parameter :: nrange2 = 10
+      integer :: b1start(2), b1count(2)
+      integer :: b2start(2), b2count(2)
+      integer :: b3start(2), b3count(2)
+      integer :: b4start(2), b4count(2)
+      integer :: nreslon, nreslat
+      integer :: idx, jdx, nrange
       integer, allocatable :: target_lonid(:), target_latid(:)
       integer :: ncid, varid, lon_varid, lat_varid
       integer :: lon_dimid, lat_dimid, ii, jj
@@ -1344,39 +1209,38 @@ contains
       plon = loc(1)
       plat = loc(2)
       call GetFullFileName(filename, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
-                  MPI_INFO_NULL, ncid) )
+      call check( nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
 
       ! data set scope
-      lonerr = nf90mpi_inq_dimid(ncid, "longitude", lon_dimid)
+      lonerr = nf90_inq_dimid(ncid, "longitude", lon_dimid)
       if (lonerr/=NF90_NOERR) then
-         call check( nf90mpi_inq_dimid(ncid, "lon", lon_dimid) )
+         call check( nf90_inq_dimid(ncid, "lon", lon_dimid) )
       end if
-      laterr = nf90mpi_inq_dimid(ncid, "latitude", lat_dimid)
+      laterr = nf90_inq_dimid(ncid, "latitude", lat_dimid)
       if (laterr/=NF90_NOERR) then
-         call check( nf90mpi_inq_dimid(ncid, "lat", lat_dimid) )
+         call check( nf90_inq_dimid(ncid, "lat", lat_dimid) )
       end if
-      call check( nf90mpi_inquire_dimension(ncid, lon_dimid, len = nreslon) )
-      call check( nf90mpi_inquire_dimension(ncid, lat_dimid, len = nreslat) )
+      call check( nf90_inquire_dimension(ncid, lon_dimid, len = nreslon) )
+      call check( nf90_inquire_dimension(ncid, lat_dimid, len = nreslat) )
       allocate(tmplons(nreslon))
       allocate(tmplats(nreslat))
       if (lonerr==NF90_NOERR) then
-         call check( nf90mpi_inq_varid(ncid, "longitude", lon_varid) )
+         call check( nf90_inq_varid(ncid, "longitude", lon_varid) )
       else
-         call check( nf90mpi_inq_varid(ncid, "lon", lon_varid) )
+         call check( nf90_inq_varid(ncid, "lon", lon_varid) )
       end if
       if (laterr==NF90_NOERR) then
-         call check( nf90mpi_inq_varid(ncid, "latitude", lat_varid) )
+         call check( nf90_inq_varid(ncid, "latitude", lat_varid) )
       else
-         call check( nf90mpi_inq_varid(ncid, "lat", lat_varid) )
+         call check( nf90_inq_varid(ncid, "lat", lat_varid) )
       end if
-      call check( nf90mpi_get_var_all(ncid, lon_varid, tmplons) )
-      call check( nf90mpi_get_var_all(ncid, lat_varid, tmplats) )
+      call check( nf90_get_var(ncid, lon_varid, tmplons) )
+      call check( nf90_get_var(ncid, lat_varid, tmplats) )
       call BinarySearch(tmplons, plon, lonindx)
       call BinarySearch(tmplats, plat, latindx)
 
-      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_val) )
+      call check( nf90_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90_get_att(ncid, varid, "_FillValue", filled_val) )
 
       if (interp==Ncinterp) then
 
@@ -1393,7 +1257,7 @@ contains
             allocate(target_latid(nrange))
 
             ! construct data blocks
-            call GetTargetCoordinate(INT8(lonindx), INT8(latindx), nreslon, &
+            call GetTargetCoordinate(lonindx, latindx, nreslon, &
                      nreslat, nrange/2, target_lonid, target_latid, b1start, &
                      b1count, b2start, b2count, b3start, b3count, b4start, &
                      b4count)
@@ -1401,22 +1265,22 @@ contains
             ! read block1 data 
             idx = b1count(1)
             jdx = b1count(2)
-            call check( nf90mpi_get_var_all(ncid, varid, tmpArr(1:idx,1:jdx), &
+            call check( nf90_get_var(ncid, varid, tmpArr(1:idx,1:jdx), &
                         b1start, b1count) )
             ! read block2 data
             idx = nrange - b2count(1) + 1
             jdx = b2count(2)
-            call check( nf90mpi_get_var_all(ncid, varid, &
+            call check( nf90_get_var(ncid, varid, &
                         tmpArr(idx:nrange,1:jdx), b2start, b2count) )
             ! read block3 data
             idx = b3count(1)
             jdx = nrange - b3count(2) + 1
-            call check( nf90mpi_get_var_all(ncid, varid, &
+            call check( nf90_get_var(ncid, varid, &
                         tmpArr(1:idx,jdx:nrange), b3start, b3count) )
             ! read block4 data
             idx = nrange - b4count(1) + 1
             jdx = nrange - b4count(2) + 1
-            call check( nf90mpi_get_var_all(ncid, varid, &
+            call check( nf90_get_var(ncid, varid, &
                         tmpArr(idx:nrange,jdx:nrange), b4start, b4count) )
 
             ! construct weights matrix
@@ -1455,7 +1319,7 @@ contains
 
             nrange = 2 * nrange
          end do
-         call check( nf90mpi_close(ncid) )
+         call check( nf90_close(ncid) )
 
          if (ncount>0) then
             odata = numer / denom
@@ -1466,10 +1330,9 @@ contains
          allocate(tmpArr(1,1))
          b1start = (/lonindx, latindx/)
          b1count = (/1, 1/)
-         call check( nf90mpi_get_var_all(ncid, varid, tmpArr, b1start, &
-                     b1count) )
+         call check( nf90_get_var(ncid, varid, tmpArr, b1start, b1count) )
          odata = tmpArr(1,1)
-         call check( nf90mpi_close(ncid) )
+         call check( nf90_close(ncid) )
       end if
 
       if (allocated(tmpArr))        deallocate(tmpArr)
@@ -1478,7 +1341,7 @@ contains
       if (allocated(weights))       deallocate(weights)
       if (allocated(tmplons))       deallocate(tmplons)
       if (allocated(tmplats))       deallocate(tmplats)
-      if (DEBUG .and. masterproc) then
+      if (DEBUG) then
          print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
@@ -1490,8 +1353,8 @@ contains
       character(len=*), intent(in) :: varname
       real(r8), intent(out) :: odata
       character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nreslon, nreslat
-      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: nreslon, nreslat
+      integer :: nstart(2), ncount(2)
       integer :: ncid, varid, lon_varid, lat_varid
       integer :: lon_dimid, lat_dimid
       integer :: lonindx, latindx
@@ -1503,35 +1366,34 @@ contains
       plon = loc(1)
       plat = loc(2)
       call GetFullFileName(filename, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
-                  MPI_INFO_NULL, ncid) )
+      call check( nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
 
       ! data set scope
-      lonerr = nf90mpi_inq_dimid(ncid, "longitude", lon_dimid)
+      lonerr = nf90_inq_dimid(ncid, "longitude", lon_dimid)
       if (lonerr/=NF90_NOERR) then
-         call check( nf90mpi_inq_dimid(ncid, "lon", lon_dimid) )
+         call check( nf90_inq_dimid(ncid, "lon", lon_dimid) )
       end if
-      laterr = nf90mpi_inq_dimid(ncid, "latitude", lat_dimid)
+      laterr = nf90_inq_dimid(ncid, "latitude", lat_dimid)
       if (laterr/=NF90_NOERR) then
-         call check( nf90mpi_inq_dimid(ncid, "lat", lat_dimid) )
+         call check( nf90_inq_dimid(ncid, "lat", lat_dimid) )
       end if
-      call check( nf90mpi_inquire_dimension(ncid, lon_dimid, len = nreslon) )
-      call check( nf90mpi_inquire_dimension(ncid, lat_dimid, len = nreslat) )
+      call check( nf90_inquire_dimension(ncid, lon_dimid, len = nreslon) )
+      call check( nf90_inquire_dimension(ncid, lat_dimid, len = nreslat) )
       allocate(tmplons(nreslon))
       allocate(tmplats(nreslat))
       if (lonerr==NF90_NOERR) then
-         call check( nf90mpi_inq_varid(ncid, "longitude", lon_varid) )
+         call check( nf90_inq_varid(ncid, "longitude", lon_varid) )
       else
-         call check( nf90mpi_inq_varid(ncid, "lon", lon_varid) )
+         call check( nf90_inq_varid(ncid, "lon", lon_varid) )
       end if
       if (laterr==NF90_NOERR) then
-         call check( nf90mpi_inq_varid(ncid, "latitude", lat_varid) )
+         call check( nf90_inq_varid(ncid, "latitude", lat_varid) )
       else
-         call check( nf90mpi_inq_varid(ncid, "lat", lat_varid) )
+         call check( nf90_inq_varid(ncid, "lat", lat_varid) )
       end if
-      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_get_var_all(ncid, lon_varid, tmplons) )
-      call check( nf90mpi_get_var_all(ncid, lat_varid, tmplats) )
+      call check( nf90_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90_get_var(ncid, lon_varid, tmplons) )
+      call check( nf90_get_var(ncid, lat_varid, tmplats) )
       call BinarySearch(tmplons, plon, lonindx)
       call BinarySearch(tmplats, plat, latindx)
       deallocate(tmplons)
@@ -1539,12 +1401,11 @@ contains
 
       nstart = (/lonindx, latindx/)
       ncount = (/1, 1/)
-      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, &
-                  ncount) )
-      call check( nf90mpi_close(ncid) )
+      call check( nf90_get_var(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90_close(ncid) )
       odata = DBLE(tmpArr(1,1))
 
-      if (DEBUG .and. masterproc) then
+      if (DEBUG) then
          print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
@@ -1591,7 +1452,7 @@ contains
       character(len=*), intent(in) :: varname
       real(r8), intent(out) :: odata(:)
       character(len=32) :: fname = "ReadGlobalTSData"
-      integer(kind=MPI_OFFSET_KIND) :: nstart(1), ncount(1)
+      integer :: nstart(1), ncount(1)
       character(cx) :: fullname
       character(len=32) :: date_units
       integer :: ncid, varid, date_varid
@@ -1599,13 +1460,11 @@ contains
       integer :: year, month, day
 
       call GetFullFileName(filename, fullname)
-      call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                  NF90_NOWRITE, MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
-      call check( nf90mpi_get_att(ncid, date_varid, "units", date_units) )
-      call check( fname, nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
-                  (/1_i8/), (/1_i8/)) )
+      call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
+      call check( nf90_inq_varid(ncid, "date", date_varid) )
+      call check( nf90_get_att(ncid, date_varid, "units", date_units) )
+      call check( fname, nf90_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90_get_var(ncid, date_varid, date, (/1/), (/1/)) )
       if (trim(date_units)=='YYYYMMDD') then
          call YYMMDD2Date(date(1), year, month, day)
          call Date2JDN(year, month, day, JDNb)
@@ -1633,10 +1492,9 @@ contains
       end if
       nstart = timeIndx(1)
       ncount = timeIndx(2)
-      call check( fname, nf90mpi_get_var_all(ncid, varid, odata, &
-                  nstart, ncount) )
-      call check( fname, nf90mpi_close(ncid) )
-      if (DEBUG .and. masterproc) then
+      call check( fname, nf90_get_var(ncid, varid, odata, nstart, ncount) )
+      call check( fname, nf90_close(ncid) )
+      if (DEBUG) then
          print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
@@ -1661,29 +1519,23 @@ contains
       integer :: gmtime(6), err
 
       call GetArchiveFullname(varname, fullname)
-      if (masterproc) then
-         call GetGMTime(gmtime)
-         write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
-               gmtime(3)
-         write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
-         histstr = trim(str1) // trim(str2)
-      end if
-      call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
+      call GetGMTime(gmtime)
+      write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
+            gmtime(3)
+      write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
+            gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
+      histstr = trim(str1) // trim(str2)
 
       ! Create the file.
       cmode = IOR(NF90_CLOBBER, NF90_64BIT_OFFSET)
-      call check( nf90mpi_create(MPI_COMM_WORLD, trim(fullname), &
-                  cmode, MPI_INFO_NULL, ncid) )
+      call check( nf90_create(trim(fullname), cmode, ncid) )
 
       ! Define the dimensions
-      call check( nf90mpi_def_dim(ncid, 'Z', INT8(nz), z_dimid) )
-      call check( nf90mpi_def_dim(ncid, 'Lake', NFMPI_UNLIMITED, lake_dimid) )
+      call check( nf90_def_dim(ncid, 'Z', nz, z_dimid) )
+      call check( nf90_def_dim(ncid, 'Lake', NF90_UNLIMITED, lake_dimid) )
 
       ! Define the coordinate variables
-      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "history", &
-                  trim(histstr)) )
+      call check( nf90_put_att(ncid, NF90_GLOBAL, "history", trim(histstr)) )
 
       ! ! Define the netCDF variables and assign attributes for state variables. 
       call DefNcVariable(ncid, (/z_dimid, lake_dimid/), trim(varname), &
@@ -1691,18 +1543,16 @@ contains
                         -9999.0_r8, varid)
 
       ! End define mode.
-      call check( nf90mpi_enddef(ncid) )
+      call check( nf90_enddef(ncid) )
 
       ! Write the coordinate variable data. This will put our data grid 
       ! into the netCDF file.
 
       ! Close the file. This causes netCDF to flush all buffers and make
       ! sure your data are really written to disk.
-      call check( nf90mpi_close(ncid) )
+      call check( nf90_close(ncid) )
 
-      if (masterproc) then
-         print *, 'Create ouput file ' // trim(fullname)
-      end if
+      print *, 'Create ouput file ' // trim(fullname)
    end subroutine
 
    subroutine CreateOutputFile1d(time, varname, longname, units, defval)
@@ -1719,16 +1569,12 @@ contains
       integer :: gmtime(6), simday, err
 
       call GetArchiveFullname(time, varname, fullname)
-      if (masterproc) then
-         call GetGMTime(gmtime)
-         write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
-               gmtime(3)
-         write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"         
-         histstr = trim(str1) // trim(str2)
-      end if
-      call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
+      call GetGMTime(gmtime)
+      write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
+            gmtime(3)
+      write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
+            gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"         
+      histstr = trim(str1) // trim(str2)
 
       write(str1,"('Records start since ', I4, '-', I2.2, '-', I2.2)") &
          time%year0, time%month0, time%day0
@@ -1737,17 +1583,16 @@ contains
 
       ! Create the file.
       cmode = IOR(NF90_CLOBBER, NF90_64BIT_OFFSET)
-      call check( nf90mpi_create(MPI_COMM_WORLD, trim(fullname), &
-                  cmode, MPI_INFO_NULL, ncid) )
+      call check( nf90_create(trim(fullname), cmode, ncid) )
 
       ! Define the dimensions
-      call check( nf90mpi_def_dim(ncid, 'Time', INT8(simday), time_dimid) )
-      call check( nf90mpi_def_dim(ncid, 'Lake', NFMPI_UNLIMITED, lake_dimid) )
+      call check( nf90_def_dim(ncid, 'Time', simday, time_dimid) )
+      call check( nf90_def_dim(ncid, 'Lake', NF90_UNLIMITED, lake_dimid) )
 
       ! Define the coordinate variables
-      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "history", &
+      call check( nf90_put_att(ncid, NF90_GLOBAL, "history", &
                   trim(histstr)) )
-      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "description", &
+      call check( nf90_put_att(ncid, NF90_GLOBAL, "description", &
                   trim(timestr)) )
 
       ! ! Define the netCDF variables and assign attributes for state variables. 
@@ -1755,18 +1600,16 @@ contains
                         trim(longname), trim(units), defval, defval, varid)
 
       ! End define mode.
-      call check( nf90mpi_enddef(ncid) )
+      call check( nf90_enddef(ncid) )
 
       ! Write the coordinate variable data. This will put our data grid 
       ! into the netCDF file.
 
       ! Close the file. This causes netCDF to flush all buffers and make
       ! sure your data are really written to disk.
-      call check( nf90mpi_close(ncid) )
+      call check( nf90_close(ncid) )
 
-      if (masterproc) then
-         print *, 'Create ouput file ' // trim(fullname)
-      end if
+      print *, 'Create ouput file ' // trim(fullname)
    end subroutine
 
    subroutine CreateOutputFile2d(time, nz, varname, longname, units, defval)
@@ -1784,16 +1627,12 @@ contains
       integer :: gmtime(6), simday, err
 
       call GetArchiveFullname(time, varname, fullname)
-      if (masterproc) then
-         call GetGMTime(gmtime)
-         write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
-               gmtime(3)
-         write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
-         histstr = trim(str1) // trim(str2)
-      end if
-      call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
-                     MPI_COMM_WORLD, err)
+      call GetGMTime(gmtime)
+      write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
+            gmtime(3)
+      write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
+            gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
+      histstr = trim(str1) // trim(str2)
 
       write(str1,"('Records start since ', I4, '-', I2.2, '-', I2.2)") &
          time%year0, time%month0, time%day0
@@ -1802,18 +1641,17 @@ contains
 
       ! Create the file.
       cmode = IOR(NF90_CLOBBER, NF90_64BIT_OFFSET)
-      call check( nf90mpi_create(MPI_COMM_WORLD, trim(fullname), &
-                  cmode, MPI_INFO_NULL, ncid) )
+      call check( nf90_create(trim(fullname), cmode, ncid) )
 
       ! Define the dimensions
-      call check( nf90mpi_def_dim(ncid, 'Z', INT8(nz), z_dimid) )
-      call check( nf90mpi_def_dim(ncid, 'Time', INT8(simday), time_dimid) )
-      call check( nf90mpi_def_dim(ncid, 'Lake', NFMPI_UNLIMITED, lake_dimid) )
+      call check( nf90_def_dim(ncid, 'Z', nz, z_dimid) )
+      call check( nf90_def_dim(ncid, 'Time', simday, time_dimid) )
+      call check( nf90_def_dim(ncid, 'Lake', NF90_UNLIMITED, lake_dimid) )
 
       ! Define the coordinate variables
-      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "history", &
+      call check( nf90_put_att(ncid, NF90_GLOBAL, "history", &
                   trim(histstr)) )
-      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "description", &
+      call check( nf90_put_att(ncid, NF90_GLOBAL, "description", &
                   trim(timestr)) )
 
       ! ! Define the netCDF variables and assign attributes for state variables. 
@@ -1822,18 +1660,16 @@ contains
                         defval, defval, varid)
 
       ! End define mode.
-      call check( nf90mpi_enddef(ncid) )
+      call check( nf90_enddef(ncid) )
 
       ! Write the coordinate variable data. This will put our data grid 
       ! into the netCDF file.
 
       ! Close the file. This causes netCDF to flush all buffers and make
       ! sure your data are really written to disk.
-      call check( nf90mpi_close(ncid) )
+      call check( nf90_close(ncid) )
 
-      if (masterproc) then
-         print *, 'Create ouput file ' // trim(fullname)
-      end if
+      print *, 'Create ouput file ' // trim(fullname)
    end subroutine
 
 end module read_data_mod

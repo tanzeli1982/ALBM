@@ -9,8 +9,6 @@ module sensitivity_mod
    use sim_coupler_mod
    use read_data_mod
    use io_utilities_mod
-   use ifport 
-   use mpi
 
    implicit none
    private
@@ -21,97 +19,42 @@ module sensitivity_mod
    integer :: cur_sample
 
 contains
-   subroutine RunSensitivity(taskid, numprocs, arg)
+   subroutine RunSensitivity(arg)
       implicit none
-      integer, intent(in) :: taskid
-      integer, intent(in) :: numprocs
       character(len=*), intent(in) :: arg
       real(r8), allocatable :: samples(:,:)     ! generated samples
       real(r8), allocatable :: results(:,:)
-      real(r8), allocatable :: sirs(:,:)
-      integer, allocatable :: sampleIds(:)
-      integer, parameter :: ndid = 400
       integer :: ii, jj, cnt, minid, maxid, err
       integer :: sampleId, idx, nsample, itmp
       integer :: sample_next_range(2)
-      character(cx) :: script
       real(r8) :: sir(NOUT)
 
-      allocate(sampleIds(numprocs))
       minid = minval(sample_range)
       maxid = maxval(sample_range)
       nsample = maxid - minid + 1
 
-      if (masterproc) then
-         print "(A, I0, A, I0)", 'Run samples from ', minid, ' to ', maxid
-      end if
-
-      ! check the end sample id, if not end, refresh the sample range
-      ! and restart with a new job
-      if (masterproc .and. (.NOT. DEBUG)) then
-         if (maxid<NMAXSAMPLE) then
-            sample_next_range = sample_range
-            sample_range = (/minid+ndid, min(maxid+ndid,NMAXSAMPLE)/)
-            call WriteSimulationSettings(arg)
-            call GetFullFileName('bLakeJob.sub', script)
-            script = "qsub " // trim(script)
-            err = system(trim(script))
-            print "(A, I0)", "A new job is submitted. Return = ", err
-            sample_range = sample_next_range
-         end if
-      end if
+      print "(A, I0, A, I0)", 'Run samples from ', minid, ' to ', maxid
 
       allocate(samples(NMAXSAMPLE,NPARAM))
       allocate(results(NOUT,nsample))
-      allocate(sirs(NOUT,numprocs))
 
-      if (masterproc) then
-         call ReadParameterSamples(NMAXSAMPLE, samples)
-      end if
-      do ii = 1, NPARAM, 1
-         call MPI_BCAST(samples(:,ii), NMAXSAMPLE, MPI_REAL8, 0, &
-                        MPI_COMM_WORLD, err)
-      end do
+      call ReadParameterSamples(NMAXSAMPLE, samples)
       
       if (minid==1) then
          call CreateSampleResultFile(NOUT, -9999.0_r8)
       end if
 
-      do cnt = 1, nsample, numprocs
-         if (masterproc) then
-            if (nsample-cnt+1>=numprocs) then
-               sampleIds = (/(ii, ii = minid+cnt-1, minid+cnt+numprocs-2)/)
-            else
-               itmp = nsample - cnt + 1
-               sampleIds(1:itmp) = (/(ii, ii = minid+cnt-1, maxid)/)
-               sampleIds(itmp+1:numprocs) = (/(ii, ii = minid, &
-                  minid+numprocs-itmp-1)/)
-            end if
-         end if
-         call MPI_BCAST(sampleIds, numprocs, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
-         sampleId = sampleIds(taskid+1)
+      do cnt = 1, nsample, 1 
+         sampleId = minid + cnt - 1 
          cur_sample = sampleId
          call MonteCarloSimulation( sampleId, samples(sampleId,:), sir )
-         do jj = 1, NOUT, 1
-            call MPI_GATHER(sir(jj), 1, MPI_REAL8, sirs(jj,:), 1, MPI_REAL8, &
-               0, MPI_COMM_WORLD, err)
-         end do
-         if (masterproc) then
-            do ii = 1, numprocs, 1
-               idx = sampleIds(ii) - minid + 1 
-               results(:,idx) = sirs(:,ii)
-            end do
-         end if
+         results(:,cnt) = sir
       end do
 
-      if (masterproc) then
-         call WriteSampleResults(sample_range, results)
-      end if
+      call WriteSampleResults(sample_range, results)
 
       deallocate(samples)
       deallocate(results)
-      deallocate(sirs)
-      deallocate(sampleIds)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -125,10 +68,9 @@ contains
       real(r8), intent(in) :: sample(NPARAM)
       real(r8), intent(out) :: odata(NOUT)
       type(SimTime) :: time, spinup
-      integer :: i4ret, lakeId, error
+      integer :: lakeId, error
       real(r8) :: sir(NOUT)
 
-      i4ret = SIGNALQQ(SIG$FPE, hand_fpe)
       ! read lake information (i.e. depth, location ...)
       lakeId = lake_range(1)
       call ReadLakeName(lakeId)
@@ -238,42 +180,5 @@ contains
       deallocate(tmp_zb)
       deallocate(tmp_zc)
    end subroutine
-
-   !------------------------------------------------------------------------------
-   !
-   ! Purpose: some utilities for exceptions: SIG$FPE, SIG$ABORT, SIG$SEGV
-   !
-   !------------------------------------------------------------------------------
-   function hand_fpe(sigid, except)
-      !DEC$ ATTRIBUTES C :: hand_fpe
-      use ifport
-      !use ifcore
-      INTEGER(4) :: hand_fpe
-      INTEGER(2) :: sigid, except
-
-      if (sigid/=SIG$FPE) then
-         hand_fpe = 1
-         return
-      end if
-      select case(except)
-         case( FPE$INVALID )
-            print *, ' Floating point exception: Invalid number'
-         case( FPE$DENORMAL )
-            print *, ' Floating point exception: Denormalized number'
-         case( FPE$ZERODIVIDE )
-            print *, ' Floating point exception: Zero divide'
-         case( FPE$OVERFLOW )
-            print *, ' Floating point exception: Overflow'
-         case( FPE$UNDERFLOW )
-            print *, ' Floating point exception: Underflow'
-         case( FPE$INEXACT )
-            print *, ' Floating point exception: Inexact precision'
-         case default
-            print *, ' Floating point exception: Non-IEEE type'
-      end select
-      !CALL TRACEBACKQQ(trim(header), USER_EXIT_CODE=-1)
-      print *, 'failed sample ', cur_sample, sa_params 
-      hand_fpe = 1
-   end function
 
 end module sensitivity_mod

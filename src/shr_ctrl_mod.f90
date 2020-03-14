@@ -95,6 +95,4 @@ module shr_ctrl_mod
    character(cx) :: aod_file = ""
    ! lake information object
    type(LakeInfo) :: lake_info
-   ! master processor flag
-   integer :: masterproc
 end module shr_ctrl_mod

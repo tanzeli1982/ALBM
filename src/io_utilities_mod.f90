@@ -7,10 +7,9 @@ module io_utilities_mod
 !---------------------------------------------------------------------------------
    use shr_kind_mod,       only : cs => SHR_KIND_CS, cx => SHR_KIND_CX, r8, r4
    use shr_typedef_mod,    only : SimTime
-   use shr_ctrl_mod,       only : archive_tstep, archive_dir, masterproc, DEBUG
+   use shr_ctrl_mod,       only : archive_tstep, archive_dir, DEBUG
    use math_utilities_mod, only : Mean
-   use pnetcdf
-   use mpi
+   use netcdf
 
    interface Endrun
       module procedure Endrun1arg
@@ -110,7 +109,7 @@ contains
       integer :: err
 
       print *, "Error: ", trim(msg), "!!"
-      call MPI_ABORT(MPI_COMM_WORLD, 1, err)
+      stop
    end subroutine
 
    subroutine EndrunInt(id, msg)
@@ -120,7 +119,7 @@ contains
       integer :: err
 
       print "(A, I0, A)", "Error in Object ", id, ": " // trim(msg) // "!!"
-      call MPI_ABORT(MPI_COMM_WORLD, 1, err)
+      stop 
    end subroutine
 
    subroutine EndrunStr(fid, msg)
@@ -130,7 +129,7 @@ contains
       integer :: err
 
       print *, "Error in File " // trim(fid) // ": " // trim(msg) // "!!"
-      call MPI_ABORT(MPI_COMM_WORLD, 1, err)
+      stop 
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -164,7 +163,7 @@ contains
       integer, intent(in) :: istatus
 
       if(istatus /= NF90_NOERR) then
-         call Endrun(nf90mpi_strerror(istatus)) 
+         call Endrun(nf90_strerror(istatus)) 
       end if
    end subroutine
 
@@ -174,7 +173,7 @@ contains
       integer, intent(in) :: istatus
 
       if(istatus /= NF90_NOERR) then
-         call Endrun(fid, nf90mpi_strerror(istatus))
+         call Endrun(fid, nf90_strerror(istatus))
       end if
    end subroutine
 
@@ -229,7 +228,7 @@ contains
       logical :: isexist
 
       call GetFullFileName(archive_dir, fulldir)
-      inquire(directory=trim(fulldir), exist=isexist)
+      inquire(file=trim(fulldir), exist=isexist)
       if (.not. isexist) then
          command = 'mkdir ' // fulldir
          call system(trim(command))
@@ -249,7 +248,7 @@ contains
       write(tmpstr,"(I4, I2.2, I2.2, A, I4, I2.2, I2.2)") time%year0, &
             time%month0, time%day0, '_', time%year1, time%month1, time%day1
       call GetFullFileName(archive_dir, fulldir)
-      inquire(directory=trim(fulldir), exist=isexist)
+      inquire(file=trim(fulldir), exist=isexist)
       if (.not. isexist) then
          command = 'mkdir ' // fulldir
          call system(trim(command))
@@ -278,12 +277,12 @@ contains
 
       fval = fillvalue
       mval = missvalue
-      call check( nf90mpi_def_var(ncid, trim(varname), NF90_DOUBLE, &
+      call check( nf90_def_var(ncid, trim(varname), NF90_DOUBLE, &
                   dimids, varid) )
-      call check( nf90mpi_put_att(ncid, varid, "long_name", trim(longname)) )
-      call check( nf90mpi_put_att(ncid, varid, "units", trim(units)) )
-      call check( nf90mpi_put_att(ncid, varid, "_FillValue", fval) )
-      call check( nf90mpi_put_att(ncid, varid, "missing_value", mval) )
+      call check( nf90_put_att(ncid, varid, "long_name", trim(longname)) )
+      call check( nf90_put_att(ncid, varid, "units", trim(units)) )
+      call check( nf90_put_att(ncid, varid, "_FillValue", fval) )
+      call check( nf90_put_att(ncid, varid, "missing_value", mval) )
    end subroutine
    
    subroutine DefNcVariable4R(ncid, dimids, varname, longname, units, &
@@ -301,12 +300,12 @@ contains
 
       fval = fillvalue
       mval = missvalue
-      call check( nf90mpi_def_var(ncid, trim(varname), NF90_FLOAT, &
+      call check( nf90_def_var(ncid, trim(varname), NF90_FLOAT, &
                   dimids, varid) )
-      call check( nf90mpi_put_att(ncid, varid, "long_name", trim(longname)) )
-      call check( nf90mpi_put_att(ncid, varid, "units", trim(units)) )
-      call check( nf90mpi_put_att(ncid, varid, "_FillValue", fval) )
-      call check( nf90mpi_put_att(ncid, varid, "missing_value", mval) )
+      call check( nf90_put_att(ncid, varid, "long_name", trim(longname)) )
+      call check( nf90_put_att(ncid, varid, "units", trim(units)) )
+      call check( nf90_put_att(ncid, varid, "_FillValue", fval) )
+      call check( nf90_put_att(ncid, varid, "missing_value", mval) )
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -320,19 +319,18 @@ contains
       character(len=*), intent(in) :: varname
       real(r8), intent(inout) :: odata(:)
       character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: nstart(2), ncount(2)
       integer :: ncid, varid, nlayer
 
       call GetArchiveFullname(varname, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_WRITE, &
-                  MPI_INFO_NULL, ncid) )
+      call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
       nlayer = size(odata)
       nstart = (/1, lakeid/)
       ncount = (/nlayer, 1/)
-      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_put_var_all(ncid, varid, odata, nstart, ncount) )
-      call check( nf90mpi_close(ncid) )
-      if (masterproc .and. DEBUG) then
+      call check( nf90_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90_put_var(ncid, varid, odata, nstart, ncount) )
+      call check( nf90_close(ncid) )
+      if (DEBUG) then
          print *, "Write Real8 1-D variable " // trim(varname)
       end if
    end subroutine
@@ -345,7 +343,7 @@ contains
       real(r4), intent(inout) :: odata(:)
       real(r4), allocatable :: odata1d(:)
       character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: nstart(2), ncount(2)
       integer :: ncid, varid, nt, ii
 
       call GetArchiveFullname(time, varname, fullname)
@@ -357,25 +355,21 @@ contains
          end do
          nstart = (/1, lakeid/)
          ncount = (/nt, 1/)
-         call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), & 
-                     NF90_WRITE, MPI_INFO_NULL, ncid) )
-         call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-         call check( nf90mpi_put_var_all(ncid, varid, odata1d, &
-                     nstart, ncount) )
-         call check( nf90mpi_close(ncid) )
+         call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
+         call check( nf90_inq_varid(ncid, trim(varname), varid) )
+         call check( nf90_put_var(ncid, varid, odata1d, nstart, ncount) )
+         call check( nf90_close(ncid) )
          deallocate(odata1d)
       else if (trim(archive_tstep)=='hour') then
          nt = size(odata)
          nstart = (/1, lakeid/)
          ncount = (/nt, 1/)
-         call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                     NF90_WRITE, MPI_INFO_NULL, ncid) )
-         call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-         call check( nf90mpi_put_var_all(ncid, varid, odata, &
-                     nstart, ncount) )
-         call check( nf90mpi_close(ncid) )
+         call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
+         call check( nf90_inq_varid(ncid, trim(varname), varid) )
+         call check( nf90_put_var(ncid, varid, odata, nstart, ncount) )
+         call check( nf90_close(ncid) )
       end if 
-      if (masterproc .and. DEBUG) then
+      if (DEBUG) then
          print *, "Write Real4 1-D variable " // trim(varname)
       end if
    end subroutine
@@ -388,7 +382,7 @@ contains
       real(r4), intent(inout) :: odata(:,:)
       real(r4), allocatable :: odata2d(:,:)
       character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(3), ncount(3)
+      integer :: nstart(3), ncount(3)
       integer :: ncid, varid, nt, nlayer, ii
 
       nlayer = size(odata,1)
@@ -401,25 +395,21 @@ contains
          end do
          nstart = (/1, 1, lakeid/)
          ncount = (/nlayer, nt, 1/)
-         call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                     NF90_WRITE, MPI_INFO_NULL, ncid) )
-         call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-         call check( nf90mpi_put_var_all(ncid, varid, odata2d, &
-                     nstart, ncount) )
-         call check( nf90mpi_close(ncid) ) 
+         call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
+         call check( nf90_inq_varid(ncid, trim(varname), varid) )
+         call check( nf90_put_var(ncid, varid, odata2d, nstart, ncount) )
+         call check( nf90_close(ncid) ) 
          deallocate(odata2d)
       else if (trim(archive_tstep)=='hour') then
          nt = size(odata,2)
          nstart = (/1, lakeid, 1/)
          ncount = (/nlayer, 1, nt/)
-         call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                     NF90_WRITE, MPI_INFO_NULL, ncid) )
-         call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-         call check( nf90mpi_put_var_all(ncid, varid, odata, &
-                     nstart, ncount) )
-         call check( nf90mpi_close(ncid) )
+         call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
+         call check( nf90_inq_varid(ncid, trim(varname), varid) )
+         call check( nf90_put_var(ncid, varid, odata, nstart, ncount) )
+         call check( nf90_close(ncid) )
       end if
-      if (masterproc .and. DEBUG) then
+      if (DEBUG) then
          print *, "Write Real4 2-D variable " // trim(varname)
       end if
    end subroutine
@@ -432,7 +422,7 @@ contains
       real(r4), intent(inout) :: odata(:,:,:)
       real(r4), allocatable :: odata3d(:,:,:)
       character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(4), ncount(4)
+      integer :: nstart(4), ncount(4)
       integer :: ncid, varid, nt, ng, nlayer, ii
 
       ng = size(odata,1)
@@ -445,25 +435,21 @@ contains
          end do
          nstart = (/1, 1, 1, lakeid/)
          ncount = (/ng, nlayer, nt, 1/)
-         call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                     NF90_WRITE, MPI_INFO_NULL, ncid) )
-         call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-         call check( nf90mpi_put_var_all(ncid, varid, odata3d, &
-                     nstart, ncount) )
-         call check( nf90mpi_close(ncid) )
+         call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
+         call check( nf90_inq_varid(ncid, trim(varname), varid) )
+         call check( nf90_put_var(ncid, varid, odata3d, nstart, ncount) )
+         call check( nf90_close(ncid) )
          deallocate(odata3d)
       else if (trim(archive_tstep)=='hour') then
          nt = size(odata,3)
          nstart = (/1, 1, 1, lakeid/)
          ncount = (/ng, nlayer, nt, 1/)
-         call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
-                     NF90_WRITE, MPI_INFO_NULL, ncid) )
-         call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-         call check( nf90mpi_put_var_all(ncid, varid, odata, &
-                     nstart, ncount) )
-         call check( nf90mpi_close(ncid) )
+         call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
+         call check( nf90_inq_varid(ncid, trim(varname), varid) )
+         call check( nf90_put_var(ncid, varid, odata, nstart, ncount) )
+         call check( nf90_close(ncid) )
       end if
-      if (masterproc .and. DEBUG) then
+      if (DEBUG) then
          print *, "Write Real4 3-D variable " // trim(varname)
       end if
    end subroutine

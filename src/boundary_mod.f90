@@ -75,11 +75,6 @@ contains
       m_surfData%Qgw = m_Qgw(nday)
       m_surfData%tQsi = m_tQsi(nday)
       m_surfData%dQsi = m_dQsi(nday) 
-      m_surfData%DICQsi = m_DICQsi(nday)
-      m_surfData%DOCQsi = m_DOCQsi(nday)
-      m_surfData%POCQsi = m_POCQsi(nday)
-      m_surfData%SRPQsi = m_SRPQsi(nday)
-      m_surfData%DOQsi = m_DOQsi(nday) 
       m_radPars%qCO2 = m_aCO2(nyr)
       m_radPars%AbO3 = m_aO3(nmon)
       m_radPars%tau550 = m_aAOD(nmon)
@@ -120,8 +115,7 @@ contains
    subroutine GetSolarConditions(hindx) 
       implicit none
       integer(i8), intent(in) :: hindx
-      real(r8) :: LPOC(NPOC), Chla(NPOC)
-      real(r8) :: PPOC, MPOC, DPOC, trDOC, rhour
+      real(r8) :: rhour
       real(r8) :: hour, dzi, dzw, zcos, rBsc
       real(r8) :: Iab0, Iab1, zenith, srd_daily
       real(r8) :: tcc, tair
@@ -200,16 +194,6 @@ contains
          dzw = m_dZw(ii) - dzi
          if (m_waterIce(ii)<1.0) then
             ! absorption and scattering coefficients
-            LPOC = m_waterPOC(:,ii)
-            DPOC = 0.0_r8  ! dead phytoplankton biomass
-            ! if DPOC included, 0.5 should be replace by the fraction of
-            ! small and large phytoplankton biomass fraction
-            PPOC = LPOC(small_ppk) + DPOC * 0.5
-            MPOC = LPOC(large_ppk) + DPOC * 0.5
-            trDOC = m_waterSubCon(Wtrdoc,ii)
-            Chla = 1.0d-3 * m_rChl2C(:,ii) * LPOC 
-            !call CalcAcCDOM(lake_info%itype, trDOC, m_wvln, abCDOM) 
-            !call CalcAcAlgae(LPOC, Chla, m_wvln, mem_pico, mem_micro, abAP)
             ! irradiance attenuation
             fgphot = fgphot * exp(-lake_info%kext*dzw-abI*dzi)
          else
@@ -300,15 +284,8 @@ contains
       call UpdateSeasonalFlags(time, hindx, year, month, day)
       if (winter_flag==0 .and. prewinter_flag==1) then
          prewinter_flag = winter_flag
-         !m_rChl2C = 0.24
-         !m_waterPOC = 5d2 * m_chla0 / 0.24 
       else if (winter_flag==1 .and. prewinter_flag==0) then
          prewinter_flag = winter_flag
-         do ii = 1, NPOC, 1
-            rsdl = max(m_sinkPOCPool(ii)-2.5d3, 0.0)
-            m_burialAtCarb = m_burialAtCarb + rsdl
-            m_sinkPOCPool(ii) = 2.5d3
-         end do
       end if
    end subroutine
 

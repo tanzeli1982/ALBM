@@ -14,9 +14,6 @@ module sim_coupler_mod
    use radiation_mod
    use thermal_mod
    use soil_thermal_mod
-   use bubble_mod
-   use diagenesis_mod
-   use carbon_cycle_mod
 
 contains
    !------------------------------------------------------------------------------
@@ -37,7 +34,6 @@ contains
       ! Run simulation during the interested period
       if (error==0) then
          call InitializeModelOutputs()
-         call ConstructActCarbonPool()
          call ModuleCoupler(time, .False., error)
       end if
 
@@ -53,8 +49,6 @@ contains
       integer, intent(out) :: error
       real(r8) :: curstep, nextstep
       real(r8) :: curstep1, nextstep1
-      real(r8) :: curstep2, nextstep2
-      real(r8) :: curstep3, nextstep3
       real(r8) :: t, tf
       integer(i8) :: simhour, hindx
       integer :: simday, ncount
@@ -96,73 +90,25 @@ contains
             call CacheHourlyResults(hindx, isspinup)
          end if
 
-         if (Thermal_Module) then
-            curstep1 = curstep
-            call ThermalModuleSetup()
-            call SedThermalModuleSetup()
-            call RungeKutta4(HeatEquation, mem_tw, adaptive_mode, Ttol, &
-                             curstep1, nextstep1, m_waterTemp, m_tmpWaterTemp)
-            call RungeKutta4(SedHeatEquation, mem_ts, fixed_mode, Ttol, &
-                             curstep1, curstep1, m_sedTemp, m_tmpSedTemp)
-            curstep = min(curstep,curstep1)
-            nextstep = min(nextstep,nextstep1)
-         end if
-         if (Diagenesis_Module) then
-            curstep2 = curstep
-            call DiagenesisModuleSetup()
-            call RungeKutta4(DiagenesisEquation, mem_ch4, adaptive_mode, SStol, &
-                             curstep2, nextstep2, m_sedSubCon, m_tmpSedSubCon)
-            curstep = min(curstep,curstep2)
-            nextstep = min(nextstep,nextstep2)
-         end if
-         if (Carbon_Module) then
-            curstep3 = curstep
-            call CarbonModuleSetup(isHourNode)
-            call RungeKutta4(CarbonCycleEquation, mem_sub, adaptive_mode, WStol, &
-                             curstep3, nextstep3, m_waterSubCon, m_tmpWaterSubCon)
-            call RungeKutta4(ParticulateEquation, mem_poc, fixed_mode, WPtol, &
-                             curstep3, curstep3, m_waterPOC, m_tmpWaterPOC)
-            curstep = min(curstep,curstep3)
-            nextstep = min(nextstep,nextstep3)
-         end if
-         if (Bubble_Module) then
-            call BubbleModuleSetup(isHourNode)
-            call BubbleDynamics(isHourNode)
-         end if
-         if (curstep1>curstep+e8 .and. Thermal_Module) then
+         curstep1 = curstep
+         call ThermalModuleSetup()
+         call SedThermalModuleSetup()
+         call RungeKutta4(HeatEquation, mem_tw, adaptive_mode, Ttol, &
+                          curstep1, nextstep1, m_waterTemp, m_tmpWaterTemp)
+         call RungeKutta4(SedHeatEquation, mem_ts, fixed_mode, Ttol, &
+                          curstep1, curstep1, m_sedTemp, m_tmpSedTemp)
+         curstep = min(curstep,curstep1)
+         nextstep = min(nextstep,nextstep1)
+         if (curstep1>curstep+e8) then
             call RungeKutta4(HeatEquation, mem_tw, fixed_mode, Ttol, curstep, &
                              curstep, m_waterTemp, m_tmpWaterTemp)
             call RungeKutta4(SedHeatEquation, mem_ts, fixed_mode, Ttol, &
                              curstep, curstep, m_sedTemp, m_tmpSedTemp)
          end if
-         if (curstep2>curstep+e8 .and. Diagenesis_Module) then
-            call RungeKutta4(DiagenesisEquation, mem_ch4, fixed_mode, SStol, &
-                             curstep, curstep, m_sedSubCon, m_tmpSedSubCon)
-         end if
-         if (curstep3>curstep+e8 .and. Carbon_Module) then
-            call RungeKutta4(CarbonCycleEquation, mem_sub, fixed_mode, WStol, &
-                             curstep, curstep, m_waterSubCon, m_tmpWaterSubCon)
-            call RungeKutta4(ParticulateEquation, mem_poc, fixed_mode, WPtol, &
-                             curstep, curstep, m_waterPOC, m_tmpWaterPOC)
-         end if
-         if (Thermal_Module) then
-            m_waterTemp = m_tmpWaterTemp
-            m_sedTemp = m_tmpSedTemp
-            call SedThermalModuleCallback()
-            call ThermalModuleCallback(curstep)
-         end if
-         if (Diagenesis_Module) then
-            m_sedSubCon = m_tmpSedSubCon
-            call DiagenesisModuleCallback(curstep)
-         end if
-         if (Carbon_Module) then
-            m_waterSubCon = m_tmpWaterSubCon
-            m_waterPOC = m_tmpWaterPOC
-            call CarbonModuleCallback(isHourNode, hindx, curstep)
-         end if
-         if (Bubble_Module) then
-            call BubbleModuleCallback(curstep)
-         end if
+         m_waterTemp = m_tmpWaterTemp
+         m_sedTemp = m_tmpSedTemp
+         call SedThermalModuleCallback()
+         call ThermalModuleCallback(curstep)
 
          isHourNode = .False.
          if (curstep<0.1) then
@@ -194,9 +140,6 @@ contains
       call InitializeSmartsModule()
       call InitializeThermalModule()
       call InitializeSedThermalModule()
-      call InitializeDiagenesisModule()
-      call InitializeCarbonModule()
-      call InitializeBubbleModule()
    end subroutine
 
    subroutine InitializeModelOutputs()
@@ -279,20 +222,18 @@ contains
       type(SimTime), intent(in) :: time
 
       call WriteData(lakeId, 'zw', m_Zw)
-      if (Thermal_Module) then
-         call WriteData(lakeId, time, 'watertemp', m_tempwHist)
-         call WriteData(lakeId, time, 'snowthick', m_snowHist)
-         call WriteData(lakeId, time, 'icethick', m_iceHist)
-         call WriteData(lakeId, time, 'sensheatf', m_shHist)
-         call WriteData(lakeId, time, 'latentheatf', m_lhHist)
-         call WriteData(lakeId, time, 'momf', m_fmmHist)
-         call WriteData(lakeId, time, 'lwup', m_lwHist)
-         call WriteData(lakeId, time, 'lakeheatf', m_hnetHist)
-         call WriteData(lakeId, time, 'sedheatf', m_fsedHist)
-         call WriteData(lakeId, time, 'swup', m_swupHist)
-         call WriteData(lakeId, time, 'swdw', m_swdwHist)
-         call WriteData(lakeId, time, 'turbdiffheat', m_fturbHist)
-      end if
+      call WriteData(lakeId, time, 'watertemp', m_tempwHist)
+      call WriteData(lakeId, time, 'snowthick', m_snowHist)
+      call WriteData(lakeId, time, 'icethick', m_iceHist)
+      call WriteData(lakeId, time, 'sensheatf', m_shHist)
+      call WriteData(lakeId, time, 'latentheatf', m_lhHist)
+      call WriteData(lakeId, time, 'momf', m_fmmHist)
+      call WriteData(lakeId, time, 'lwup', m_lwHist)
+      call WriteData(lakeId, time, 'lakeheatf', m_hnetHist)
+      call WriteData(lakeId, time, 'sedheatf', m_fsedHist)
+      call WriteData(lakeId, time, 'swup', m_swupHist)
+      call WriteData(lakeId, time, 'swdw', m_swdwHist)
+      call WriteData(lakeId, time, 'turbdiffheat', m_fturbHist)
    end subroutine
 
    subroutine FinalizeSimulation()
@@ -300,9 +241,6 @@ contains
 
       call DestructThermalModule()
       call DestructSedThermalModule()
-      call DestructDiagenesisModule()
-      call DestructCarbonModule()
-      call DestructBubbleModule()
       call DestructSmartsModule()
       call DestructDataBuffer()
    end subroutine

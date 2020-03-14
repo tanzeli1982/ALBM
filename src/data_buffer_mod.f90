@@ -35,12 +35,6 @@ module data_buffer_mod
    real(r8), allocatable :: m_tmpWaterTemp(:), m_tmpSedTemp(:)
    ! water and sediment ice profile (m)
    real(r8), allocatable :: m_waterIce(:), m_sedIce(:)
-   ! incumbent and temporary bubble gas amount (umol/m3/mm)
-   real(r8), allocatable :: m_bubbleGasCon(:,:,:), m_tmpBubbleGasCon(:,:,:)
-   ! incumbent and temporary solvent concentrations in water (umol/m3)
-   real(r8), allocatable :: m_waterSubCon(:,:), m_tmpWaterSubCon(:,:)
-   ! incumbent and temporary solvent concentrations in sediments (umol/m3)
-   real(r8), allocatable :: m_sedSubCon(:,:), m_tmpSedSubCon(:,:)
    ! total heat diffusivity (m2/s)
    real(r8), allocatable :: m_Kt(:)
    real(r8), allocatable :: m_Ks(:)
@@ -52,20 +46,6 @@ module data_buffer_mod
    real(r8), allocatable :: m_dVsc(:)
    ! Solar radiation in water column (W/m2)
    real(r8), allocatable :: m_Iab(:)
-   ! incumbent and temporary POC and DOC concentrations in water (umol/m3)
-   real(r8), allocatable :: m_waterPOC(:,:)
-   real(r8), allocatable :: m_tmpWaterPOC(:,:)
-   ! Chl : C ratio profile (mg Chl mmol C-1)
-   real(r8), allocatable :: m_rChl2C(:,:)
-   ! gas exchange amount from bubble to water (umol/m3/s)
-   real(r8), allocatable :: m_gasExchange(:,:)
-   ! gas pools for bubbles trapped in the ice (umol) 
-   real(r8), allocatable :: m_iceBubblePool(:)
-   ! carbon pools for settling phytoplankton (umol) 
-   real(r8), allocatable :: m_sinkPOCPool(:)
-   ! 14C-enriched and 14C-depleted decomposable carbon pools (umol/m3)
-   real(r8), allocatable :: m_frzCarbPool(:,:)
-   real(r8), allocatable :: m_unfrzCarbPool(:,:)
    ! downward scalar irradiance (mol photons m-2 s-1 nm-1)
    real(r8), allocatable :: m_fsphot(:,:)
    ! downward irradiance spectrum (nm)
@@ -84,11 +64,6 @@ module data_buffer_mod
    real(r8), allocatable :: m_Qsi(:)
    real(r8), allocatable :: m_tQsi(:)
    real(r8), allocatable :: m_dQsi(:)
-   real(r8), allocatable :: m_DOQsi(:)
-   real(r8), allocatable :: m_DICQsi(:)
-   real(r8), allocatable :: m_DOCQsi(:)
-   real(r8), allocatable :: m_POCQsi(:)
-   real(r8), allocatable :: m_SRPQsi(:)
    real(r8), allocatable :: m_Qso(:)
    real(r8), allocatable :: m_Qgw(:)
    ! radiation-related conditions
@@ -101,20 +76,8 @@ module data_buffer_mod
    ! lake depth-dependent area vector (m2)
    real(r8), allocatable :: m_Az(:)
    real(r8), allocatable :: m_dAz(:)
-   ! bubble radius vector (m)
-   real(r8), allocatable :: m_Rb0(:)
-   ! bubble water interface fluxes (umol/m2/s)
-   real(r8), allocatable :: m_btmbflux(:)
-   ! autochthonous and allochthonous sedimentation rate (umol/m2/s)
-   real(r8) :: m_burialAtCarb, m_burialAlCarb
    ! lake ice, gray ice and snow thickness (m)
    real(r8) :: m_Hice, m_Hsnow, m_Hgrayice 
-   ! areal forest fraction
-   real(r8) :: m_ftree, m_fwlnd
-   ! SOC density (kg/m2)
-   real(r8) :: m_soc
-   ! initial DOC (mol/m3), SRP (mmol/m3) and algae (mg/m3)
-   real(r8) :: m_chla0, m_DOC0, m_DOC1, m_SRP0
    ! bottom molecular diffusivity (m2/s)
    real(r8) :: m_Kbm
    ! mixing layer thickness (m)
@@ -187,26 +150,12 @@ contains
       allocate(m_tmpSedTemp(NSLAYER+1))
       allocate(m_waterIce(WATER_LAYER+1))
       allocate(m_sedIce(NSLAYER+1))
-      allocate(m_bubbleGasCon(NGAS,NRLAYER+1,WATER_LAYER+1))
-      allocate(m_tmpBubbleGasCon(NGAS,NRLAYER+1,WATER_LAYER+1))
-      allocate(m_iceBubblePool(NGAS))
-      allocate(m_waterSubCon(NWSUB,WATER_LAYER+1))
-      allocate(m_tmpWaterSubCon(NWSUB,WATER_LAYER+1))
-      allocate(m_gasExchange(NGAS,WATER_LAYER+1))
-      allocate(m_sedSubCon(NSSUB,NSLAYER+1))
-      allocate(m_tmpSedSubCon(NSSUB,NSLAYER+1)) 
       allocate(m_Kt(WATER_LAYER+1))
       allocate(m_Kv(WATER_LAYER+1))
       allocate(m_Ks(NSLAYER+1))
       allocate(m_wrho(WATER_LAYER+1))
       allocate(m_dVsc(WATER_LAYER+1))
       allocate(m_Iab(WATER_LAYER+2))
-      allocate(m_sinkPOCPool(NPOC))
-      allocate(m_waterPOC(NPOC,WATER_LAYER+1))
-      allocate(m_tmpWaterPOC(NPOC,WATER_LAYER+1))
-      allocate(m_rChl2C(NPOC,WATER_LAYER+1))
-      allocate(m_frzCarbPool(NPOOL,NSLAYER+1))
-      allocate(m_unfrzCarbPool(NPOOL,NSLAYER+1))
       ! allocate memory for air forcing data
       allocate(m_airTemp(ntin))
       allocate(m_airTempMax(ntin))
@@ -221,11 +170,6 @@ contains
       allocate(m_Qsi(simday))
       allocate(m_tQsi(simday))
       allocate(m_dQsi(simday))
-      allocate(m_DOQsi(simday))
-      allocate(m_DICQsi(simday))
-      allocate(m_DOCQsi(simday))
-      allocate(m_POCQsi(simday))
-      allocate(m_SRPQsi(simday))
       allocate(m_Qso(simday))
       allocate(m_Qgw(simday))
       ! allocate memory for irradiation data
@@ -242,9 +186,6 @@ contains
       allocate(m_dZs(NSLAYER+1))
       allocate(m_Az(WATER_LAYER+1))
       allocate(m_dAz(WATER_LAYER+1))
-      allocate(m_Rb0(NRLAYER+1))
-      ! allocate intermediate vector
-      allocate(m_btmbflux(NGAS))
 
       ! initialize depth vectors
       call ConstructDepthVector(lake_info, m_Zw, m_Zs, m_dZw, m_dZs)
@@ -253,34 +194,18 @@ contains
       else
          call ReadLakeBathymetry(lake_info, m_Zw, m_Az, m_dAz)
       end if
-      call ReadStaticData(veg_file, loc180, 'ftree', m_ftree)
-      call ReadStaticData(wlnd_file, loc180, 'glwd', m_fwlnd)
-      call ReadStaticData(soc_file, loc180, 'soc', Ncinterp, m_soc)
       call ReadStaticData(tref_file, loc180, 't2m', Ncinterp, m_radPars%tref)
       ! initialize formal air forcing data
-      if (len_trim(forcing_dir)==0) then
-         call Read2DTSData(tas_file, time, loc180, 'tas', m_airTemp)
-         call Read2DTSData(tasmax_file, time, loc180, 'tasmax', m_airTempMax)
-         call Read2DTSData(tasmin_file, time, loc180, 'tasmin', m_airTempMin)
-         call Read2DTSData(hurs_file, time, loc180, 'hurs', m_airRH)
-         call Read2DTSData(pr_file, time, loc180, 'pr', m_airPr)
-         call Read2DTSData(prsn_file, time, loc180, 'prsn', m_airPrsn)
-         call Read2DTSData(ps_file, time, loc180, 'ps', m_airPs)
-         call Read2DTSData(wind_file, time, loc180, 'sfcWind', m_airWind)
-         call Read2DTSData(rsds_file, time, loc180, 'rsds', m_airSWRad)
-         call Read2DTSData(rlds_file, time, loc180, 'rlds', m_airLWRad)
-      else
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tas',  m_airTemp)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmax', m_airTempMax)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmin',  m_airTempMin)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'hurs',  m_airRH)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'pr',  m_airPr)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'prsn',  m_airPrsn)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'ps',  m_airPs)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'sfcWind',  m_airWind)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'rsds',  m_airSWRad)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'rlds',  m_airLWRad)
-      end if
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'tas',  m_airTemp)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmax', m_airTempMax)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmin',  m_airTempMin)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'hurs',  m_airRH)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'pr',  m_airPr)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'prsn',  m_airPrsn)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'ps',  m_airPs)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'sfcWind',  m_airWind)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'rsds',  m_airSWRad)
+      call ReadSiteTSData(lake_info, time, forcing_tstep, 'rlds',  m_airLWRad)
       ! initialize long-term forcing data
       call ReadGlobalTSData(co2_file, time, 'co2_rcp26', m_aCO2) 
       call Read2DTSData(o3_file, time, loc180, 'tro3', m_aO3)
@@ -289,26 +214,11 @@ contains
       m_Qsi = 0.0_r8
       m_tQsi = T0 + 4.0
       m_dQsi = 1d3
-      m_DOQsi = 0.0_r8
-      m_DICQsi = 0.0_r8
-      m_DOCQsi = 0.0_r8
-      m_POCQsi = 0.0_r8
-      m_SRPQsi = 0.0_r8
       m_Qso = 0.0_r8
       m_Qgw = 0.0_r8
-      ! rescale tree cover and wetland fraction
-      call RescaleTreeCoverFraction(m_ftree)
-      call RescaleWetlandFraction(m_fwlnd)
-      m_fwlnd = 1.0  ! assume all wetlands
-      m_ftree = 0.0  ! assume no trees
       ! units conversion
       m_airPr = 1.0d-3 * m_airPr             ! convert to m/s (water)
       m_airPrsn = 1.0d-3 * m_airPrsn         ! convert to m/s (water)
-      m_DOQsi = 1d+3 * m_DOQsi               ! convert to umol/m3
-      m_DICQsi = 1d+3 * m_DICQsi             ! convert to umol/m3
-      m_DOCQsi = 1d+3 * m_DOCQsi             ! convert to umol/m3
-      m_POCQsi = 1d+3 * m_POCQsi             ! convert to umol/m3
-      m_SRPQsi = 1d+3 * m_SRPQsi             ! convert to umol/m3
       m_aO3 = 1.0d-3 * m_aO3                 ! convert to 1000 DU
    end subroutine
 
@@ -334,16 +244,6 @@ contains
       deallocate(m_sedTemp)
       deallocate(m_tmpWaterTemp)
       deallocate(m_tmpSedTemp)
-      deallocate(m_bubbleGasCon)
-      deallocate(m_tmpBubbleGasCon)
-      deallocate(m_waterSubCon)
-      deallocate(m_tmpWaterSubCon)
-      deallocate(m_gasExchange)
-      deallocate(m_sedSubCon)  
-      deallocate(m_tmpSedSubCon)
-      deallocate(m_waterPOC)
-      deallocate(m_tmpWaterPOC)
-      deallocate(m_rChl2C)
       deallocate(m_Kt)
       deallocate(m_Kv)
       deallocate(m_Ks)
@@ -352,10 +252,6 @@ contains
       deallocate(m_Iab)
       deallocate(m_waterIce)
       deallocate(m_sedIce)
-      deallocate(m_iceBubblePool)
-      deallocate(m_sinkPOCPool)
-      deallocate(m_frzCarbPool)
-      deallocate(m_unfrzCarbPool)
       ! destroy the memory for air forcing data
       deallocate(m_airTemp)
       deallocate(m_airTempMax)
@@ -378,11 +274,6 @@ contains
       deallocate(m_Qsi)
       deallocate(m_tQsi)
       deallocate(m_dQsi)
-      deallocate(m_DOQsi)
-      deallocate(m_DICQsi)
-      deallocate(m_DOCQsi)
-      deallocate(m_POCQsi)
-      deallocate(m_SRPQsi)
       deallocate(m_Qso)
       deallocate(m_Qgw)
       ! destroy the memory for depth vectors
@@ -392,9 +283,6 @@ contains
       deallocate(m_dZs)
       deallocate(m_Az)
       deallocate(m_dAz)
-      deallocate(m_Rb0)
-      ! destroy memory for intermediate variables
-      deallocate(m_btmbflux)
    end subroutine
     
 end module data_buffer_mod

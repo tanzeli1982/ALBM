@@ -6,24 +6,21 @@ modules = $(wildcard *.mod)
 outputs := $(wildcard bLakeJob.sub.*)
 
 ifeq ($(DEBUG), 1)
-FFLAGS = -CB -g
+FFLAGS = -g -fbacktrace -fcheck=bounds 
 else
 FFLAGS = -O3
 endif
 ifeq ($(TRACE), 1)
-FFLAGS += -traceback -fpe0 
+FFLAGS += -fbacktrace 
 endif
-ifeq ($(OPT), 1)
-FFLAGS += -fast
-endif
-FFLAGS += -I$(NETCDF_HOME)/include -I/usr/include
+FFLAGS += -I$(NETCDF_HOME)/include
 #FFLAGS += -I$(NETCDF_HOME)/include $(LAPACK_INCLUDE_F95) -I/usr/include
 LDFLAGS =
-LIBS = -L$(NETCDF_HOME)/lib -lpnetcdf -L/usr/lib64
+LIBS = -L$(NETCDF_HOME)/lib -lnetcdf -lnetcdff 
 #LIBS = -L$(NETCDF_HOME)/lib -lpnetcdf -L/usr/lib64 $(LINK_LAPACK95) -lblas -llapack
 
-f90comp = mpif90 $(FFLAGS) -c
-f90link = mpif90 $(LDFLAGS) -o
+f90comp = gfortran $(FFLAGS) -c
+f90link = gfortran $(LDFLAGS) -o
 # source file search variable VPATH = : : :
 # Makefile
 ALBM.exe :	$(objects)
@@ -51,24 +48,10 @@ costfunc_mod.o	:		costfunc_mod.f90			math_utilities_mod.o	\
 							$(f90comp) costfunc_mod.f90
 sim_coupler_mod.o :	sim_coupler_mod.f90		thermal_mod.o			\
 							soil_thermal_mod.o		shr_ctrl_mod.o			\
-							bubble_mod.o				carbon_cycle_mod.o	\
-							diagenesis_mod.o			read_data_mod.o		\
-							shr_kind_mod.o				shr_typedef_mod.o		\
-							boundary_mod.o				math_utilities_mod.o
+							read_data_mod.o			shr_kind_mod.o			\
+							shr_typedef_mod.o			boundary_mod.o			\
+							math_utilities_mod.o
 							$(f90comp) sim_coupler_mod.f90
-diagenesis_mod.o :	diagenesis_mod.f90		data_buffer_mod.o			\
-							phy_utilities_mod.o		bg_utilities_mod.o		\
-							shr_ctrl_mod.o				shr_param_mod.o
-							$(f90comp) diagenesis_mod.f90
-carbon_cycle_mod.o :	carbon_cycle_mod.f90		phy_utilities_mod.o		\
-							data_buffer_mod.o			bg_utilities_mod.o		\
-							shr_ctrl_mod.o				shr_param_mod.o			\
-							shr_typedef_mod.o
-							$(f90comp) carbon_cycle_mod.f90
-bubble_mod.o :		bubble_mod.f90		data_buffer_mod.o				\
-						phy_utilities_mod.o	shr_ctrl_mod.o				\
-						shr_kind_mod.o			shr_typedef_mod.o
-						$(f90comp) bubble_mod.f90
 soil_thermal_mod.o :	soil_thermal_mod.f90	phy_utilities_mod.o	\
 							data_buffer_mod.o		shr_kind_mod.o			\
 							shr_ctrl_mod.o			shr_param_mod.o

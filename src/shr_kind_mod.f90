@@ -8,5 +8,4 @@ module shr_kind_mod
    integer, parameter :: SHR_KIND_CS = 80          ! short char
    integer, parameter :: SHR_KIND_CL = 256         ! long char
    integer, parameter :: SHR_KIND_CX = 512         ! extra-long char
-   real(r8), parameter :: NaN = O'0777610000000000000000'
 end module shr_kind_mod
