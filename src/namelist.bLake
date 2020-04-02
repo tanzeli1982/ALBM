@@ -2,17 +2,12 @@
  run_mode = 'regular'
  lake_file = './Lakes_ISIMIP.nc'
  lakeid_file = './Lakes_ISIMIP_id.list'
- lake_range = 1, 59
+ lake_id = 1
  bthmtry_dir = './Bathymetry/'
  param_dir = './Parameters/'
 /
 
 &simulation
- Thermal_Module = .True.
- Bubble_Module = .False.
- Diagenesis_Module = .False.
- Carbon_Module = .False.
- Hydro_Module = .False.
  Start_Year = 1979
  Start_Month = 1
  Start_Day = 1
@@ -54,9 +49,6 @@
  forcing_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/forcing_obs_'
  hydro_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/'
  tref_file = '/qfs/projects/taim/Data/others/ecmwf_ref_1990s.nc'
- soc_file = '/qfs/projects/taim/Data/bLake/Gridded/soc_005deg.nc'
- veg_file = '/qfs/projects/taim/Data/bLake/Gridded/GLCFTreeCover.nc'
- wlnd_file = '/qfs/projects/taim/Data/nclimate/Gridded/glwd.nc'
 /
 
 &archive
@@ -66,5 +58,4 @@
 
 &dbg
  DEBUG = .False.
- RESUBMIT = .False.
 /

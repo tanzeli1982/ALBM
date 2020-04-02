@@ -47,7 +47,7 @@ module shr_ctrl_mod
    ! Tolerance of bubble gas concentration (units: umol/m3/mm)
    real(r8), parameter :: Bubtol = 1.0d-6
    ! general group
-   integer :: lake_range(2)
+   integer :: lake_id 
    character(cx) :: lake_file = ""
    character(cx) :: lakeid_file = ""
    character(cx) :: bthmtry_dir = ""
@@ -55,10 +55,8 @@ module shr_ctrl_mod
    character(cx) :: param_file = ""
    character(len=32) :: run_mode = ""
    ! debug group
-   logical :: DEBUG, RESUBMIT
+   logical :: DEBUG
    ! simulation group
-   logical :: Thermal_Module, Bubble_Module, Diagenesis_Module
-   logical :: Carbon_Module, Hydro_Module
    integer :: Start_Year, Start_Month, Start_Day, End_Year
    integer :: End_Month, End_Day
    integer :: Spinup_Month, Spinup_Day, nSpinup
@@ -70,9 +68,6 @@ module shr_ctrl_mod
    character(cx) :: forcing_dir = ""
    character(cx) :: hydro_dir = ""
    character(cx) :: tref_file = ""
-   character(cx) :: soc_file = ""
-   character(cx) :: wlnd_file = ""
-   character(cx) :: veg_file = ""
    character(cx) :: tas_file = ""
    character(cx) :: tasmax_file = ""
    character(cx) :: tasmin_file = ""

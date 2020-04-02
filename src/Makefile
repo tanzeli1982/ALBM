@@ -26,26 +26,12 @@ f90link = gfortran $(LDFLAGS) -o
 ALBM.exe :	$(objects)
 		$(f90link) ALBM.exe $(objects) $(LIBS)
 bLake.o :	bLake.f90				simulation_mod.o				\
-				bayesian_mod.o			read_data_mod.o				\
-				sensitivity_mod.o
+				read_data_mod.o
 				$(f90comp) bLake.f90
-bayesian_mod.o :		bayesian_mod.f90     	sim_coupler_mod.o		\
-							io_utilities_mod.o		read_data_mod.o		\
-							shr_ctrl_mod.o				shr_typedef_mod.o		\
-							shr_param_mod.o			costfunc_mod.o
-							$(f90comp) bayesian_mod.f90
-sensitivity_mod.o :	sensitivity_mod.f90		sim_coupler_mod.o		\
-							io_utilities_mod.o		read_data_mod.o		\
-							shr_ctrl_mod.o				shr_typedef_mod.o		\
-							shr_param_mod.o
-							$(f90comp) sensitivity_mod.f90
 simulation_mod.o :	simulation_mod.f90      sim_coupler_mod.o		\
 							shr_param_mod.o			shr_typedef_mod.o		\
 							read_data_mod.o
 							$(f90comp) simulation_mod.f90
-costfunc_mod.o	:		costfunc_mod.f90			math_utilities_mod.o	\
-							read_data_mod.o			data_buffer_mod.o
-							$(f90comp) costfunc_mod.f90
 sim_coupler_mod.o :	sim_coupler_mod.f90		thermal_mod.o			\
 							soil_thermal_mod.o		shr_ctrl_mod.o			\
 							read_data_mod.o			shr_kind_mod.o			\

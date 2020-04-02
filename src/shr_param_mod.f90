@@ -70,15 +70,6 @@ module shr_param_mod
    integer, parameter :: Param_Hscale = 31
    ! sensitive parameter collection
    real(r8) :: sa_params(NPARAM)
-   ! maximum sample size
-   integer :: NMAXSAMPLE
-   ! first and last sample id to run
-   integer :: sample_range(2)
-   ! observation file and standard deviation
-   character(cx) :: obs_dir, obs_var
-   character(cx) :: obs_weight
-   ! Monte Carlo sample file and result file
-   character(cx) :: mc_file, sa_file
 
 contains
    subroutine LoadSensitiveParameters(params)

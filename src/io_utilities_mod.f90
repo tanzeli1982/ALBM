@@ -219,34 +219,16 @@ contains
    ! Purpose: form full file name for archive and backup files
    !
    !------------------------------------------------------------------------------
-   subroutine GetStaticArchiveFullname(varname, fullname)
+   subroutine GetStaticArchiveFullname(lakeId, varname, fullname)
       implicit none
+      integer, intent(in) :: lakeId
       character(len=*), intent(in) :: varname
       character(len=*), intent(out) :: fullname
       character(cx) :: fulldir, command
       character(cs) :: tmpstr
       logical :: isexist
 
-      call GetFullFileName(archive_dir, fulldir)
-      inquire(file=trim(fulldir), exist=isexist)
-      if (.not. isexist) then
-         command = 'mkdir ' // fulldir
-         call system(trim(command))
-      end if
-      fullname = trim(fulldir) // 'bLakeOut.' // trim(varname) // '.nc'
-   end subroutine
-
-   subroutine GetDynamicArchiveFullname(time, varname, fullname)
-      implicit none
-      Type(SimTime), intent(in) :: time
-      character(len=*), intent(in) :: varname
-      character(len=*), intent(out) :: fullname
-      character(cx) :: fulldir, command
-      character(cs) :: tmpstr
-      logical :: isexist
-
-      write(tmpstr,"(I4, I2.2, I2.2, A, I4, I2.2, I2.2)") time%year0, &
-            time%month0, time%day0, '_', time%year1, time%month1, time%day1
+      write(tmpstr,"(I2.2)") lakeId
       call GetFullFileName(archive_dir, fulldir)
       inquire(file=trim(fulldir), exist=isexist)
       if (.not. isexist) then
@@ -255,6 +237,29 @@ contains
       end if
       fullname = trim(fulldir) // 'bLakeOut.' // trim(varname) // '.' // &
          trim(tmpstr) // '.nc'
+   end subroutine
+
+   subroutine GetDynamicArchiveFullname(lakeId, time, varname, fullname)
+      implicit none
+      integer, intent(in) :: lakeId
+      Type(SimTime), intent(in) :: time
+      character(len=*), intent(in) :: varname
+      character(len=*), intent(out) :: fullname
+      character(cx) :: fulldir, command
+      character(cs) :: tmpstr, tmpstr2
+      logical :: isexist
+
+      write(tmpstr,"(I4, I2.2, I2.2, A, I4, I2.2, I2.2)") time%year0, &
+            time%month0, time%day0, '_', time%year1, time%month1, time%day1
+      write(tmpstr2,"(I2.2)") lakeId
+      call GetFullFileName(archive_dir, fulldir)
+      inquire(file=trim(fulldir), exist=isexist)
+      if (.not. isexist) then
+         command = 'mkdir ' // fulldir
+         call system(trim(command))
+      end if
+      fullname = trim(fulldir) // 'bLakeOut.' // trim(varname) // '.' // &
+         trim(tmpstr) // '.' // trim(tmpstr2) // '.nc'
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -319,14 +324,14 @@ contains
       character(len=*), intent(in) :: varname
       real(r8), intent(inout) :: odata(:)
       character(cx) :: fullname
-      integer :: nstart(2), ncount(2)
+      integer :: nstart(1), ncount(1)
       integer :: ncid, varid, nlayer
 
-      call GetArchiveFullname(varname, fullname)
+      call GetArchiveFullname(lakeid, varname, fullname)
       call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
       nlayer = size(odata)
-      nstart = (/1, lakeid/)
-      ncount = (/nlayer, 1/)
+      nstart = (/1/)
+      ncount = (/nlayer/)
       call check( nf90_inq_varid(ncid, trim(varname), varid) )
       call check( nf90_put_var(ncid, varid, odata, nstart, ncount) )
       call check( nf90_close(ncid) )
@@ -343,18 +348,18 @@ contains
       real(r4), intent(inout) :: odata(:)
       real(r4), allocatable :: odata1d(:)
       character(cx) :: fullname
-      integer :: nstart(2), ncount(2)
+      integer :: nstart(1), ncount(1)
       integer :: ncid, varid, nt, ii
 
-      call GetArchiveFullname(time, varname, fullname)
+      call GetArchiveFullname(lakeid, time, varname, fullname)
       if (trim(archive_tstep)=='day') then
          nt = INT( size(odata)/24 )
          allocate(odata1d(nt))
          do ii = 1, nt, 1
             call Mean(odata(24*ii-23:24*ii), odata1d(ii))
          end do
-         nstart = (/1, lakeid/)
-         ncount = (/nt, 1/)
+         nstart = (/1/)
+         ncount = (/nt/)
          call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
          call check( nf90_inq_varid(ncid, trim(varname), varid) )
          call check( nf90_put_var(ncid, varid, odata1d, nstart, ncount) )
@@ -362,8 +367,8 @@ contains
          deallocate(odata1d)
       else if (trim(archive_tstep)=='hour') then
          nt = size(odata)
-         nstart = (/1, lakeid/)
-         ncount = (/nt, 1/)
+         nstart = (/1/)
+         ncount = (/nt/)
          call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
          call check( nf90_inq_varid(ncid, trim(varname), varid) )
          call check( nf90_put_var(ncid, varid, odata, nstart, ncount) )
@@ -382,19 +387,19 @@ contains
       real(r4), intent(inout) :: odata(:,:)
       real(r4), allocatable :: odata2d(:,:)
       character(cx) :: fullname
-      integer :: nstart(3), ncount(3)
+      integer :: nstart(2), ncount(2)
       integer :: ncid, varid, nt, nlayer, ii
 
       nlayer = size(odata,1)
-      call GetArchiveFullname(time, varname, fullname)
+      call GetArchiveFullname(lakeid, time, varname, fullname)
       if (trim(archive_tstep)=='day') then
          nt = INT( size(odata,2)/24 )
          allocate(odata2d(nlayer,nt))
          do ii = 1, nt, 1
             call Mean(odata(:,24*ii-23:24*ii), 2, odata2d(:,ii))
          end do
-         nstart = (/1, 1, lakeid/)
-         ncount = (/nlayer, nt, 1/)
+         nstart = (/1, 1/)
+         ncount = (/nlayer, nt/)
          call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
          call check( nf90_inq_varid(ncid, trim(varname), varid) )
          call check( nf90_put_var(ncid, varid, odata2d, nstart, ncount) )
@@ -402,8 +407,8 @@ contains
          deallocate(odata2d)
       else if (trim(archive_tstep)=='hour') then
          nt = size(odata,2)
-         nstart = (/1, lakeid, 1/)
-         ncount = (/nlayer, 1, nt/)
+         nstart = (/1, 1/)
+         ncount = (/nlayer, nt/)
          call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
          call check( nf90_inq_varid(ncid, trim(varname), varid) )
          call check( nf90_put_var(ncid, varid, odata, nstart, ncount) )
@@ -422,19 +427,20 @@ contains
       real(r4), intent(inout) :: odata(:,:,:)
       real(r4), allocatable :: odata3d(:,:,:)
       character(cx) :: fullname
-      integer :: nstart(4), ncount(4)
+      integer :: nstart(3), ncount(3)
       integer :: ncid, varid, nt, ng, nlayer, ii
 
       ng = size(odata,1)
       nlayer = size(odata,2)
+      call GetArchiveFullname(lakeid, time, varname, fullname)
       if (trim(archive_tstep)=='day') then
          nt = INT( size(odata,3)/24 )
          allocate(odata3d(ng,nlayer,nt))
          do ii = 1, nt, 1
             call Mean(odata(:,:,24*ii-23:24*ii), 3, odata3d(:,:,ii))
          end do
-         nstart = (/1, 1, 1, lakeid/)
-         ncount = (/ng, nlayer, nt, 1/)
+         nstart = (/1, 1, 1/)
+         ncount = (/ng, nlayer, nt/)
          call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
          call check( nf90_inq_varid(ncid, trim(varname), varid) )
          call check( nf90_put_var(ncid, varid, odata3d, nstart, ncount) )
@@ -442,8 +448,8 @@ contains
          deallocate(odata3d)
       else if (trim(archive_tstep)=='hour') then
          nt = size(odata,3)
-         nstart = (/1, 1, 1, lakeid/)
-         ncount = (/ng, nlayer, nt, 1/)
+         nstart = (/1, 1, 1/)
+         ncount = (/ng, nlayer, nt/)
          call check( nf90_open(trim(fullname), NF90_WRITE, ncid) )
          call check( nf90_inq_varid(ncid, trim(varname), varid) )
          call check( nf90_put_var(ncid, varid, odata, nstart, ncount) )

@@ -19,24 +19,15 @@ contains
    subroutine RunRegular(arg)
       implicit none
       character(len=*), intent(in) :: arg
-      integer :: lake_next_range(2)
-      integer :: lakeId, err, minid, maxid
-      integer :: nlake, istep, ii, itmp
+      integer :: err, istep, ii, itmp
       integer :: ntotlake, jj
 
-      minid = minval(lake_range)
-      maxid = maxval(lake_range)
-      nlake = maxid - minid + 1
+      print "(A, I0, A, I0)", 'Run lake ', lake_id
 
-      print "(A, I0, A, I0)", 'Run lakes from ', minid, ' to ', maxid
+      call DoSimulationWarmup()
 
-      call DoSimulationWarmup(minid, ntotlake)
-
-      do istep = 1, nlake, 1 
-         lakeId = minid + istep - 1 
-         call RegularSimulation(lakeId, err)
-         print "(A, I0, A, I0)", "Lake ", lakeId, ", error ", err
-      end do
+      call RegularSimulation(lake_id, err)
+      print "(A, I0, A, I0)", "Lake ", lake_id, ", error ", err
 
    end subroutine
 
@@ -45,43 +36,38 @@ contains
    ! Purpose: create simulation archive files 
    !
    !------------------------------------------------------------------------------
-   subroutine DoSimulationWarmup(minid, nlake)
+   subroutine DoSimulationWarmup()
       implicit none
-      integer, intent(in) :: minid
-      integer, intent(out) :: nlake
       type(SimTime) :: time
       
-      call ReadLakeTotalNumber(nlake)
-      if (minid==1 .or. DEBUG) then
-         time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
+      time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
                      End_Month, End_Day)
-         call CreateOutputFile(NWLAYER+1, 'zw', 'water layer depth', 'm') 
-         call CreateOutputFile(time, 'snowthick', 'snow cover thickness', &
-                              'm', -9999.0_r4)
-         call CreateOutputFile(time, 'icethick', 'ice cover thickness', &
-                              'm', -9999.0_r4)
-         call CreateOutputFile(time, 'sensheatf', 'upward sensible ' // &
-                              'heat flux', 'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'latentheatf', 'upward latent ' // &
-                              'heat flux', 'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'momf', 'momentum energy flux', &
-                              'kg m-1 s-2', -9999.0_r4)
-         call CreateOutputFile(time, 'lwup', 'upward longwave radiation', &
-                              'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'lakeheatf', 'downward net heat flux', &
-                              'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'swdw', 'downward shortwave radiation', &
-                              'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'swup', 'upward shortwave radiation', &
-                              'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'sedheatf', 'upward sediment heat ' // &
-                              'flux', 'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'watertemp', 'water ' // &
-                              'temperature', 'K', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'turbdiffheat', &
-                               'Turbulent diffusivity of heat', 'm2 s-1', &
-                               -9999.0_r4)
-      end if
+      call CreateOutputFile(lake_id, NWLAYER+1, 'zw', 'water layer depth', 'm') 
+      call CreateOutputFile(lake_id, time, 'snowthick', 'snow cover thickness', &
+                            'm', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'icethick', 'ice cover thickness', &
+                            'm', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'sensheatf', 'upward sensible ' // &
+                            'heat flux', 'W m-2', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'latentheatf', 'upward latent ' // &
+                            'heat flux', 'W m-2', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'momf', 'momentum energy flux', &
+                            'kg m-1 s-2', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'lwup', 'upward longwave radiation', &
+                            'W m-2', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'lakeheatf', 'downward net heat flux', &
+                            'W m-2', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'swdw', 'downward shortwave radiation', &
+                            'W m-2', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'swup', 'upward shortwave radiation', &
+                            'W m-2', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, 'sedheatf', 'upward sediment heat ' // &
+                            'flux', 'W m-2', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, NWLAYER+1, 'watertemp', 'water ' // &
+                            'temperature', 'K', -9999.0_r4)
+      call CreateOutputFile(lake_id, time, NWLAYER+1, 'turbdiffheat', &
+                            'Turbulent diffusivity of heat', 'm2 s-1', &
+                            -9999.0_r4)
    end subroutine
 
    subroutine RegularSimulation(lakeId, error)

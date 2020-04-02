@@ -194,21 +194,19 @@ contains
          return
       end if
 
-      if (Thermal_Module) then
-         m_tempwHist(:,hindx) = m_waterTemp
-         m_snowHist(hindx) = m_Hsnow
-         m_iceHist(hindx) = m_Hice + m_Hgrayice
-         call GetBoundaryOutputs(sh, lh, fmm, lw, hnet, fsed, turbdiff)
-         m_shHist(hindx) = sh
-         m_lhHist(hindx) = lh
-         m_fmmHist(hindx) = fmm
-         m_lwHist(hindx) = lw
-         m_hnetHist(hindx) = hnet
-         m_fsedHist(hindx) = fsed
-         m_swdwHist(hindx) = m_surfData%sw_sim
-         m_swupHist(hindx) = m_surfData%sw_sim - m_surfData%srd
-         m_fturbHist(:,hindx) = turbdiff
-      end if
+      m_tempwHist(:,hindx) = m_waterTemp
+      m_snowHist(hindx) = m_Hsnow
+      m_iceHist(hindx) = m_Hice + m_Hgrayice
+      call GetBoundaryOutputs(sh, lh, fmm, lw, hnet, fsed, turbdiff)
+      m_shHist(hindx) = sh
+      m_lhHist(hindx) = lh
+      m_fmmHist(hindx) = fmm
+      m_lwHist(hindx) = lw
+      m_hnetHist(hindx) = hnet
+      m_fsedHist(hindx) = fsed
+      m_swdwHist(hindx) = m_surfData%sw_sim
+      m_swupHist(hindx) = m_surfData%sw_sim - m_surfData%srd
+      m_fturbHist(:,hindx) = turbdiff
    end subroutine
 
    !------------------------------------------------------------------------------

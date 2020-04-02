@@ -164,37 +164,6 @@ contains
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Read lake parameter samples for Monte Carlo sensitivity analysis
-   !
-   !------------------------------------------------------------------------------
-   subroutine ReadParameterSamples(nmaxsample, samples)
-      implicit none
-      integer, intent(in) :: nmaxsample
-      real(r8), intent(out) :: samples(:,:)
-      character(len=32) :: fname = "ReadParameterSamples"
-      character(cx) :: fullname, msg
-      integer :: ii, id, error
-
-      call GetFullFileName(mc_file, fullname)
-      open(unit=fid, file=trim(fullname), status="old", action="read", &
-           iostat=error)
-      if (error/=0) then
-         close(unit=fid)
-         call Endrun('Cannot open file ' // trim(fullname))
-      end if
-      do ii = 1, nmaxsample, 1
-         read(unit=fid, fmt=*, iostat=error) id, samples(ii,:)
-         if (error/=0) then
-            close(unit=fid)
-            write(msg, "(A, I0)") "Reading stops at line ", ii
-            call Endrun(fname, msg)
-         end if
-      end do
-      close(unit=fid)
-   end subroutine
-
-   !------------------------------------------------------------------------------
-   !
    ! Purpose: Read all model simulation settings
    !
    !------------------------------------------------------------------------------
@@ -203,24 +172,21 @@ contains
       character(len=*), intent(in) :: filename
       character(cx) :: fullname
       integer :: error
-      namelist /general/ run_mode, lake_file, lakeid_file, lake_range, &
+      namelist /general/ lake_file, lakeid_file, lake_id, &
                          bthmtry_dir, param_dir, param_file
-      namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
-                            Carbon_Module, Hydro_Module, Start_Year, &
+      namelist /simulation/ Start_Year, &
                             Start_Month,  Start_Day, End_Year, End_Month, &
                             End_Day, Spinup_Month, Spinup_Day, nSpinup
       namelist /resolution/ NWLAYER, NSLAYER, NRLAYER 
-      namelist /bayesian/ NMAXSAMPLE, sample_range, obs_dir, obs_var, &
-                          obs_weight, mc_file, sa_file
       namelist /radiation/ solar_dir, gas_dir, albedo_dir, co2_file, &
                            o3_file, aod_file
       namelist /rundata/ forcing_tstep, forcing_dir, hydro_dir, tref_file, & 
-                         soc_file, veg_file, wlnd_file, tas_file, &
+                         tas_file, &
                          tasmax_file, tasmin_file, hurs_file, ps_file, &
                          pr_file, prsn_file, rsds_file, rlds_file, &
                          wind_file
       namelist /archive/ archive_tstep, archive_dir
-      namelist /dbg/ DEBUG, RESUBMIT
+      namelist /dbg/ DEBUG
       
       call GetFullFileName(filename, fullname)
       open(unit=fid, file=trim(fullname), status="old", action="read", &
@@ -244,11 +210,6 @@ contains
          close(unit=fid)
          call Endrun("reading resolution group")
       end if
-      read(unit=fid, NML=bayesian, iostat=error)
-      if (error/=0) then
-         close(unit=fid)
-         call Endrun("reading bayesian group")
-      end if
       read(unit=fid, NML=radiation, iostat=error)
       if (error/=0) then
          close(unit=fid)
@@ -270,8 +231,6 @@ contains
          call Endrun("reading debug group")
       end if
       close(unit=fid)
-
-      call To_lower(run_mode, run_mode)
 
       ! check the consistency of namelist
       if (len_trim(param_file)==0 .and. len_trim(param_dir)==0) then
@@ -319,24 +278,21 @@ contains
       character(len=*), intent(in) :: filename
       character(cx) :: fullname
       integer :: error
-      namelist /general/ run_mode, lake_file, lakeid_file, lake_range, &
+      namelist /general/ lake_file, lakeid_file, lake_id, &
                          bthmtry_dir, param_dir, param_file
-      namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
-                            Carbon_Module, Hydro_Module, Start_Year, &
+      namelist /simulation/ Start_Year, &
                             Start_Month, Start_Day, End_Year, End_Month, &
                             End_Day, Spinup_Month, Spinup_Day, nSpinup 
       namelist /resolution/ NWLAYER, NSLAYER, NRLAYER 
-      namelist /bayesian/ NMAXSAMPLE, sample_range, obs_dir, obs_var, &
-                          obs_weight, mc_file, sa_file
       namelist /radiation/ solar_dir, gas_dir, albedo_dir, co2_file, &
                            o3_file, aod_file
       namelist /rundata/ forcing_tstep, forcing_dir, hydro_dir,  tref_file, &
-                         soc_file, veg_file, wlnd_file, tas_file, &
+                         tas_file, &
                          tasmax_file, tasmin_file, hurs_file, ps_file, &
                          pr_file, prsn_file, rsds_file, rlds_file, &
                          wind_file
       namelist /archive/ archive_tstep, archive_dir
-      namelist /dbg/ DEBUG, RESUBMIT
+      namelist /dbg/ DEBUG
 
       call GetFullFileName(filename,fullname)
       open(unit=fid, file=trim(fullname), status="replace", action="write", &
@@ -359,11 +315,6 @@ contains
       if (error/=0) then
          close(unit=fid)
          call Endrun("writing resolution group")
-      end if
-      write(unit=fid, NML=bayesian, iostat=error)
-      if (error/=0) then
-         close(unit=fid)
-         call Endrun("writing bayesian group")
       end if
       write(unit=fid, NML=radiation, iostat=error)
       if (error/=0) then
@@ -405,66 +356,6 @@ contains
       call check( nf90_inq_dimid(ncid, "lake", dimid) )
       call check( nf90_inquire_dimension(ncid, dimid, len=nlake) )
       call check( nf90_close(ncid) )
-   end subroutine
-
-   !------------------------------------------------------------------------------
-   !
-   ! Purpose: Save results for Monte Carlo sensitivity analysis
-   !
-   !------------------------------------------------------------------------------
-   subroutine CreateSampleResultFile(nrec, fillval)
-      implicit none
-      integer, intent(in) :: nrec
-      real(r8), intent(in) :: fillval
-      character(len=32) :: fname = "CreateSampleResultFile"
-      character(cx) :: fullname, histstr
-      integer :: gmtime(6), ncid, varid
-      integer :: sample_dimid, rec_dimid
-      integer :: err
-
-      call GetFullFileName(sa_file, fullname)
-      ! create the sample output file
-      call GetGMTime(gmtime)
-      write(histstr,"(I4, A, I2.2, A, I2.2, ' ', I2.2, ':', " // &
-         "I2.2, ':', I2.2, A)") gmtime(1), '-', gmtime(2), '-', &
-         gmtime(3), gmtime(4), gmtime(5), gmtime(6), &
-         " GMT from ALBM by zeli tan"
-
-      call check( nf90_create(trim(fullname), NF90_CLOBBER, ncid) )
-      call check( nf90_def_dim(ncid, "rec", nrec, rec_dimid) )
-      call check( nf90_def_dim(ncid, "id", NF90_UNLIMITED, &
-                  sample_dimid) )
-      call check( nf90_put_att(ncid, NF90_GLOBAL, "history", &
-                  trim(histstr)) )
-      call DefNcVariable(ncid, (/rec_dimid, sample_dimid/), "sa", &
-                  "sample return value", "n/a", fillval, fillval, varid)
-      call check( nf90_enddef(ncid) )
-      call check( nf90_close(ncid) )
-
-      print *, 'Create sample result file ' // trim(fullname)
-   end subroutine
-
-   subroutine WriteSampleResults(sp_range, results)
-      implicit none
-      integer, intent(in) :: sp_range(2)
-      real(r8), intent(inout) :: results(:,:)
-      character(len=32) :: fname = "WriteSampleResults"
-      character(cx) :: fullname
-      integer :: nstart(2), ncount(2)
-      integer :: ncid, varid, minid, maxid
-      integer :: nrec
-
-      maxid = maxval(sp_range)
-      minid = minval(sp_range)
-      nrec = size(results,1)
-      call GetFullFileName(sa_file, fullname)
-      nstart = (/1, minid/)
-      ncount = (/nrec, maxid-minid+1/)
-      call check( fname, nf90_open(trim(fullname), NF90_WRITE, ncid) )
-      call check( fname, nf90_inq_varid(ncid, "sa", varid) )
-      call check( fname, nf90_put_var(ncid, varid, results, nstart, ncount) )
-      call check( fname, nf90_close(ncid) )
-      print *, 'Save sample results in ' // trim(fullname)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -513,29 +404,6 @@ contains
          end if
       end do
       close(unit=fid)
-   end subroutine
-
-   subroutine ReadCalibVariables(vars, weights, nvar)
-      implicit none
-      character(len=8), intent(inout) :: vars(:)
-      real(r8), intent(inout) :: weights(:)
-      integer, intent(out) :: nvar
-      integer :: pos2, pos1
-
-      nvar = 0
-      pos1 = 1
-      do while (.True.)
-         pos2 = index(obs_var(pos1:), ",")
-         if (pos2==0) then
-            nvar = nvar + 1
-            vars(nvar) = obs_var(pos1:)
-            exit
-         end if
-         nvar = nvar + 1
-         vars(nvar) = obs_var(pos1:pos1+pos2-2)
-         pos1 = pos2 + pos1
-      end do
-      read(obs_weight,fmt=*) weights(1:nvar)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -1032,11 +900,7 @@ contains
          filename = trim(forcing_dir) // trim(info%name) // '.nc'
       end if
       call GetFullFileName(filename, fullname)
-      if (trim(run_mode)=='regular') then
-         call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
-      else
-         call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
-      end if
+      call check( fname, nf90_open(trim(fullname), NF90_NOWRITE, ncid) )
       call check( nf90_inq_varid(ncid, "date", date_varid) )
       call check( nf90_inq_varid(ncid, trim(varname), varid) )
       call check( nf90_get_att(ncid, varid, "_FillValue", filled_value) )
@@ -1506,8 +1370,9 @@ contains
    !        the maximum of all lakes.    
    !
    !------------------------------------------------------------------------------
-   subroutine CreateOutputFile0d(nz, varname, longname, units)
+   subroutine CreateOutputFile0d(lakeId, nz, varname, longname, units)
       implicit none
+      integer, intent(in) :: lakeId
       integer, intent(in) :: nz
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: longname
@@ -1518,7 +1383,7 @@ contains
       integer :: z_dimid, lake_dimid
       integer :: gmtime(6), err
 
-      call GetArchiveFullname(varname, fullname)
+      call GetArchiveFullname(lakeId, varname, fullname)
       call GetGMTime(gmtime)
       write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
             gmtime(3)
@@ -1555,8 +1420,9 @@ contains
       print *, 'Create ouput file ' // trim(fullname)
    end subroutine
 
-   subroutine CreateOutputFile1d(time, varname, longname, units, defval)
+   subroutine CreateOutputFile1d(lakeId, time, varname, longname, units, defval)
       implicit none
+      integer, intent(in) :: lakeId
       Type(SimTime), intent(in)  :: time
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: longname
@@ -1568,7 +1434,7 @@ contains
       integer :: time_dimid, lake_dimid
       integer :: gmtime(6), simday, err
 
-      call GetArchiveFullname(time, varname, fullname)
+      call GetArchiveFullname(lakeId, time, varname, fullname)
       call GetGMTime(gmtime)
       write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
             gmtime(3)
@@ -1612,8 +1478,9 @@ contains
       print *, 'Create ouput file ' // trim(fullname)
    end subroutine
 
-   subroutine CreateOutputFile2d(time, nz, varname, longname, units, defval)
+   subroutine CreateOutputFile2d(lakeId, time, nz, varname, longname, units, defval)
       implicit none
+      integer, intent(in) :: lakeId
       Type(SimTime), intent(in)  :: time
       integer, intent(in) :: nz
       character(len=*), intent(in) :: varname
@@ -1626,7 +1493,7 @@ contains
       integer :: z_dimid, time_dimid, lake_dimid
       integer :: gmtime(6), simday, err
 
-      call GetArchiveFullname(time, varname, fullname)
+      call GetArchiveFullname(lakeId, time, varname, fullname)
       call GetGMTime(gmtime)
       write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
             gmtime(3)
