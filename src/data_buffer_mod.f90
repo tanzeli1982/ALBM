@@ -299,8 +299,6 @@ contains
       ! rescale tree cover and wetland fraction
       call RescaleTreeCoverFraction(m_ftree)
       call RescaleWetlandFraction(m_fwlnd)
-      m_fwlnd = 1.0  ! assume all wetlands
-      m_ftree = 0.0  ! assume no trees
       ! units conversion
       m_airPr = 1.0d-3 * m_airPr             ! convert to m/s (water)
       m_airPrsn = 1.0d-3 * m_airPrsn         ! convert to m/s (water)
