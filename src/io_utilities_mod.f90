@@ -437,6 +437,7 @@ contains
 
       ng = size(odata,1)
       nlayer = size(odata,2)
+      call GetArchiveFullname(time, varname, fullname)
       if (trim(archive_tstep)=='day') then
          nt = INT( size(odata,3)/24 )
          allocate(odata3d(ng,nlayer,nt))
