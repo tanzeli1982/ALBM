@@ -1221,7 +1221,7 @@ contains
       integer :: lon_varid, lat_varid, date_varid
       integer :: lonindx, latindx, lonerr, laterr
       integer :: date(1), JDN0, JDN1, JDNb, timeIndx(2)
-      integer :: year, month, day
+      integer :: year, month, day, ntime, ii
       real(r8), allocatable :: tmplons(:), tmplats(:)
       real(r8), allocatable :: tmpArr(:,:,:)
       real(r8) :: plon, plat, filled_val
@@ -1292,12 +1292,35 @@ contains
          end if
       end if
 
-      allocate(tmpArr(1,1,timeIndx(2)))
-      b1start = (/lonindx, latindx, timeIndx(1)/)
-      b1count = (/1, 1, timeIndx(2)/)
-      call check( fname, nf90mpi_get_var_all(ncid, varid, tmpArr, &
-                  b1start, b1count) )
-      odata = tmpArr(1,1,:)
+      ntime = timeIndx(2) + timeIndx(1) - 1
+      if (timeIndx(1)>0) then
+         allocate(tmpArr(1,1,timeIndx(2)))
+         b1start = (/lonindx, latindx, timeIndx(1)/)
+         b1count = (/1, 1, timeIndx(2)/)
+         call check( fname, nf90mpi_get_var_all(ncid, varid, tmpArr, &
+                     b1start, b1count) )
+         odata = tmpArr(1,1,:)
+      else if (ntime>0) then
+         allocate(tmpArr(1,1,ntime))
+         b1start = (/lonindx, latindx, 1/)
+         b1count = (/1, 1, ntime/)
+         call check( fname, nf90mpi_get_var_all(ncid, varid, tmpArr, &
+                     b1start, b1count) )
+         do ii = 1, timeIndx(2), 1
+            if (ii+timeIndx(1)-1>0) then
+               odata(ii) = tmpArr(1,1,ii+timeIndx(1)-1)
+            else
+               odata(ii) = tmpArr(1,1,mod(ii-1,ntime)+1)
+            end if
+         end do
+      else
+         allocate(tmpArr(1,1,1))
+         b1start = (/lonindx, latindx, 1/)
+         b1count = (/1, 1, 1/)
+         call check( fname, nf90mpi_get_var_all(ncid, varid, tmpArr, &
+                     b1start, b1count) )
+         odata = tmpArr(1,1,1)
+      end if
       call check( nf90mpi_close(ncid) )
 
       deallocate(tmpArr)
