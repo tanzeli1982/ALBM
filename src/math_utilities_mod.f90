@@ -168,25 +168,25 @@ contains
       if (dir==1) then
          nn = size(vec,2)
          mm = size(vec,3)
-         do ii = 1, nn, 1
-            do jj = 1, mm, 1
-               mean(ii,jj) = sum(vec(:,ii,jj)*weight) / wsum
+         do ii = 1, mm, 1
+            do jj = 1, nn, 1
+               mean(jj,ii) = sum(vec(:,jj,ii)*weight) / wsum
             end do
          end do
       else if (dir==2) then
          nn = size(vec,1)
          mm = size(vec,3)
-         do ii = 1, nn, 1
-            do jj = 1, mm, 1
-               mean(ii,jj) = sum(vec(ii,:,jj)*weight) / wsum
+         do ii = 1, mm, 1
+            do jj = 1, nn, 1
+               mean(jj,ii) = sum(vec(jj,:,ii)*weight) / wsum
             end do
          end do
       else if (dir==3) then
          nn = size(vec,1)
          mm = size(vec,2)
-         do ii = 1, nn, 1
-            do jj = 1, mm, 1
-               mean(ii,jj) = sum(vec(ii,jj,:)*weight) / wsum
+         do ii = 1, mm, 1
+            do jj = 1, nn, 1
+               mean(jj,ii) = sum(vec(jj,ii,:)*weight) / wsum
             end do
          end do
       end if

@@ -96,5 +96,5 @@ module shr_ctrl_mod
    ! lake information object
    type(LakeInfo) :: lake_info
    ! master processor flag
-   integer :: masterproc
+   logical :: masterproc
 end module shr_ctrl_mod
