@@ -1,13 +1,12 @@
 ## Advanced Lake Biogeochemistry Model
 
-You can use the [editor on GitHub](https://github.com/tanzeli1982/ALBM/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
-
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+Advanced Lake Biogeochemistry Model (ALBM) is a process-based lake biogeochemistry model that was developed by Zeli Tan to study the response of lake thermal regimes, carbon dynamics and ecosystem structure to the change of environment (Tan et al., 2015, 2017, 2018).
 
 1. **Introduction**
 1. **Scientific bases**
 1. **Compilation**
-1. **Configuration***
+1. **Configuration**
+1. **References**
 
 ### Markdown
 
