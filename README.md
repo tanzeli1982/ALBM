@@ -1,12 +1,14 @@
-## Advanced Lake Biogeochemistry Model
+# Advanced Lake Biogeochemistry Model
 
 Advanced Lake Biogeochemistry Model (ALBM) is a process-based lake biogeochemistry model that was developed by Zeli Tan to study the response of lake thermal regimes, carbon dynamics and ecosystem structure to the change of environment (Tan et al., 2015, 2017, 2018).
 
-1. **Introduction**
-1. **Scientific bases**
-1. **Compilation**
-1. **Configuration**
-1. **References**
+### Introduction
+
+### Scientific bases
+
+### Compilation
+### Configuration
+### References
 
 ### Markdown
 
