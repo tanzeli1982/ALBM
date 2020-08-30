@@ -1,43 +1,12 @@
 # Advanced Lake Biogeochemistry Model
 
-Advanced Lake Biogeochemistry Model (ALBM) is a process-based lake biogeochemistry model that was developed by Zeli Tan to study the response of lake thermal regimes, carbon dynamics and ecosystem structure to the change of environment (Tan et al., 2015, 2017, 2018).
+**Advanced Lake Biogeochemistry Model (ALBM)** is a one-dimensional process-based lake biogeochemistry model that was developed by Zeli Tan to predict the response of lake thermal and carbon dynamics and water quality to environmental changes (`Tan et al., 2015, 2017, 2018`). It consists of several modules including those for the radiative transfer, the water/sediment thermal circulation, the water/sediment biogeochemistry, phytoplankton biomass, and the gas diffusive and ebullition transportation. Although the model was originally developed for Arctic lakes (`Tan et al., 2015`), it has since been used for lakes in diverse environments (`Guseva et al., 2020; Guo et al., 2020a, 2020b`). ALBM is a member model of the Inter-Sectoral Impact Model Intercomparison Project (ISIMIP) lake sector (https://www.isimip.org/impactmodels/details/232/).
 
-### Introduction
-
-### Scientific bases
-
-### Compilation
-### Configuration
 ### References
 
-### Markdown
-
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
-
-```markdown
-Syntax highlighted code block
-
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/tanzeli1982/ALBM/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+1. Tan, Z., Zhuang, Q., & Walter Anthony, K. (2015). Modeling methane emissions from arctic lakes: Model development and site‐level study. _Journal of Advances in Modeling Earth Systems_, _7_, 459-483.
+1. Tan, Z., Zhuang, Q., Shurpali, N. J., Marushchak, M. E., Biasi, C., Eugster, W., & Walter Anthony, K. (2017). Modeling CO2 emissions from Arctic lakes: Model development and site‐level study. _Journal of Advances in Modeling Earth Systems_, _9_, 2190-2213.
+1. Tan, Z., Yao, H., & Zhuang, Q. (2018). A small temperate lake in the 21st century: dynamics of water temperature, ice phenology, dissolved oxygen, and chlorophyll _a_. _Water Resources Research_, _54_, 4681-4699.
+1. Guseva, S., Bleninger, T., Jöhnk, K., Polli, B. A., Tan, Z., Thiery, W., ... & Stepanenko, V. (2020). Multimodel simulation of vertical gas transfer in a temperate lake. _Hydrology and Earth System Sciences_, _24_, 697-715.
+1. Guo, M., Zhuang, Q., Tan, Z., Shurpali, N., Juutinen, S., Kortelainen, P., & Martikainen, P. J. (2020a). Rising methane emissions from boreal lakes due to increasing ice-free days. _Environmental Research Letters_, _15_, 064008.
+1. Guo, M., Zhuang, Q., Yao, H., Golub, M., Leung, L. R., & Tan, Z. (2020b). Validation and sensitivity analysis of a 1-D lake model across global lakes. In review.
