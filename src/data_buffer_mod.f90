@@ -19,16 +19,28 @@ module data_buffer_mod
    real(r4), allocatable :: m_tempwHist(:,:)
    ! simulated hourly lake snow and ice thickness
    real(r4), allocatable :: m_snowHist(:), m_iceHist(:)
-   ! hourly boundary conditions
-   real(r4), allocatable :: m_shHist(:)   ! sensible heat
-   real(r4), allocatable :: m_lhHist(:)   ! latent heat
-   real(r4), allocatable :: m_fmmHist(:)  ! momentum flux
-   real(r4), allocatable :: m_lwHist(:)   ! upward longwave radiation
-   real(r4), allocatable :: m_hnetHist(:) ! downward net heat flux
-   real(r4), allocatable :: m_swdwHist(:) ! downward shortwave radiation
-   real(r4), allocatable :: m_swupHist(:) ! upward shortwave radiation
-   real(r4), allocatable :: m_fsedHist(:) ! upward sediment heat flux
+   ! history variables for thermal dynamics
+   real(r4), allocatable :: m_shHist(:)      ! sensible heat
+   real(r4), allocatable :: m_lhHist(:)      ! latent heat
+   real(r4), allocatable :: m_fmmHist(:)     ! momentum flux
+   real(r4), allocatable :: m_lwHist(:)      ! upward longwave radiation
+   real(r4), allocatable :: m_hnetHist(:)    ! downward net heat flux
+   real(r4), allocatable :: m_swdwHist(:)    ! downward shortwave radiation
+   real(r4), allocatable :: m_swupHist(:)    ! upward shortwave radiation
+   real(r4), allocatable :: m_fsedHist(:)    ! upward sediment heat flux
    real(r4), allocatable :: m_fturbHist(:,:) ! turbulent diffusivity of heat
+   ! history variables for BGC dynamics
+   real(r4), allocatable :: m_doHist(:,:)    ! dissolved oxygen
+   real(r4), allocatable :: m_dch4Hist(:,:)  ! dissolved methane
+   real(r4), allocatable :: m_dco2Hist(:,:)  ! dissolved CO2
+   real(r4), allocatable :: m_docHist(:,:)   ! DOC
+   real(r4), allocatable :: m_srpHist(:,:)   ! soluble reactive P
+   real(r4), allocatable :: m_fch4dHist(:)   ! diffusive methane flux
+   real(r4), allocatable :: m_fch4eHist(:)   ! ebullitive methane flux
+   real(r4), allocatable :: m_fco2Hist(:)    ! total CO2 flux
+   ! history variables for ecosystem dynamics
+   real(r4), allocatable :: m_chlHist(:,:)   ! chlorophyll
+   real(r4), allocatable :: m_phytobioHist(:,:) ! phytoplankton biomass
    ! incumbent water and sediment temperature profile (K)
    real(r8), allocatable :: m_waterTemp(:), m_sedTemp(:)
    ! temporary water and sediment temperature profile (K) 
@@ -103,7 +115,7 @@ module data_buffer_mod
    real(r8), allocatable :: m_dAz(:)
    ! bubble radius vector (m)
    real(r8), allocatable :: m_Rb0(:)
-   ! bubble water interface fluxes (umol/m2/s)
+   ! bubble fluxes at the water-sediment interface (umol/m2/s)
    real(r8), allocatable :: m_btmbflux(:)
    ! autochthonous and allochthonous sedimentation rate (umol/m2/s)
    real(r8) :: m_burialAtCarb, m_burialAlCarb
@@ -166,7 +178,7 @@ contains
       end if
       ntout = 24 * simday
 
-      ! allocate memory for the archive variables
+      ! allocate memory for history variables
       allocate(m_timeHist(ntout))
       allocate(m_tempwHist(WATER_LAYER+1,ntout))
       allocate(m_snowHist(ntout))
@@ -180,7 +192,17 @@ contains
       allocate(m_swupHist(ntout))
       allocate(m_fsedHist(ntout))
       allocate(m_fturbHist(WATER_LAYER+1,ntout))
-      ! allocate memory for the state variables
+      allocate(m_doHist(WATER_LAYER+1,ntout))
+      allocate(m_dch4Hist(WATER_LAYER+1,ntout))
+      allocate(m_dco2Hist(WATER_LAYER+1,ntout))
+      allocate(m_docHist(WATER_LAYER+1,ntout))
+      allocate(m_srpHist(WATER_LAYER+1,ntout))
+      allocate(m_chlHist(WATER_LAYER+1,ntout))
+      allocate(m_phytobioHist(WATER_LAYER+1,ntout))
+      allocate(m_fch4dHist(ntout))
+      allocate(m_fch4eHist(ntout))
+      allocate(m_fco2Hist(ntout))
+      ! allocate memory for state variables
       allocate(m_waterTemp(WATER_LAYER+1))
       allocate(m_sedTemp(NSLAYER+1))
       allocate(m_tmpWaterTemp(WATER_LAYER+1))
@@ -327,6 +349,16 @@ contains
       deallocate(m_swupHist)
       deallocate(m_fsedHist)
       deallocate(m_fturbHist)
+      deallocate(m_doHist)
+      deallocate(m_dch4Hist)
+      deallocate(m_dco2Hist)
+      deallocate(m_docHist)
+      deallocate(m_srpHist)
+      deallocate(m_chlHist)
+      deallocate(m_phytobioHist)
+      deallocate(m_fch4dHist)
+      deallocate(m_fch4eHist)
+      deallocate(m_fco2Hist)
       ! destroy the memory for the state variables
       deallocate(m_waterTemp)
       deallocate(m_sedTemp)
