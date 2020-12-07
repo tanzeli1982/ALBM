@@ -29,7 +29,7 @@ module radiation_mod
    public :: CalcClearSkyIrradiance, CorrIrradianceByCloud
    public :: CorrIrradianceByReflection
    public :: CorrIrradianceForSnow
-   public :: CorrIrradianceForGrayIce
+   public :: CorrIrradianceForIce
    public :: abW, abI, abN, abE
    public :: abCDOM, abAP, abNAP, bsP
    public :: Abd_fsnow, Abd_msnow
@@ -320,13 +320,14 @@ contains
 
    !------------------------------------------------------------------------------
    !
-   !  Purpose: Correct belowwater downward irradiance for gray ice reflection.
+   !  Purpose: Correct belowwater downward irradiance for ice reflection.
    !
    !------------------------------------------------------------------------------
-   subroutine CorrIrradianceForGrayIce(zenith, rfrIndx, fgphot, ofrdif, zcos)
+   subroutine CorrIrradianceForIce(zenith, rfrIndx, albedo, fgphot, ofrdif, zcos)
       implicit none
       real(r8), intent(in) :: zenith         ! abovewater zenith angle
       real(r8), intent(in) :: rfrIndx        ! refractive index
+      real(r8), intent(in) :: albedo         ! reference ice albedo
       real(r8), intent(inout) :: fgphot(:)   ! downward irradiance
       real(r8), intent(in) :: ofrdif(:)      ! diffuse fraction
       real(r8), intent(out) :: zcos          ! cosine of underwater zenith angle
@@ -340,7 +341,7 @@ contains
       txb = 1.0 - 0.5 * ( (sin(tha-thw)/sin(tha+thw))**2 + &
             (tan(tha-thw)/tan(tha+thw))**2 )
       ! radiation after transmitting through the gray ice-ice interface
-      fgphot = (1.0 - (txd*ofrdif + txb*(1.0-ofrdif))*Alphae) &
+      fgphot = (1.0 - (txd*ofrdif + txb*(1.0-ofrdif))*albedo) &
             * fgphot
    end subroutine
 

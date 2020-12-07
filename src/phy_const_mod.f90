@@ -64,8 +64,8 @@ module phy_const_mod
    real(r8), parameter :: EtaeVIS = 3.75, EtaeIR = 40.0
    ! Refractive index of water, ice and gray ice
    real(r8), parameter :: Rfrw = 1.333, Rfri = 1.309, Rfre = 1.309
-   ! Surface albedo of gray ice
-   real(r8), parameter :: Alphae = 0.40
+   ! Surface albedo of gray ice and ice
+   real(r8), parameter :: Alphae = 0.40, Alphai = 0.55
    ! N2, O2, CO2 and CH4 mixing ratio in the atmosphere
    real(r8), parameter :: Xn2 = 0.78, Xo2 = 0.21
    real(r8), parameter :: Xco2 = 380.0d-6, Xch4 = 1800.0d-9
