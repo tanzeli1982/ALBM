@@ -9,4 +9,4 @@
 1. Tan, Z., Yao, H., & Zhuang, Q. (2018). A small temperate lake in the 21st century: dynamics of water temperature, ice phenology, dissolved oxygen, and chlorophyll _a_. _Water Resources Research_, _54_, 4681-4699.
 1. Guseva, S., Bleninger, T., Jöhnk, K., Polli, B. A., Tan, Z., Thiery, W., ... & Stepanenko, V. (2020). Multimodel simulation of vertical gas transfer in a temperate lake. _Hydrology and Earth System Sciences_, _24_, 697-715.
 1. Guo, M., Zhuang, Q., Tan, Z., Shurpali, N., Juutinen, S., Kortelainen, P., & Martikainen, P. J. (2020). Rising methane emissions from boreal lakes due to increasing ice-free days. _Environmental Research Letters_, _15_, 064008.
-1. Guo, M., Zhuang, Q., Yao, H., Golub, M., Leung, L. R., & Tan, Z. (2021). Validation and sensitivity analysis of a 1-D lake model across global lakes. In review.
+1. Guo, M., Zhuang, Q., Yao, H., Golub, M., Leung, L.. R., Pierson, D., & Tan, Z. (2020). Validation and Sensitivity Analysis of a 1‐D Lake Model across Global Lakes. _Journal of Geophysical Research: Atmospheres_, _125_, e2020JD033417.
