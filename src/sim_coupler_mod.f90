@@ -215,6 +215,16 @@ contains
       m_swdwHist = 0.0_r4
       m_swupHist = 0.0_r4
       m_fturbHist = 0.0_r4
+      m_doHist = 0.0_r4
+      m_dch4Hist = 0.0_r4
+      m_dco2Hist = 0.0_r4
+      m_docHist = 0.0_r4
+      m_srpHist = 0.0_r4
+      m_chlHist = 0.0_r4
+      m_phytobioHist = 0.0_r4
+      m_fch4dHist = 0.0_r4
+      m_fch4eHist = 0.0_r4
+      m_fco2Hist = 0.0_r4
    end subroutine
 
    subroutine SetNullModelOutputs()
@@ -233,6 +243,16 @@ contains
       m_swdwHist = -9999.0_r4 
       m_swupHist = -9999.0_r4
       m_fturbHist = -9999.0_r4
+      m_doHist = -9999.0_r4
+      m_dch4Hist = -9999.0_r4
+      m_dco2Hist = -9999.0_r4
+      m_docHist = -9999.0_r4
+      m_srpHist = -9999.0_r4
+      m_chlHist = -9999.0_r4
+      m_phytobioHist = -9999.0_r4
+      m_fch4dHist = -9999.0_r4
+      m_fch4eHist = -9999.0_r4
+      m_fco2Hist = -9999.0_r4
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -266,6 +286,22 @@ contains
          m_swupHist(hindx) = m_surfData%sw_sim - m_surfData%srd
          m_fturbHist(:,hindx) = turbdiff
       end if
+      if (Carbon_Module) then
+         m_fch4dHist(hindx) = 8.64d-2 * top_fluxes(Wch4)
+         m_fco2Hist(hindx) = 8.64d-2 * top_fluxes(Wco2)
+         m_doHist(:,hindx) = 1d-6 * m_waterSubCon(Wo2,:)
+         m_dco2Hist(:,hindx) = 1d-6 * m_waterSubCon(Wco2,:)
+         m_dch4Hist(:,hindx) = 1d-6 * m_waterSubCon(Wch4,:)
+         m_srpHist(:,hindx) = 1d-6 * m_waterSubCon(Wsrp,:)
+         m_docHist(:,hindx) = 1d-6 * m_waterSubCon(Waqdoc,:) + &
+            1d-6 * m_waterSubCon(Wtrdoc,:)
+         m_chlHist(:,hindx) = 1d-6 * sum(m_rChl2C*m_waterPOC,1) 
+         m_phytobioHist(:,hindx) = 1d-6 * sum(m_waterPOC,1)
+      end if
+      if (Bubble_Module) then
+         m_fch4eHist(hindx) = 8.64d-2 * bubble_fluxes(Wch4)
+         m_fco2Hist(hindx) = m_fco2Hist(hindx) + 8.64d-2 * bubble_fluxes(Wco2)
+      end if
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -292,6 +328,16 @@ contains
          call WriteData(lakeId, time, 'swup', m_swupHist)
          call WriteData(lakeId, time, 'swdw', m_swdwHist)
          call WriteData(lakeId, time, 'turbdiffheat', m_fturbHist)
+         call WriteData(lakeId, time, 'do', m_doHist)
+         call WriteData(lakeId, time, 'dch4', m_dch4Hist)
+         call WriteData(lakeId, time, 'dco2', m_dco2Hist)
+         call WriteData(lakeId, time, 'doc', m_docHist)
+         call WriteData(lakeId, time, 'srp', m_srpHist)
+         call WriteData(lakeId, time, 'fch4e', m_fch4eHist)
+         call WriteData(lakeId, time, 'fch4d', m_fch4dHist)
+         call WriteData(lakeId, time, 'fco2', m_fco2Hist)
+         call WriteData(lakeId, time, 'chl', m_chlHist)
+         call WriteData(lakeId, time, 'phytobio', m_phytobioHist)
       end if
    end subroutine
 

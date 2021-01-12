@@ -116,11 +116,31 @@ contains
                               'W m-2', -9999.0_r4)
          call CreateOutputFile(time, 'sedheatf', 'upward sediment heat ' // &
                               'flux', 'W m-2', -9999.0_r4)
+         call CreateOutputFile(time, 'fch4d', 'diffusive methane flux', &
+                              'mole m-2 d-1', -9999.0_r4)
+         call CreateOutputFile(time, 'fch4e', 'ebullitive methane flux', &
+                              'mole m-2 d-1', -9999.0_r4)
+         call CreateOutputFile(time, 'fco2', 'total CO2 flux (negative ' // &
+                              'for C sink)', 'mole m-2 d-1', -9999.0_r4)
          call CreateOutputFile(time, NWLAYER+1, 'watertemp', 'water ' // &
                               'temperature', 'K', -9999.0_r4)
          call CreateOutputFile(time, NWLAYER+1, 'turbdiffheat', &
                                'Turbulent diffusivity of heat', 'm2 s-1', &
                                -9999.0_r4)
+         call CreateOutputFile(time, NWLAYER+1, 'do', 'dissolved oxygen', &
+                               'mole m-3', -9999.0_r4)
+         call CreateOutputFile(time, NWLAYER+1, 'dch4', 'dissolved methane', &
+                               'mole m-3', -9999.0_r4)
+         call CreateOutputFile(time, NWLAYER+1, 'dco2', 'dissolved CO2', &
+                               'mole m-3', -9999.0_r4)
+         call CreateOutputFile(time, NWLAYER+1, 'doc', 'dissolved organic carbon', &
+                               'mole m-3', -9999.0_r4)
+         call CreateOutputFile(time, NWLAYER+1, 'srp', 'soluble reactive phosphorus', &
+                               'mole m-3', -9999.0_r4)
+         call CreateOutputFile(time, NWLAYER+1, 'chl', 'chlorophyll', &
+                               'g m-3', -9999.0_r4)
+         call CreateOutputFile(time, NWLAYER+1, 'phytobio', 'phytoplankton biomass', &
+                               'mole m-3', -9999.0_r4)
       end if
    end subroutine
 

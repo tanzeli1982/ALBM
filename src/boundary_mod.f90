@@ -176,10 +176,10 @@ contains
          call CorrIrradianceForSnow(zenith, tair, fgphot, frdif, zcos)
       else if (m_Hgrayice>e8) then
          ! correct for gray ice reflection
-         call CorrIrradianceForGrayIce(zenith, Rfre, fgphot, frdif, zcos)
+         call CorrIrradianceForIce(zenith, Rfre, Alphae, fgphot, frdif, zcos)
       else if (m_Hice>e8) then
          ! correct for ice reflection
-         call CorrIrradianceByReflection(zenith, Rfri, fgphot, frdif, zcos)
+         call CorrIrradianceForIce(zenith, Rfri, Alphai, fgphot, frdif, zcos)
       else
          ! correct for water reflection
          call CorrIrradianceByReflection(zenith, Rfrw, fgphot, frdif, zcos)

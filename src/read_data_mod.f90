@@ -1444,20 +1444,20 @@ contains
 
             ! construct weights matrix
             do ii = 1, nrange, 1
-               lon = tmplons(target_lonid(ii))
+               lat = tmplats(target_latid(ii))
                do jj = 1, nrange, 1
-                  lat = tmplats(target_latid(jj))
+                  lon = tmplons(target_lonid(jj))
                   if (lat==plat .and. lon==plon) then
-                     if (tmpArr(ii,jj)/=filled_val) then
+                     if (tmpArr(jj,ii)/=filled_val) then
                         weights = 0.0
-                        weights(ii,jj) = 1.0
+                        weights(jj,ii) = 1.0
                         exit
                      else
-                        weights(ii,jj) = 0.0
+                        weights(jj,ii) = 0.0
                      end if
                   else
                      dist = CalcGreatCircleDistance(plon, plat, lon, lat)
-                     weights(ii,jj) = dist**(-2)
+                     weights(jj,ii) = dist**(-2)
                   end if
                end do
             end do
@@ -1468,9 +1468,9 @@ contains
             ncount = 0
             do ii = 1, nrange, 1
                do jj = 1, nrange, 1
-                  if (tmpArr(ii,jj)/=filled_val) then
-                     numer = numer + tmpArr(ii,jj) * weights(ii,jj)
-                     denom = denom + weights(ii,jj)
+                  if (tmpArr(jj,ii)/=filled_val) then
+                     numer = numer + tmpArr(jj,ii) * weights(jj,ii)
+                     denom = denom + weights(jj,ii)
                      ncount = ncount + 1
                   end if
                end do
