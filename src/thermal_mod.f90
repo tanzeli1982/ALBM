@@ -440,7 +440,7 @@ contains
       real(r8) :: tavg, tzw, Vepi, Vz
       real(r8) :: hmix, Wstr, w10, As, Pkin
       real(r8) :: Epot, drho, mepi, mz
-      real(r8) :: zepi, zmz, Mv, Tt, Tb
+      real(r8) :: zepi, zmz, Mv
       integer :: ii, top, bottom 
 
       top = m_lakeWaterTopIndex
@@ -498,16 +498,14 @@ contains
          m_Hmix = 0.0_r8
       end if
       if (m_Hice<e8) then
-         Tt = m_waterTemp(top)
-         Tb = m_waterTemp(bottom)
          do ii = top, bottom, 1
-            if (Tt>m_waterTemp(ii)+1.0) then
+            if (abs(m_waterTemp(ii)-m_waterTemp(top))>1.0) then
                exit
             end if
             m_HbLayer(1) = m_Zw(ii)
          end do
          do ii = bottom, top, -1
-            if (m_waterTemp(ii)+2.0>Tb) then
+            if (abs(m_waterTemp(ii)-m_waterTemp(bottom))>1.0) then
                exit
             end if
             m_HbLayer(2) = m_Zw(bottom) - m_Zw(ii)

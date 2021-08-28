@@ -207,7 +207,7 @@ contains
             PPOC = LPOC(small_ppk) + DPOC * 0.5
             MPOC = LPOC(large_ppk) + DPOC * 0.5
             trDOC = m_waterSubCon(Wtrdoc,ii)
-            Chla = 1.0d-3 * m_rChl2C(:,ii) * LPOC 
+            Chla = m_chla(:,ii)
             !call CalcAcCDOM(lake_info%itype, trDOC, m_wvln, abCDOM) 
             !call CalcAcAlgae(LPOC, Chla, m_wvln, mem_pico, mem_micro, abAP)
             ! irradiance attenuation
@@ -300,8 +300,7 @@ contains
       call UpdateSeasonalFlags(time, hindx, year, month, day)
       if (winter_flag==0 .and. prewinter_flag==1) then
          prewinter_flag = winter_flag
-         !m_rChl2C = 0.24
-         !m_waterPOC = 5d2 * m_chla0 / 0.24 
+         !m_waterPOC = 5d2 * m_chla / 0.24 
       else if (winter_flag==1 .and. prewinter_flag==0) then
          prewinter_flag = winter_flag
          do ii = 1, NPOC, 1

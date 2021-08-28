@@ -103,7 +103,7 @@ contains
          do jj = 1, NRLAYER+1, 1
             rr = Vr(jj,ii) + inft
             Vab(jj,ii) = CalcBuoyantVelocity(rr, vsc)
-            tmp = 3.0 * m_surfData%pressure + 3.0*Roul*G*depth + 4.0*gama/rr
+            tmp = 3.0*m_surfData%pressure + 3.0*Roul*G*depth + 4.0*gama/rr
             Var1(jj,ii) = 0.75*R*temp/(Pi*rr**2)/tmp
             Var2(jj,ii) = rr*Roul*G*Vab(jj,ii)/tmp
          end do
@@ -134,19 +134,15 @@ contains
    subroutine BubbleModuleCallback(dt)
       implicit none
       real(r8), intent(in) :: dt
-      real(r8) :: tmp(NGAS), r1, r2, temp
       integer :: ii, jj, top
 
       top = m_lakeWaterTopIndex
       do ii = top, WATER_LAYER+1, 1
-         tmp = 0.0_r8
-         do jj = 1, NRLAYER, 1
-            r1 = Vr(jj,ii)
-            r2 = Vr(jj+1,ii)
-            tmp = tmp + 0.5e3*(Vex(:,jj,ii)+Vex(:,jj+1,ii))*(r2-r1)
-         end do
          ! gas transfer from bubble to water
-         m_gasExchange(:,ii) = -tmp
+         m_gasExchange(:,ii) = 0._r8
+         do jj = 1, NRLAYER+1, 1
+            m_gasExchange(:,ii) = m_gasExchange(:,ii) - Vex(:,jj,ii)
+         end do
       end do
       ! assume no transfer in ice layers
       m_gasExchange(:,1:top-1) = 0.0_r8
@@ -258,7 +254,7 @@ contains
       implicit none
       real(r8), intent(out) :: con(NGAS,NRLAYER+1)    ! unit: umol/(m3*mm)
       real(r8) :: temp, gama, pressure, wb
-      real(r8) :: rr, rmax, rmin, tmp1, tmp2
+      real(r8) :: rr, Atmp 
       real(r8) :: vsc
       integer :: rIndx
 
@@ -267,19 +263,18 @@ contains
          return
       end if
 
-      rmax = m_Rb0(NRLAYER+1)
-      rmin = m_Rb0(1)
       temp = m_waterTemp(WATER_LAYER+1)
       vsc = m_dVsc(WATER_LAYER+1) / Roul
       gama = CalcSurfaceTension(temp)
       pressure = m_surfData%pressure + Roul*G*lake_info%depth
-      tmp1 = 0.5*(rmax*rmax-rmin*rmin)*pressure + gama*(rmax-rmin)
+      Atmp = 0._r8
       do rIndx = 1, NRLAYER+1, 1
          rr = m_Rb0(rIndx)
          wb = CalcBuoyantVelocity(rr, vsc)
-         tmp2 = pressure * rr + gama
-         con(:,rIndx) = 1.0d-3*m_btmbflux*tmp2/(tmp1+inft)/(wb+inft)
+         Atmp = Atmp + (pressure*rr + 2*gama) * wb
+         con(:,rindx) = m_btmbflux * (pressure*rr + 2*gama)
       end do
+      con(:,rindx) = con(:,rindx) / Atmp
    end subroutine
 
    ! Initialize the bubble radius field in water column without considering dissolution
@@ -465,8 +460,8 @@ contains
    subroutine UpdateBubbleFlux(dt)
       implicit none
       real(r8), intent(in) :: dt
-      real(r8) :: flux(NGAS), c1(NGAS), c2(NGAS)
-      real(r8) :: r1, r2, vsc, wb1, wb2
+      real(r8) :: flux(NGAS), cb(NGAS)
+      real(r8) :: rr, vsc, wb
       integer :: ii, top
 
       bubble_fluxes = 0.0_r8
@@ -477,14 +472,11 @@ contains
       top = m_lakeWaterTopIndex
       vsc = m_dVsc(top) / Roul
       flux = 0.0_r8
-      do ii = 1, NRLAYER, 1
-         c1 = m_bubbleGasCon(:,ii,top)
-         c2 = m_bubbleGasCon(:,ii+1,top)
-         r1 = Vr(ii,top)
-         r2 = Vr(ii+1,top)
-         wb1 = CalcBuoyantVelocity(r1, vsc)
-         wb2 = CalcBuoyantVelocity(r2, vsc)
-         flux = flux + 0.5d+3 * (c1*wb1+c2*wb2) * (r2-r1)
+      do ii = 1, NRLAYER+1, 1
+         cb = m_bubbleGasCon(:,ii,top)
+         rr = Vr(ii,top)
+         wb = CalcBuoyantVelocity(rr, vsc)
+         flux = flux + cb * wb 
       end do
       if ( (lake_info%thrmkst==2 .and. lake_info%margin==1) .or. &
             (m_Hice<e8) ) then

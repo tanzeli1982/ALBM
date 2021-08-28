@@ -485,7 +485,8 @@ contains
          aqDOC = m_waterSubCon(Waqdoc,ii)
          trDOC = m_waterSubCon(Wtrdoc,ii)
          LPOC = m_waterPOC(:,ii)
-         Chla = 1d-3 * m_rChl2C(:,ii) * LPOC
+         Chla = min( (/1.55d2,1.55d2/), 1d-3*rChl2C(:,ii)*LPOC )
+         m_chla(:,ii) = Chla
          rfloc(ii) = trDOC * floc
          
          if (isHourNode) then
@@ -497,11 +498,12 @@ contains
             end if
 
             ! update algae densities
-            call UpdateAlgaeDensity(Ipar(ii), 3.6d3, RhoA(:,ii))
+            call UpdateAlgaeDensity(rChl2C(:,ii)/12.0, Ipar(ii), 3.6d3, RhoA(:,ii))
 
             ! photosynthesis, photochemical and microbial DOC degradation,
             ! algae metabolic loss, and CH4 oxidation
-            call Photosynthesis(Chla, Dco2, temp, SRP, Ipar(ii), rGPP(:,ii))
+            call Photosynthesis(Chla, rChl2C(:,ii)/12.0, Dco2, temp, SRP, &
+                  Ipar(ii), rGPP(:,ii))
             call PhotoDegradation(ltype, trDOC, m_wvln, m_fsphot(:,ii), &
                   rCDOM(ii))
             call MicrobialRespiration((/aqDOC,trDOC/), temp, Do2, rRDOC(:,ii))
@@ -528,7 +530,7 @@ contains
       ! dynamics rates of dissolved substances
       ! 2.75*rRDOC(2,:) is a compensation for non-DOC oxidation
       rDYN(Wn2,:) = m_gasExchange(Wn2,:)
-      rDYN(Wo2,:) = sum(rGPP,1) - rCDOM - rRDOC(1,:) - 2.75*rRDOC(2,:) - &
+      rDYN(Wo2,:) = sum(rGPP,1) - rCDOM - sum(rRDOC,1) - &
                     sum(rRLPOC,1) + SwDOLoad - 2.0*rOCH4 + &
                     m_gasExchange(Wo2,:)
       rDYN(Wco2,:) = -sum(rGPP,1) + rCDOM + sum(rRDOC,1) + & 
@@ -639,14 +641,16 @@ contains
       implicit none
       real(r8), intent(in) :: con(NWSUB)        ! units: umol/m3
       real(r8), intent(out) :: fluxes(NWSUB)    ! units: umol/m2/s
+      real(r8) :: Porosity
       integer :: ii
 
+      Porosity = sa_params(Param_Por)
       if (m_lakeWaterTopIndex>WATER_LAYER+1) then
          fluxes = 0.0_r8
       else
          ! bottom dissolved substance fluxes
-         fluxes(Wn2:Wsrp) = m_Kbm * (m_sedSubCon(:,1) - &
-            con(Wn2:Wsrp)) / DeltaD
+         fluxes(Wn2:Wsrp) = m_Kbm / DeltaD * &
+            (m_sedSubCon(:,1)/Porosity - con(Wn2:Wsrp))
          do ii = Wn2, Wo2, 1
             fluxes(ii) = min(0.0, fluxes(ii))
          end do
@@ -785,7 +789,7 @@ contains
             (m_Hsnow<e8 .and. m_Hgrayice<e8)) then
          temp = max(m_waterTemp(top), T0)
          SRP = m_waterSubCon(Wsrp,top)
-         call CalcChl2CRatio(Ipar, m_waterIce, temp, SRP, m_rChl2C)          
+         call CalcChl2CRatio(Ipar, m_waterIce, temp, SRP, rChl2C)          
       end if
    end subroutine
 
@@ -909,8 +913,8 @@ contains
       m_waterSubCon(Wsrp,:) = 1.0d3 * 0.03
       m_waterSubCon(Waqdoc,:) = 0.0_r8
       m_waterSubCon(Wtrdoc,:) = 1.0d6 * 0.38
-      m_rChl2C = 0.24
-      m_waterPOC = 5d2 * 1.0 / 0.24
+      m_chla = 3._r8
+      m_waterPOC = 1d3 * m_chla / 0.24
 
       m_gasExchange = 0.0_r8
       m_burialAtCarb = 0.0_r8
