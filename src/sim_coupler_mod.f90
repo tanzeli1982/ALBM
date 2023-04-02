@@ -204,6 +204,7 @@ contains
 
       m_timeHist = 0
       m_tempwHist = 0.0_r4
+      m_tempsHist = 0.0_r4
       m_snowHist = 0.0_r4
       m_iceHist = 0.0_r4
       m_shHist = 0.0_r4
@@ -232,6 +233,7 @@ contains
 
       m_timeHist = -9999
       m_tempwHist = -9999.0_r4
+      m_tempsHist = -9999.0_r4
       m_snowHist = -9999.0_r4
       m_iceHist = -9999.0_r4
       m_shHist = -9999.0_r4
@@ -273,6 +275,7 @@ contains
 
       if (Thermal_Module) then
          m_tempwHist(:,hindx) = m_waterTemp
+         m_tempsHist(:,hindx) = m_sedTemp
          m_snowHist(hindx) = m_Hsnow
          m_iceHist(hindx) = m_Hice + m_Hgrayice
          call GetBoundaryOutputs(sh, lh, fmm, lw, hnet, fsed, turbdiff)
@@ -315,8 +318,10 @@ contains
       type(SimTime), intent(in) :: time
 
       call WriteData(lakeId, 'zw', m_Zw)
+      call WriteData(lakeId, 'zs', m_Zs)
       if (Thermal_Module) then
          call WriteData(lakeId, time, 'watertemp', m_tempwHist)
+         call WriteData(lakeId, time, 'sedtemp', m_tempsHist)
          call WriteData(lakeId, time, 'snowthick', m_snowHist)
          call WriteData(lakeId, time, 'icethick', m_iceHist)
          call WriteData(lakeId, time, 'sensheatf', m_shHist)
