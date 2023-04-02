@@ -613,6 +613,7 @@ contains
    function CalcLatentHeatIce(waterTemp, airTemp, RH, wind)
       implicit none
       real(r8), intent(in) :: waterTemp      ! units: K
+      real(r8), intent(in) :: airTemp        ! units: K
       real(r8), intent(in) :: RH             ! units: %
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: CalcLatentHeatIce
