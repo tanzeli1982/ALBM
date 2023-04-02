@@ -352,7 +352,7 @@ contains
                if (ii<=itk) then
                   ! time that talik has developed
                   time = SECOND_OF_YEAR * (Ht**2 - Zs**2) / Ct**2
-                  Ctotal = max(0.0_r8, oldcarb0*(1.0-Rco*time))
+                  Ctotal = oldcarb0 * exp(-Rco*time)
                else
                   Ctotal = oldcarb0
                end if

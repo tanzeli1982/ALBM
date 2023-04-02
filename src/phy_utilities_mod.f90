@@ -567,9 +567,10 @@ contains
       return
    end function
 
-   function CalcLatentHeatWaterAero(waterTemp, RH, wind)
+   function CalcLatentHeatWaterAero(waterTemp, airTemp, RH, wind)
       implicit none
       real(r8), intent(in) :: waterTemp      ! units: K
+      real(r8), intent(in) :: airTemp        ! units: K
       real(r8), intent(in) :: RH             ! units: %
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: CalcLatentHeatWaterAero
@@ -578,7 +579,7 @@ contains
 
       adjCe = sa_params(Param_Hscale) * Ce
       vps = CalcSatVP(waterTemp)
-      vap = 0.01 * RH * vps
+      vap = 0.01 * RH * CalcSatVP(airTemp)
       qs = CalcSpecificHumidity(vps)
       q = CalcSpecificHumidity(vap)
       Lv = GetSpecificLatentHeat4Evap(waterTemp)
@@ -586,9 +587,10 @@ contains
       return
    end function
 
-   function CalcLatentHeatWaterPM(waterTemp, RH, wind, ps, Rn)
+   function CalcLatentHeatWaterPM(waterTemp, airTemp, RH, wind, ps, Rn)
       implicit none
       real(r8), intent(in) :: waterTemp      ! units: K
+      real(r8), intent(in) :: airTemp        ! units: K
       real(r8), intent(in) :: RH             ! units: %
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8), intent(in) :: ps             ! units: pascal
@@ -598,7 +600,7 @@ contains
       real(r8) :: Ea, gama, Lv
 
       vps = CalcSatVP(waterTemp)
-      vpa = 0.01 * RH * vps
+      vpa = 0.01 * RH * CalcSatVP(airTemp)
       de = 0.1 * (vps - vpa)           ! vapor pressure deficit (kPa)
       delta = 0.1 * CalcSatVPSlope(waterTemp)  ! units: kPa/K
       Ea = 6.43*(1+0.536*wind)*de      ! bulk aerodynamic expression
@@ -608,32 +610,33 @@ contains
       return
    end function
 
-   function CalcLatentHeatIce(waterTemp, RH, wind)
+   function CalcLatentHeatIce(waterTemp, airTemp, RH, wind)
       implicit none
       real(r8), intent(in) :: waterTemp      ! units: K
       real(r8), intent(in) :: RH             ! units: %
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: CalcLatentHeatIce
-      real(r8) :: vap, vps, qs, q
+      real(r8) :: vap, vps, qs, q, adjCe
 
+      adjCe = sa_params(Param_Hscale) * Ce
       vps = CalcSatVP(waterTemp)
-      vap = 0.01 * RH * vps
+      vap = 0.01 * RH * CalcSatVP(airTemp)
       qs = CalcSpecificHumidity(vps)
       q = CalcSpecificHumidity(vap)
-      CalcLatentHeatIce = max( Roua*Ls*Ce*wind*(qs-q), 0d0 )
+      CalcLatentHeatIce = max( Roua*Ls*adjCe*wind*(qs-q), 0d0 )
       return
    end function
 
-   function CalcSensibleHeat(waterTemp, surfTemp, wind)
+   function CalcSensibleHeat(waterTemp, airTemp, wind)
       implicit none
       real(r8), intent(in) :: waterTemp      ! units: K
-      real(r8), intent(in) :: surfTemp       ! units: K
+      real(r8), intent(in) :: airTemp        ! units: K
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: adjCh
       real(r8) :: CalcSensibleHeat
 
       adjCh = sa_params(Param_Hscale) * Ch
-      CalcSensibleHeat = Roua*Cpa*adjCh*wind*(waterTemp-surfTemp)
+      CalcSensibleHeat = Roua*Cpa*adjCh*wind*(waterTemp-airTemp)
       return
    end function
 
@@ -898,27 +901,17 @@ contains
       real(r8), intent(in) :: radius      ! units: m
       real(r8), intent(in) :: vv          ! kinematic viscosity (m2/s)
       real(r8) :: CalcBuoyantVelocity     ! units: m/s               
-      real(r8) :: rr, xx, par
-      real(r8) :: tmp1, tmp2
+      real(r8) :: xx, yy
 
       if (vv>1.0d+10) then
          CalcBuoyantVelocity = 0.0_r8
          return
       end if
-      rr = radius*1.0d+6      ! change meter to micron
-      if (rr<80) then
-         CalcBuoyantVelocity = G*(radius**2)/(3*vv)
-      else if (rr>150) then
-         xx = G*(radius**3)/(vv**2)
-         CalcBuoyantVelocity = G*(radius**2)/ &
-            (vv*18*(1-2/(1+sqrt(1+0.091*xx))))
-      else
-         xx = G*(radius**3)/(vv**2)
-         tmp1 = G*(radius**2)/(3*vv)
-         tmp2 = G*(radius**2)/(vv*18*(1-2/(1+sqrt(1+0.091*xx))))
-         par = (rr-80.0)/70.0
-         CalcBuoyantVelocity = tmp1*(1-par) + tmp2*par
-      end if
+
+      xx = G * (radius**3.0) / (vv**2.0)
+      yy = 10.82_r8 / xx
+      CalcBuoyantVelocity = (2.0_r8*(radius**2.0)*G/9.0_r8/vv) * &
+         ((yy**2.0+2.0_r8*yy)**0.5-yy)
       return
    end function
 
@@ -978,13 +971,13 @@ contains
       real(r8) :: CalcGasDiffusivityInWater        ! units: m2/s
 
       if (gas==Wn2) then
-         CalcGasDiffusivityInWater = 2.57d-9*(temp/273.0)
+         CalcGasDiffusivityInWater = 2.57d-7*(temp/273.0)
       else if (gas==Wo2) then
-         CalcGasDiffusivityInWater = 2.4d-9*(temp/298.0)
+         CalcGasDiffusivityInWater = 2.4d-7*(temp/298.0)
       else if (gas==Wco2) then
-         CalcGasDiffusivityInWater = 1.81d-6*exp(-2032.6/temp)
+         CalcGasDiffusivityInWater = 1.81d-3*exp(-2032.6/temp)
       else if (gas==Wch4) then
-         CalcGasDiffusivityInWater = 1.5d-9*(temp/298.0)
+         CalcGasDiffusivityInWater = 1.5d-7*(temp/298.0)
       end if
       return
    end function

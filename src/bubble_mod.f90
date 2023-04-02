@@ -244,7 +244,7 @@ contains
       m_Rb0 = (/(minR+dr*(ii-1), ii = 1, NRLAYER+1)/)
       m_Rb0 = 1.0e-3_r8 * m_Rb0  ! mm => m
       rratio = minR / 0.1_r8
-      tdelta = 0.4_r8 / (0.1418*rratio**2 + 0.05579*rratio + 0.7794)
+      tdelta = 2.0_r8 / (0.1418*rratio**2 + 0.05579*rratio + 0.7794)
       m_bubbleGasCon = 0.0_r8
       m_iceBubblePool = 0.0_r8
    end subroutine

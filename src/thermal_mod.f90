@@ -262,7 +262,7 @@ contains
          hnet_hr = m_surfData%srd - lw_net - sh_hr - lh_hr
       else if (m_Hice>e8) then
          lw_net = Epsi*Stefan*(Ttop**4) - Epsi*m_surfData%lw
-         lh_net = CalcLatentHeatIce(Ttop, RH, wind)
+         lh_net = CalcLatentHeatIce(Ttop, Tair, RH, wind)
          sh_net = CalcSensibleHeat(Ttop, Tair, wind)
          runoff_net = 0.0_r8
 
@@ -272,9 +272,9 @@ contains
          hnet_hr = m_surfData%srd - lw_net - sh_hr - lh_hr 
       else
          lw_net = Epsw*Stefan*(Ttop**4) - Epsw*m_surfData%lw
-         lh_net = CalcLatentHeatWater(Ttop, RH, wind)
+         lh_net = CalcLatentHeatWater(Ttop, Tair, RH, wind)
          !Rn = m_surfData%srd - lw_net
-         !lh_net = CalcLatentHeatWater(Ttop, RH, wind, ps, Rn)
+         !lh_net = CalcLatentHeatWater(Ttop, Tair, RH, wind, ps, Rn)
          sh_net = CalcSensibleHeat(Ttop, Tair, wind)
          Twet = CalcWetBubTemp(Tair, RH, m_surfData%pressure)
          if (m_surfData%rainfall>e8) then

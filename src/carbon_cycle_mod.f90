@@ -211,10 +211,11 @@ contains
 
       if (lake_info%thrmkst==2 .and. lake_info%margin==1) then
          top = m_lakeWaterTopIndex 
+         temp = T0
       else
          top = 1
+         temp = m_waterTemp(top)
       end if
-      temp = m_waterTemp(top)
       if (temp>=T0) then
          rho0 = m_wrho(top)
          vv = m_dVsc(top) / rho0
@@ -278,7 +279,6 @@ contains
       call ConvectiveMixing()
       ! assuming no dissolved substances in ice layers
       ! coagulation precipitation
-      m_burialAlCarb = 0.0_r8
       do ii = 1, top-1, 1
          cDOC = sum( m_waterSubCon(Waqdoc:Wtrdoc,ii) )
          m_burialAlCarb = m_burialAlCarb + cDOC * m_dZw(ii)
@@ -537,8 +537,8 @@ contains
                      sum(rRLPOC,1) + rDIC2DOC * WtCLoad + &
                      SwDICLoad + rOCH4 + m_gasExchange(Wco2,:)
       rDYN(Wch4,:) = -rOCH4 + m_gasExchange(Wch4,:)
-      rDYN(Wsrp,:) = (rCDOM + sum(rRDOC,1) - sum(rGPP,1))/YC2P_POM + &
-                     SwSRPLoad
+      rDYN(Wsrp,:) = (rCDOM + sum(rRDOC,1))/YC2P_DOM + (sum(rRLPOC,1) - &
+                     sum(rGPP,1))/YC2P_POM + SwSRPLoad
       rDYN(Waqdoc,:) = -rRDOC(1,:) + Fdom(small_ppk)*(rLPOC(small_ppk,:)- &
                        rRLPOC(small_ppk,:)) + Fdom(large_ppk)* &
                        (rLPOC(large_ppk,:)-rRLPOC(small_ppk,:))
