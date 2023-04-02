@@ -95,6 +95,7 @@ contains
       if (minid==1 .or. DEBUG) then
          time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
                      End_Month, End_Day)
+         call CreateOutputFile(NSLAYER+1, 'zs', 'sediment layer depth', 'm')
          call CreateOutputFile(NWLAYER+1, 'zw', 'water layer depth', 'm') 
          call CreateOutputFile(time, 'snowthick', 'snow cover thickness', &
                               'm', -9999.0_r4)
@@ -123,6 +124,8 @@ contains
          call CreateOutputFile(time, 'fco2', 'total CO2 flux (negative ' // &
                               'for C sink)', 'mole m-2 d-1', -9999.0_r4)
          call CreateOutputFile(time, NWLAYER+1, 'watertemp', 'water ' // &
+                              'temperature', 'K', -9999.0_r4)
+         call CreateOutputFile(time, NSLAYER+1, 'sedtemp', 'sediment ' // &
                               'temperature', 'K', -9999.0_r4)
          call CreateOutputFile(time, NWLAYER+1, 'turbdiffheat', &
                                'Turbulent diffusivity of heat', 'm2 s-1', &

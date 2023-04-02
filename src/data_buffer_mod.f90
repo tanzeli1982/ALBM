@@ -17,6 +17,7 @@ module data_buffer_mod
    integer, allocatable :: m_timeHist(:)
    ! simulated hourly water and sediment temperature profiles (K)
    real(r4), allocatable :: m_tempwHist(:,:)
+   real(r4), allocatable :: m_tempsHist(:,:)
    ! simulated hourly lake snow and ice thickness
    real(r4), allocatable :: m_snowHist(:), m_iceHist(:)
    ! history variables for thermal dynamics
@@ -181,6 +182,7 @@ contains
       ! allocate memory for history variables
       allocate(m_timeHist(ntout))
       allocate(m_tempwHist(WATER_LAYER+1,ntout))
+      allocate(m_tempsHist(NSLAYER+1,ntout))
       allocate(m_snowHist(ntout))
       allocate(m_iceHist(ntout))
       allocate(m_shHist(ntout))
@@ -338,6 +340,7 @@ contains
       ! destroy the memory for the archive variables
       deallocate(m_timeHist)
       deallocate(m_tempwHist)
+      deallocate(m_tempsHist)
       deallocate(m_snowHist)
       deallocate(m_iceHist)
       deallocate(m_shHist)
