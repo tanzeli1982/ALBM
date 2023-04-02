@@ -245,14 +245,17 @@ contains
       implicit none
       real(r8), intent(in) :: con(NSSUB)        ! units: umol/m3
       real(r8), intent(out) :: topsflux(NSSUB)  ! units: umol/m2/s
+      real(r8) :: Porosity
       integer :: ii, bottom
 
       if (m_lakeWaterTopIndex>WATER_LAYER+1) then
          topsflux = 0.0_r8
       else
          ! top dissolved substance fluxes
+         Porosity = sa_params(Param_Por)
          bottom = WATER_LAYER + 1
-         topsflux = m_Kbm * (con - m_waterSubCon(Wn2:Wsrp,bottom)) / DeltaD
+         topsflux = m_Kbm / DeltaD * ( con/Porosity - &
+            m_waterSubCon(Wn2:Wsrp,bottom) )
          do ii = Wn2, Wo2, 1
             topsflux(ii) = min(0.0, topsflux(ii))
          end do
@@ -296,7 +299,10 @@ contains
             diffst = CalcGasDiffusivityInIce(Wch4, m_sedTemp(ii))
             Dch4(ii) = diffst*0.66*Porosity 
          else
-            Dch4(ii) = 2.0d-9*0.66*Porosity   ! [Eq. (8) in Walter 2000]
+            ! Eq. (8) in Walter et al. (2000) gives Dch4 at the magnitude
+            ! of 1e-9 but Goto et al. (2017; Marine Geophysical Research) shows
+            ! this value at the magnitude of 1e-7
+            Dch4(ii) = 2.0d-7*0.66*Porosity   ! [Eq. (8) in Walter 2000]
          end if
       end do
    end subroutine
@@ -346,7 +352,7 @@ contains
                if (ii<=itk) then
                   ! time that talik has developed
                   time = SECOND_OF_YEAR * (Ht**2 - Zs**2) / Ct**2
-                  Ctotal = max(0.0_r8, oldcarb0*(1.0-Rco*time))
+                  Ctotal = oldcarb0 * exp(-Rco*time)
                else
                   Ctotal = oldcarb0
                end if

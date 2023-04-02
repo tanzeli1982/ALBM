@@ -69,7 +69,7 @@ module bg_const_mod
    ! The reference CDOM-specific UV absorption at 305 nm (m3 g C-1 m-1)
    real(r8), parameter :: SUVA305(NLAKTYPE) = (/2.0/)
    ! the maximum growth rate of phytoplankton at 0 celcius (d-1) 
-   real(r8), parameter :: Vm0(NPOC) = (/0.4, 1.0/)
+   real(r8), parameter :: mu0(NPOC) = (/0.4, 1.0/)
    ! temperature multiplier for phytoplankton growth
    real(r8), parameter :: ThetaG = 1.08
    ! temperature function parameters for phytoplankton growth

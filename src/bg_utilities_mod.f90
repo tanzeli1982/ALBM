@@ -410,9 +410,10 @@ contains
    !          non-diatom algae dominates as Arctic LTER data shows.
    !
    !------------------------------------------------------------------------------
-   subroutine Photosynthesis(Chla, Dco2, Temp, SRP, Ipar, PCO2)
+   subroutine Photosynthesis(Chla, Chl2C, Dco2, Temp, SRP, Ipar, PCO2)
       implicit none
       real(r8), intent(in) :: Chla(NPOC)  ! mg chla m-3
+      real(r8), intent(in) :: Chl2C(NPOC) ! mg chla (mg C)-1
       real(r8), intent(in) :: Dco2        ! umol/m3
       real(r8), intent(in) :: Temp        ! water temperature (K)
       real(r8), intent(in) :: SRP         ! soluble reactive P (umol m-3)
@@ -421,12 +422,14 @@ contains
       real(r8) :: fpar(NPOC), ftemp(NPOC)
       real(r8) :: fsrp(NPOC), fco2(NPOC)
       real(r8) :: phAlpha(NPOC), phBeta(NPOC) 
-      real(r8) :: Ksrp(NPOC), Vch(NPOC)
+      real(r8) :: Ksrp(NPOC), Vch(NPOC), Vm0(NPOC)
       real(r8) :: Tw
       
       Tw = Temp - T0
       Vch = (/sa_params(Param_Vchs), sa_params(Param_Vchl)/)
       Vch = Vch * 1.0d+3 / MasC / SECOND_OF_DAY
+      Vm0 = (/sa_params(Param_Vchs), sa_params(Param_Vchl)/)
+      Vm0 = Vm0 * Chl2C 
       phAlpha = (/sa_params(Param_phAlphas), sa_params(Param_phAlphal)/)
       phBeta = (/sa_params(Param_phBetas), sa_params(Param_phBetal)/)
       fpar =  (1.0 - exp(-phAlpha*Ipar/Vm0)) * exp(-phBeta*Ipar/Vm0)
@@ -460,25 +463,22 @@ contains
       real(r8), intent(in) :: SRP            ! soluble reactive P (umol/m3)
       real(r8), intent(out) :: Chl2C(:,:)    ! mg Chl mmol C-1
       real(r8) :: C2Chl0(NPOC), C2Chl(NPOC)
-      real(r8) :: PCmax(NPOC), fsrp(NPOC)
-      real(r8) :: ftemp(NPOC), Ksrp(NPOC)
-      real(r8) :: Vch(NPOC), Ipar0, Tw
+      real(r8) :: fsrp(NPOC), ftemp(NPOC), Ksrp(NPOC)
+      real(r8) :: Ipar0, Tw
       integer :: ii, nn
 
       nn = size(Ipar)
       Ipar0 = Ipar(1)
       if (Ipar0>e8) then
          Ksrp = (/sa_params(Param_Ksrps), sa_params(Param_Ksrpl)/)
-         Vch = (/sa_params(Param_Vchs), sa_params(Param_Vchl)/)
          fsrp = SRP / (SRP + Ksrp)
          Tw = Temp - T0
          ftemp = ThetaG**(Tw-20) - ThetaG**(kt_ppk*(Tw-at_ppk)) + bt_ppk
          ftemp = max(0.0, ftemp)
-         PCmax = Vch / MasC * 0.24 * ftemp * fsrp 
-         C2Chl0 = C2Chlmax - Kpc2chl / MasC * PCmax 
+         C2Chl0 = C2Chlmax - Kpc2chl * mu0 * ftemp * fsrp 
          C2Chl0 = max(C2Chl0, C2Chlmin)
          do ii = 1, nn, 1
-            if (wIce(ii)<e8 .and. Ipar(ii)>0.01*Ipar0) then
+            if (wIce(ii)<1.0 .and. Ipar(ii)>0.01*Ipar0) then
                C2Chl = C2Chl0 - (C2Chl0 - C2Chlmin) * log(Ipar0/Ipar(ii)) &
                   / 4.605
                C2Chl = min(max(C2Chl, C2Chlmin), C2Chlmax)
@@ -634,16 +634,19 @@ contains
       rDOC = rRDOM / SECOND_OF_DAY * ftemp * fo2 * DOC
    end subroutine
 
-   subroutine UpdateAlgaeDensity(Ipar, dt, rho)
+   subroutine UpdateAlgaeDensity(Chl2C, Ipar, dt, rho)
       implicit none
+      real(r8), intent(in) :: Chl2C(NPOC)    ! mg chla (mg C)-1
       real(r8), intent(in) :: Ipar           ! PAR (mol/m2/s)
       real(r8), intent(in) :: dt             ! time interval (s)
       real(r8), intent(inout) :: rho(NPOC)   ! density (kg/m3)
-      real(r8) :: drho(NPOC), fpar(NPOC)
+      real(r8) :: Vm0(NPOC), drho(NPOC), fpar(NPOC)
       real(r8) :: phAlpha(NPOC), phBeta(NPOC)
 
       phAlpha = (/sa_params(Param_phAlphas), sa_params(Param_phAlphal)/)
       phBeta = (/sa_params(Param_phBetas), sa_params(Param_phBetal)/)
+      Vm0 = (/sa_params(Param_Vchs), sa_params(Param_Vchl)/)
+      Vm0 = Vm0 * Chl2C
       fpar =  (1.0 - exp(-phAlpha*Ipar/Vm0)) * exp(-phBeta*Ipar/Vm0)
       drho = (dsc1 * fpar - dsc3) * dt
       rho = rho + drho

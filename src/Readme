@@ -9,3 +9,4 @@
 8) Add a lake hydrology module (the bottom layer index and thickness should be updated continuously but the total available layers do not change; it is possible the initialized depth is larger than the real lake depth to study the lake evolution)
 9) Change to Fortran-contiguous for 2-D arrays (column-wise operation) - RungeKutta2D Norm direction needs to be reversed. See MACES for an example 
 10) Control Algae movement by thermocline depth rather than mixing depth
+11) For reaction rates, only calculate the basic component in ModuleSetup but the component involving in instantaneous concentrations are calculated in governing Equation

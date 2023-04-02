@@ -295,7 +295,7 @@ contains
          m_srpHist(:,hindx) = 1d-6 * m_waterSubCon(Wsrp,:)
          m_docHist(:,hindx) = 1d-6 * m_waterSubCon(Waqdoc,:) + &
             1d-6 * m_waterSubCon(Wtrdoc,:)
-         m_chlHist(:,hindx) = 1d-6 * sum(m_rChl2C*m_waterPOC,1) 
+         m_chlHist(:,hindx) = 1d-3 * sum(m_chla,1)
          m_phytobioHist(:,hindx) = 1d-6 * sum(m_waterPOC,1)
       end if
       if (Bubble_Module) then

@@ -6,12 +6,9 @@ modules = $(wildcard *.mod)
 outputs := $(wildcard bLakeJob.sub.*)
 
 ifeq ($(DEBUG), 1)
-FFLAGS = -CB -g
+FFLAGS = -traceback -CB -fpe0 -g
 else
-FFLAGS = -O3
-endif
-ifeq ($(TRACE), 1)
-FFLAGS += -traceback -fpe0 
+FFLAGS = -O3 -traceback -fpe0
 endif
 ifeq ($(OPT), 1)
 FFLAGS += -fast

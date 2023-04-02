@@ -30,8 +30,6 @@ if [ -z "$arg" ]; then
    elif [ $mach = 'compy' ]; then
       gmake OPT=1 -j8
    fi
-elif [ $arg = 'trace' ]; then
-   gmake TRACE=1 -j8
 elif [ $arg = 'clean' ]; then
    gmake $arg -j8
 elif [ $arg = 'debug' ]; then

@@ -233,7 +233,7 @@ contains
       else
          talik = lake_info%hsed 
       end if
-      talik = min(talik, lake_info%hsed)
+      talik = max(0._r8, min(talik, lake_info%hsed))
 
       ! construct thermal profile
       Porosity = sa_params(Param_Por)
@@ -251,32 +251,40 @@ contains
          print "(A, I0, A, F10.4)", "Lake ", lake_info%id, &
                ": mean ground temperature ", Tbot-T0
       end if
-      Ttop = T0 + 4.6 
-      Ttk = 0.5 * (Ttop + T0)
-      Tuf = 0.5 * (T0 + Tbot)
-      Tlf = Tbot
-      satLW_tk = CalcSoilWaterSaturation(Ttk)
-      satLW_uf = CalcSoilWaterSaturation(Tuf)
-      satLW_lf = CalcSoilWaterSaturation(Tlf)
-      Ks_tk = CalcSedHeatConductivity(Porosity, satLW_tk, Kss)
-      Ks_uf = CalcSedHeatConductivity(Porosity, satLW_uf, Kss)
-      Ks_lf = CalcSedHeatConductivity(Porosity, satLW_lf, Kss)
-      dist = Ks_uf / Ks_tk * talik * (T0 - Tbot) / (Ttop - T0)
-      if (dist>0) then
-         pMAGT = talik + dist
-         dTtk = (T0 - Ttop) / talik
-         dTuf = (Tbot - T0) / dist
-         do ii = 1, NSLAYER+1, 1
-            if (m_Zs(ii)<=talik+m_Zs(1)) then
+      if (talik>e8) then
+         Ttop = T0 + 4.6 
+         Ttk = 0.5 * (Ttop + T0)
+         Tuf = 0.5 * (T0 + Tbot)
+         Tlf = Tbot
+         satLW_tk = CalcSoilWaterSaturation(Ttk)
+         satLW_uf = CalcSoilWaterSaturation(Tuf)
+         satLW_lf = CalcSoilWaterSaturation(Tlf)
+         Ks_tk = CalcSedHeatConductivity(Porosity, satLW_tk, Kss)
+         Ks_uf = CalcSedHeatConductivity(Porosity, satLW_uf, Kss)
+         Ks_lf = CalcSedHeatConductivity(Porosity, satLW_lf, Kss)
+         dist = Ks_uf / Ks_tk * talik * (T0 - Tbot) / (Ttop - T0)
+         if (dist>0) then
+            pMAGT = talik + dist
+            dTtk = (T0 - Ttop) / talik
+            dTuf = (Tbot - T0) / dist
+            do ii = 1, NSLAYER+1, 1
+               if (m_Zs(ii)<=talik+m_Zs(1)) then
+                  m_sedTemp(ii) = Ttop + dTtk * (m_Zs(ii)-m_Zs(1))
+               else if (m_Zs(ii)<=pMAGT+m_Zs(1)) then
+                  m_sedTemp(ii) = T0  + dTuf * (m_Zs(ii)-talik)
+               else
+                  m_sedTemp(ii) = Tbot
+               end if
+            end do
+         else
+            dTtk = (Tbot - Ttop) / talik
+            do ii = 1, NSLAYER+1, 1
                m_sedTemp(ii) = Ttop + dTtk * (m_Zs(ii)-m_Zs(1))
-            else if (m_Zs(ii)<=pMAGT+m_Zs(1)) then
-               m_sedTemp(ii) = T0  + dTuf * (m_Zs(ii)-talik)
-            else
-               m_sedTemp(ii) = Tbot
-            end if
-         end do
+            end do
+         end if
       else
-         dTtk = (Tbot - Ttop) / talik
+         Ttop = T0
+         dTtk = (Tbot - Ttop) / lake_info%hsed
          do ii = 1, NSLAYER+1, 1
             m_sedTemp(ii) = Ttop + dTtk * (m_Zs(ii)-m_Zs(1))
          end do
