@@ -11,7 +11,6 @@
 program bLake
    use read_data_mod,   only : ReadSimulationSettings, BcastSimulationSettings 
    use simulation_mod,  only : RunRegular
-   use bayesian_mod,    only : RunMonteCarlo
    use sensitivity_mod, only : RunSensitivity
    use shr_ctrl_mod
    use mpi
@@ -40,9 +39,7 @@ program bLake
    end if
    call BcastSimulationSettings()
 
-   if (trim(run_mode)=='bayesian') then
-      call RunMonteCarlo(taskid, numprocs, arg) 
-   else if (trim(run_mode)=='sensitivity') then
+   if (trim(run_mode)=='sensitivity') then
       call RunSensitivity(taskid, numprocs, arg)
    else
       call RunRegular(taskid, numprocs, arg)

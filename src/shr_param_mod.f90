@@ -3,82 +3,78 @@ module shr_param_mod
 ! Sensitive parameters list below (Param Id should be identical with 
 ! optpar.dat)
 !
-!1 Param_Ks  : thermal conductivity of soil constituent (W/(m*K))
-!2 Param_Cps : heat capacity of soil constituent (J/(kg*K))
-!3 Param_Por : porosity of lake sediment (0~1)
-!4 Param_Rous: density of soil solid particle (kg/m3)
-!5 Param_OQ10: Methane oxidation Q10
-!6 Param_Qch4: Oxidation potential when substrates are not limited (umol/m3/s)
-!7 Param_Kch4: Michaelis-Menten constant (unit: umol/m3)
-!8 Param_Ko2 : Michaelis-Menten constant (unit: umol/m3)
-!9 Param_Re  : ebullition rate (unit: s-1)
-!10 Param_PQ10n: Methane production Q10 of acetate fermentation
-!11 Param_Rcn : the fraction of decomposed recalcitrant carbon (s-1)
-!12 Param_DMP : recalcitrant organic matter dampening rate (m-1)
-!13 Param_Rca : the fraction of aerobic decomposed carbon (s-1)
-!14 Param_Vchs : Chla-specific light saturated growth rate (mg C mg Chl-1 d-1)
-!15 Param_Vchl : Chla-specific light saturated growth rate (mg C mg Chl-1 d-1)
-!16 Param_Klrs : metabolic loss rate coefficient (day-1)
-!17 Param_Klrl : metabolic loss rate coefficient (day-1)
-!18 Param_RDOMaq: aquatic DOM microbial degradation rate (d-1)
-!19 Param_RDOCtr: terrestrail DOM microbial degradation rate (d-1)
-!20 Param_DOCwt: groundwater DOC concentration (mol/m3) 
-!21 Param_phAlphas: initial slope of P-E curve ((mol photons m-2 s-1)-1 d-1)
-!22 Param_phAlphal: initial slope of P-E curve ((mol photons m-2 s-1)-1 d-1)
-!23 Param_phBetas: photoinhibition parameter ((mol photons m-2 s-1)-1 d-1)
-!24 Param_phBetal: photoinhibition parameter ((mol photons m-2 s-1)-1 d-1)
-!25 Param_Ksrps: half-saturation for phosphorus limitation (umol/m3)
-!26 Param_Ksrpl: half-saturation for phosphorus limitation (umol/m3)
-!27 Param_Roun: snow density (kg/m3)
-!28 Param_Feta: light attenuation correction factor for chla and CDOM
-!29 Param_Wstr: wind shielding factor of mixing 
-!30 Param_Ktscale: turbulence diffusivity scaling factor 
-!31 Param_Hscale: sensible and latent heat transfer coefficent scaling factor
+!1  Param_Roun: snow density (kg/m3)
+!2  Param_Feta: light attenuation correction factor
+!3  Param_Wstr: wind shielding factor of mixing 
+!4  Param_Hscale: heat transfer coefficeint scaling factor
+!5  Param_Vm0s: the maximum growth rate of phytoplankton at 0 celcius (d-1) 
+!6  Param_Vm0l: the maximum growth rate of phytoplankton at 0 celcius (d-1) 
+!7  Param_Ksrps: half-saturation for phosphorus limitation (mol/m3)
+!8  Param_Ksrpl: half-saturation for phosphorus limitation (mol/m3)
+!9  Param_Klrs: metabolic loss rate coefficient (day-1)
+!10 Param_Klrl: metabolic loss rate coefficient (day-1)
+!11 Param_fDepMorts: mortality fraction of settled phytoplankton
+!12 Param_fDepMortl: mortality fraction of settled phytoplankton
+!13 Param_Re: ebullition rate (unit: s-1)
+!14 Param_Ae: relative concentration at which ebullition begins
+!15 Param_icebflux: ice bubble flux rate (s-1)
+!16 Param_icebloss: ice bubble dissolution rate (s-1)
+!17 Param_csedDMP: recalcitrant organic matter dampening rate (m-1)
+!18 Param_Rcapas: passive OC decomposition rate through aerobic respiration (s-1)
+!19 Param_Rcaact: active OC decomposition rate through aerobic respiration (s-1)
+!20 Param_Rcpas: passive OC decomposition rate through methanogenesis (s-1)
+!21 Param_Rcact: active OC decomposition rate through methanogenesis (s-1)
+!22 Param_Rcold: old OC decomposition rate through methanogenesis (s-1)
+!23 Param_PQ10pas: passive OC decomposition Q10 through methanogenesis
+!24 Param_PQ10act: active OC decomposition Q10 through methanogenesis 
+!25 Param_PQ10old: old OC decomposition Q10 through methanogenesis
+!26 Param_cRx: change rate of sediment redox potential (mV d-1) 
+!27 Param_Qch4: CH4 oxidation potential (mol/m3/s)
+!28 Param_OQ10: Methane oxidation Q10
+!29 Param_betaCH4: CH4 concentration exponent coefficient of CH4 oxidation (unitless)
+!30 Param_lamdaO2: O2 inhibition coefficient of CH4 oxidation (unitless)
+!31 Param_RcOMP: oxic CH4 production rate to photosynthesis (mol CH4/m3/s (gC/m3/s)-1)
+!32 Param_MuMaxVeg: maximum growth rate of submerged macrophytes at 20 celsius (d-1)
 !----------------------------------------------------------------------------
    use shr_kind_mod,    only : r8, cx => SHR_KIND_CX 
    
    implicit none
 
-   integer, parameter :: NPARAM = 31
+   integer, parameter :: NPARAM = 32
    ! thermal related parameters
-   integer, parameter :: Param_Ks = 1, Param_Cps = 2, Param_Por = 3, &
-                         Param_Rous = 4
-   ! methane oxidation related parameters
-   integer, parameter :: Param_OQ10 = 5, Param_Qch4 = 6,  Param_Kch4 = 7, &
-                         Param_Ko2 = 8
-   ! 14C-enriched pool related parameters
-   integer, parameter :: Param_Re = 9, Param_PQ10n = 10, Param_Rcn = 11, &
-                         Param_DMP = 12
-   ! aerobic decomposition parameters
-   integer, parameter :: Param_Rca = 13
+   integer, parameter :: Param_Roun = 1, Param_Feta = 2, Param_Wstr = 3, &
+                         Param_Hscale = 4                       
    ! phytoplankton related parameters
-   integer, parameter :: Param_Vchs = 14, Param_Vchl = 15
-   integer, parameter :: Param_Klrs = 16, Param_Klrl = 17
-   ! allochthonous carbon parameters
-   integer, parameter :: Param_RDOMaq = 18, Param_RDOMtr = 19
-   integer, parameter :: Param_DOCwt = 20
-   ! photo-response parameters
-   integer, parameter :: Param_phAlphas = 21, Param_phAlphal = 22
-   integer, parameter :: Param_phBetas = 23, Param_phBetal = 24
-   ! phosphorus limitation
-   integer, parameter :: Param_Ksrps = 25, Param_Ksrpl = 26
-   ! ice phenology
-   integer, parameter :: Param_Roun = 27
-   ! thermodynamics
-   integer, parameter :: Param_Feta = 28
-   integer, parameter :: Param_Wstr = 29, Param_Ktscale = 30
-   integer, parameter :: Param_Hscale = 31
+   integer, parameter :: Param_Vm0s = 5, Param_Vm0l = 6, Param_Ksrps = 7, &
+                         Param_Ksrpl = 8, Param_Klrs = 9, Param_Klrl = 10, &
+                         Param_fDepMorts = 11, Param_fDepMortl = 12
+   ! ebullition related parameters
+   integer, parameter :: Param_Re = 13, Param_Ae = 14, Param_icebflux = 15, &
+                         Param_icebloss = 16 
+   ! sediment C pool related parameters
+   integer, parameter :: Param_csedDMP = 17, Param_Rcapas = 18, Param_Rcaact = 19, &
+                         Param_Rcpas = 20, Param_Rcact = 21, Param_Rcold = 22
+   ! other sediment methanogenesis parameters
+   integer, parameter :: Param_PQ10pas = 23, Param_PQ10act = 24, Param_PQ10old = 25, &
+                         Param_cRx = 26        
+   ! methane oxidation related parameters
+   integer, parameter :: Param_Qch4 = 27, Param_OQ10 = 28, Param_betaCH4 = 29, &
+                         Param_lamdaO2 = 30
+   ! oxic methane production parameter
+   integer, parameter :: Param_RcOMP = 31
+   ! submerged macrophytes parameters
+   integer, parameter :: Param_MuMaxVeg = 32
    ! sensitive parameter collection
    real(r8) :: sa_params(NPARAM)
    ! maximum sample size
    integer :: NMAXSAMPLE
    ! first and last sample id to run
    integer :: sample_range(2)
-   ! observation file and standard deviation
-   character(cx) :: obs_dir, obs_var
-   character(cx) :: obs_weight
-   ! Monte Carlo sample file and result file
-   character(cx) :: mc_file, sa_file
+   ! Monte Carlo sample file
+   character(cx) :: mc_file
+   ! sensitivity output time window
+   integer :: SA_Start_Year, SA_Start_Month, SA_Start_Day
+   integer :: SA_End_Year, SA_End_Month, SA_End_Day
 
 contains
    subroutine LoadSensitiveParameters(params)

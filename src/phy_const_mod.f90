@@ -7,8 +7,7 @@ module phy_const_mod
    use shr_kind_mod,          only: r8
    public
    ! substance identifier
-   integer, parameter :: Wn2 = 1, Wo2 = 2, Wco2 = 3, Wch4 = 4, Wsrp = 5, &
-                         Waqdoc = 6, Wtrdoc = 7
+   integer, parameter :: Wn2 = 1, Wo2 = 2, Wco2 = 3, Wch4 = 4, Wsrp = 5
    ! number of days in months (non-leap year)
    integer, parameter :: DAY_IN_MONTH(12) = (/31, 28, 31, 30, 31, 30, 31, &
                         31, 30, 31, 30, 31/)
@@ -25,10 +24,14 @@ module phy_const_mod
    real(r8), parameter :: Roue = 890.0
    ! density of air (kg/m3)
    real(r8), parameter :: Roua = 1.225
+   ! density of sediment solids (kg/m3)
+   real(r8), parameter :: Rous = 2240.0 
    ! Heat capacity of water, ice and snow at constant pressure (J/(K*kg))
    real(r8), parameter :: Cpl = 4.2d+3, Cpi = 2.1d+3, Cpn = 2.1d+3
    ! Heat capacity of dry air at constant pressure (J/(K*kg))
    real(r8), parameter :: Cpa = 1.006d+3
+   ! heat capacity of sediment solids (J/(kg*K))
+   real(r8), parameter :: Cps = 1.77d+3 
    ! latent heat of freezing and sublimation (J/kg)
    real(r8), parameter :: Lf = 3.337d+5, Ls = 2.834d+6
    ! latent heat of peat and mineral soil fusion (J/m3)
@@ -44,6 +47,12 @@ module phy_const_mod
    real(r8), parameter :: Ka0 = 0.0234
    ! Thermal conductivity of peat and mineral soils (W/m/K)
    real(r8), parameter :: Kpet = 0.25, Kmnr = 1.3
+   ! Thermal conductivity of sediment solids (W/m/K)
+   real(r8), parameter :: Ks0 = 2.83
+   ! Thermal diffusivity of ice at -5 celsius (m2/s)
+   real(r8), parameter :: Kti_ref = 1.16d-6
+   ! Thermal diffusivity of water at 0 celsius (m2/s)
+   real(r8), parameter :: Ktw_ref = 1.33d-7 
    ! Stefan-Boltzmann constant (W/(m2*K4))
    real(r8), parameter :: Stefan = 5.6704d-8
    ! Ideal-gas constant (J/(mol*K))
@@ -64,8 +73,12 @@ module phy_const_mod
    real(r8), parameter :: EtaeVIS = 3.75, EtaeIR = 40.0
    ! Refractive index of water, ice and gray ice
    real(r8), parameter :: Rfrw = 1.333, Rfri = 1.309, Rfre = 1.309
-   ! Surface albedo of gray ice and ice
-   real(r8), parameter :: Alphae = 0.40, Alphai = 0.55
+   ! Surface albedo of gray ice
+   real(r8), parameter :: Alphae = 0.4
+   ! Surface albedo of ice
+   real(r8), parameter :: Alphai = 0.55
+   ! Surface albedo of lake bed
+   real(r8), parameter :: Alphas = 0.1
    ! N2, O2, CO2 and CH4 mixing ratio in the atmosphere
    real(r8), parameter :: Xn2 = 0.78, Xo2 = 0.21
    real(r8), parameter :: Xco2 = 380.0d-6, Xch4 = 1800.0d-9
@@ -76,8 +89,6 @@ module phy_const_mod
    ! O2 solubility from Engineering toolbox (mg/L)
    real(r8), parameter :: SOLO2(11) = (/14.6, 12.8, 11.3, 10.1, 9.1, 8.3, &
                            7.6, 7.0, 6.5, 6.0, 5.6/)
-   ! relative concentration at which ebullition begins
-   real(r8), parameter :: Ae = 0.4
    ! bubble gas release rate after thawing or ice breakage (units: s-1)
    real(r8), parameter :: Blr = 7.7d-7
    ! Hydrodynamics parameters are from Wuest and Lorke (2003),

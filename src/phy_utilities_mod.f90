@@ -5,12 +5,11 @@ module phy_utilities_mod
 ! This module serves for the implementation of some basic physical utilities
 !
 !---------------------------------------------------------------------------------
-   use shr_kind_mod,          only: r8
+   use shr_kind_mod,          only: r8, i8
    use shr_ctrl_mod,          only: e8 => SHR_CTRL_E8, inf => INFINITE_E8, &
                                     inft => INFINITESIMAL_E8
    use phy_const_mod
    use shr_typedef_mod,       only: SimTime, LakeInfo
-   use shr_param_mod
 
    interface CalcPistonVelocity
       module procedure CalcPistonVelocitySR
@@ -29,30 +28,50 @@ contains
    ! Purpose: Get which day t is in a year and which hour t is in a day
    !
    !------------------------------------------------------------------------------
-   subroutine GetSolarDate(base_time, t, year, month, day)
+   subroutine GetSolarDate(base_time, t, useleap, year, month, day)
       implicit none
       type(SimTime), intent(in) :: base_time
       real(r8), intent(in) :: t
+      logical, intent(in) :: useleap
       integer, intent(out) :: year
       integer, intent(out) :: month
       integer, intent(out) :: day
-      integer :: JDN
+      integer :: JDN, nyear, nday
+      integer :: year0, month0, day0
 
-      call Date2JDN(base_time%year0, base_time%month0, &
-                    base_time%day0, JDN)
-      JDN = JDN + GetDay(t)
-      call JDN2Date(JDN, year, month, day)
+      if (useleap) then
+         call Date2JDN(base_time%year0, base_time%month0, &
+               base_time%day0, JDN)
+         JDN = JDN + GetDay(t)
+         call JDN2Date(JDN, year, month, day)
+      else
+         nyear = INT(GetDay(t)/365.)
+         year0 = base_time%year0 + nyear
+         month0 = base_time%month0
+         day0 = base_time%day0
+         nday = GetDay(t) - 365*nyear
+         call Date2JDN(year0, month0, day0, JDN)
+         JDN = JDN + nday
+         call JDN2Date(JDN, year, month, day) 
+      end if
    end subroutine
 
-   function GetSolarDay(year, month, day)
+   function GetSolarDay(year, month, day, useleap)
       implicit none
       integer, intent(in) :: year
       integer, intent(in) :: month
       integer, intent(in) :: day
+      logical, intent(in) :: useleap
       integer :: GetSolarDay
+      logical :: leap
       real(r8) :: Xdm
 
-      if (IsLeapYear(year) .and. month>2) then
+      if (useleap) then
+         leap = IsLeapYear(year)
+      else
+         leap = .False.
+      end if
+      if (leap .and. month>2) then
          Xdm = 31.8
       else if (month<=2) then
          Xdm = 30.6
@@ -117,15 +136,30 @@ contains
       return
    end function
 
-   function CalcRunningDays(time)
+   function CalcRunningDays(time, useleap)
       implicit none
       type(SimTime), intent(in) :: time
+      logical, intent(in) :: useleap
       integer :: CalcRunningDays
+      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
       integer :: JDN0, JDN1
 
-      call Date2JDN(time%year0, time%month0, time%day0, JDN0)
-      call Date2JDN(time%year1, time%month1, time%day1, JDN1)
-      CalcRunningDays = JDN1 - JDN0
+      if (useleap) then
+         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
+         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
+         CalcRunningDays = JDN1 - JDN0
+      else
+         if (time%year1>time%year0) then
+            CalcRunningDays = 365*(time%year1-time%year0-1) + &
+               sum(ndays(time%month0:12)) + sum(ndays(1:time%month1-1)) - &
+               time%day0 + time%day1
+         else if (time%month1>time%month0) then
+            CalcRunningDays = sum(ndays(time%month0:time%month1-1)) - &
+               time%day0 + time%day1
+         else
+            CalcRunningDays = time%day1 - time%day0
+         end if
+      end if
       return
    end function
 
@@ -156,6 +190,16 @@ contains
       end if
       return
    end function
+
+   function GetUTCHourIndex(hindx, longitude)
+      implicit none
+      integer(i8), intent(in) :: hindx    ! local time hour index
+      real(r8), intent(in) :: longitude   ! degree
+      integer(i8) :: GetUTCHourIndex      ! UTC hour index
+      
+      GetUTCHourIndex = hindx - NINT(longitude/15.0)
+      return
+   end function
    
    !------------------------------------------------------------------------------
    !
@@ -175,7 +219,7 @@ contains
       a = (14-month) / 12
       y = year + 4800 - a
       m = month + 12*a - 3
-      date = 1d4 * year + 1d2 * month + day
+      date = 1.d4 * year + 1.d2 * month + day
       if (date>=15821015) then
          JDN = day + (153*m+2)/5 + 365*y + y/4 - y/100 + y/400 - 32045
       else
@@ -205,9 +249,10 @@ contains
    ! Purpose: Convert a year-based floating time to Gregorian calendar
    !
    !------------------------------------------------------------------------------
-   subroutine CalendarConversion(t, year, month, day)
+   subroutine CalendarConversion(t, useleap, year, month, day)
       implicit none
       real(r8), intent(in) :: t
+      logical, intent(in) :: useleap
       integer, intent(out) :: year
       integer, intent(out) :: month
       integer, intent(out) :: day
@@ -217,13 +262,24 @@ contains
       year = INT(t)
       isleap = IsLeapYear(year)
       if (isleap) then
-         nday = NINT(3.66d2*(t-year))
+         if (useleap) then
+            nday = NINT(3.66d2*(t-year))
+            call Date2JDN(year,1,1,JDN)
+            JDN = JDN + nday
+            call JDN2Date(JDN, year, month, day)
+         else
+            nday = NINT(3.65d2*(t-year))
+            call Date2JDN(year+1,1,1,JDN)
+            JDN = JDN + nday
+            call JDN2Date(JDN, year, month, day)
+            year = year - 1
+         end if
       else
          nday = NINT(3.65d2*(t-year))
+         call Date2JDN(year,1,1,JDN)
+         JDN = JDN + nday
+         call JDN2Date(JDN, year, month, day)
       end if
-      call Date2JDN(year,1,1,JDN)
-      JDN = JDN + nday
-      call JDN2Date(JDN, year, month, day)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -231,14 +287,19 @@ contains
    ! Purpose: Get a GMT date and time
    !
    !------------------------------------------------------------------------------
-   subroutine GetGMTime(time)
+   subroutine GetGMTime(useleap, time)
       implicit none
+      logical, intent(in) :: useleap
       integer, intent(out) :: time(6)
       integer :: date_time(8), day
       logical :: leap
 
       call date_and_time(values=date_time)
-      leap = IsLeapYear(date_time(1))
+      if (useleap) then
+         leap = IsLeapYear(date_time(1))
+      else
+         leap = .False.
+      end if
       date_time(5) = date_time(5) - date_time(4)/60   ! adjust hour to GMT zone
       ! The adjust algorithm is actually the addition/subtraction about date
       if (date_time(5)>=24) then
@@ -284,6 +345,32 @@ contains
 
    !------------------------------------------------------------------------------
    !
+   ! Purpose: Calculate thermal diffusivity of water (liquid or ice)
+   !          "Thermal diffusivity of thermokarst lake ice in the Beiluhe basin 
+   !           of the Qinghai–Tibetan Plateau"
+   !
+   !------------------------------------------------------------------------------
+   function CalcWaterHeatDiffusivity(temp)
+      implicit none
+      real(r8), intent(in) :: temp           ! temperature (K)
+      real(r8) :: CalcWaterHeatDiffusivity   ! units: m^2/s
+      real(r8) :: Tw, param
+
+      Tw = temp - T0
+      if (Tw>e8) then
+         CalcWaterHeatDiffusivity = (0.558 + 2.223d-3*Tw - 1.797d-5*(Tw**2)) / 4.2d6
+      else if (Tw<e8 .and. Tw>-5._r8) then
+         param = Tw / -5._r8 
+         CalcWaterHeatDiffusivity = Ktw_ref*(1.0 - param) + Kti_ref*param 
+      else
+         CalcWaterHeatDiffusivity = 1.16 * (1.91 - 8.66d-3*Tw + &
+            2.97d-5*(Tw**2)) / 1.9551d6
+      end if
+      return
+   end function
+
+   !------------------------------------------------------------------------------
+   !
    ! Purpose: Calculate molecular heat conductivity of some common materials
    !          1) the equations for frozen and unfrozen saturated soils are from
    !             Omar T. Farouki (1981);
@@ -292,7 +379,7 @@ contains
    !------------------------------------------------------------------------------
    function CalcLWHeatConductivity(temp, cita, icita)
       implicit none
-      real(r8), intent(in) :: temp           ! temperature
+      real(r8), intent(in) :: temp           ! temperature (K)
       real(r8), intent(in) :: cita           ! water content
       real(r8), intent(in) :: icita          ! ice content
       real(r8) :: CalcLWHeatConductivity     ! units: W/(m*K)
@@ -533,7 +620,7 @@ contains
 
    function CalcThermalRadiation(surfTemp, vp, cloud)
       implicit none
-      real(r8), intent(in) :: surfTemp
+      real(r8), intent(in) :: surfTemp ! units: K
       real(r8), intent(in) :: vp       ! units: mb
       real(r8), intent(in) :: cloud    ! units: fraction
       real(r8) :: CalcThermalRadiation
@@ -563,7 +650,7 @@ contains
       ! in the water temperature range from -25 deg to 40 deg
       Tw = temp - T0
       SLH = 2500.8 - 2.36*Tw + 0.0016*Tw**2 - 0.00006*Tw**3
-      GetSpecificLatentHeat4Evap = 1d3 * SLH    ! J/g --> J/kg
+      GetSpecificLatentHeat4Evap = 1.d3 * SLH   ! J/g --> J/kg
       return
    end function
 
@@ -575,15 +662,13 @@ contains
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: CalcLatentHeatWaterAero
       real(r8) :: vps, vap, qs, q, Lv
-      real(r8) :: adjCe
 
-      adjCe = sa_params(Param_Hscale) * Ce
       vps = CalcSatVP(waterTemp)
       vap = 0.01 * RH * CalcSatVP(airTemp)
       qs = CalcSpecificHumidity(vps)
       q = CalcSpecificHumidity(vap)
       Lv = GetSpecificLatentHeat4Evap(waterTemp)
-      CalcLatentHeatWaterAero = max( Roua*Lv*adjCe*wind*(qs-q), 0d0 )
+      CalcLatentHeatWaterAero = max( Roua*Lv*Ce*wind*(qs-q), 0d0 )
       return
    end function
 
@@ -596,16 +681,16 @@ contains
       real(r8), intent(in) :: ps             ! units: pascal
       real(r8), intent(in) :: Rn             ! units: W/m2
       real(r8) :: CalcLatentHeatWaterPM      ! units: W/m2
-      real(r8) :: delta, vps, vpa, de
+      real(r8) :: delta, vps, vap, de
       real(r8) :: Ea, gama, Lv
 
       vps = CalcSatVP(waterTemp)
-      vpa = 0.01 * RH * CalcSatVP(airTemp)
-      de = 0.1 * (vps - vpa)           ! vapor pressure deficit (kPa)
+      vap = 0.01 * RH * CalcSatVP(airTemp) 
+      de = 0.1 * (vps - vap)           ! vapor pressure deficit (kPa)
       delta = 0.1 * CalcSatVPSlope(waterTemp)  ! units: kPa/K
       Ea = 6.43*(1+0.536*wind)*de      ! bulk aerodynamic expression
       Lv = GetSpecificLatentHeat4Evap(waterTemp)
-      gama = Cpa*1d-3*ps/(0.622*Lv)    ! pyschrometric constant (kPa/K)
+      gama = Cpa*1.d-3*ps/(0.622*Lv)   ! pyschrometric constant (kPa/K)
       CalcLatentHeatWaterPM = (delta*Rn+gama*11.574*Ea)/(delta+gama)
       return
    end function
@@ -613,18 +698,17 @@ contains
    function CalcLatentHeatIce(waterTemp, airTemp, RH, wind)
       implicit none
       real(r8), intent(in) :: waterTemp      ! units: K
-      real(r8), intent(in) :: airTemp        ! units: K
+      real(r8), intent(in) :: airTemp        ! units: K 
       real(r8), intent(in) :: RH             ! units: %
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8) :: CalcLatentHeatIce
-      real(r8) :: vap, vps, qs, q, adjCe
+      real(r8) :: vap, vps, qs, q
 
-      adjCe = sa_params(Param_Hscale) * Ce
       vps = CalcSatVP(waterTemp)
       vap = 0.01 * RH * CalcSatVP(airTemp)
       qs = CalcSpecificHumidity(vps)
       q = CalcSpecificHumidity(vap)
-      CalcLatentHeatIce = max( Roua*Ls*adjCe*wind*(qs-q), 0d0 )
+      CalcLatentHeatIce = max( Roua*Ls*Ce*wind*(qs-q), 0d0 )
       return
    end function
 
@@ -633,11 +717,9 @@ contains
       real(r8), intent(in) :: waterTemp      ! units: K
       real(r8), intent(in) :: airTemp        ! units: K
       real(r8), intent(in) :: wind           ! units: m/s
-      real(r8) :: adjCh
       real(r8) :: CalcSensibleHeat
 
-      adjCh = sa_params(Param_Hscale) * Ch
-      CalcSensibleHeat = Roua*Cpa*adjCh*wind*(waterTemp-airTemp)
+      CalcSensibleHeat = Roua*Cpa*Ch*wind*(waterTemp-airTemp)
       return
    end function
 
@@ -661,7 +743,7 @@ contains
       real(r8), intent(out) :: keddy(:)      ! units: m2/s
       real(r8) :: uts, ubs, ekman, rlat
       real(r8) :: tmp, tmp1, Ri, w10
-      real(r8) :: zhs, Nsqrt 
+      real(r8) :: zhs, Nsqrt, maxdepth 
       integer :: ii, nn
 
       if (wind<0.1_r8) then
@@ -670,6 +752,7 @@ contains
          return
       end if
       nn = size(depth)
+      maxdepth = depth(nn)
       ! surface and bottom friction velocity
       w10 = ConvertWindSpeed10(wind, 2.0d0)
       uts = 1.2d-3 * wind
@@ -683,11 +766,13 @@ contains
          tmp1 = (40*Nsqrt*(Karman*depth(ii))**2) / (tmp**2+inft)
          Ri = 0.05 * (-1 + sqrt(1.0+tmp1))
          keddy(ii) = (Karman*depth(ii)*tmp/Prandtl)/(1+37*Ri**2)
-         zhs = depth(nn) - depth(ii) + DeltaD
-         tmp = ubs * exp(-ekman*zhs)
-         tmp1 = (40*Nsqrt*(Karman*zhs)**2) / (tmp**2+inft)
-         Ri = 0.05 * (-1 + sqrt(1.0+tmp1))
-         keddy(ii) = keddy(ii) + (Karman*zhs*tmp/Prandtl)/(1+37*Ri**2)
+         if (maxdepth>5._r8) then
+            zhs = maxdepth - depth(ii) + DeltaD
+            tmp = ubs * exp(-ekman*zhs)
+            tmp1 = (40*Nsqrt*(Karman*zhs)**2) / (tmp**2+inft)
+            Ri = 0.05 * (-1 + sqrt(1.0+tmp1))
+            keddy(ii) = keddy(ii) + (Karman*zhs*tmp/Prandtl)/(1+37*Ri**2)
+         end if
       end do
    end subroutine
 
@@ -712,6 +797,157 @@ contains
          freq(ii) = G * drho / deltaH(ii) / density(ii)
       end do
    end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: KPP-based eddy diffusivity scheme.
+   !     Zhang, Q., et al.: Improving lake mixing process simulations in the 
+   !     Community Land Model by using K profile parameterization, Hydrol. Earth 
+   !     Syst. Sci., 23, 4969–4982, 2019.
+   !
+   !------------------------------------------------------------------------------
+   subroutine CalcKPPDiffusivity(depth, temp, freq, wrho, w10, lat, Heff, Keddy)
+      implicit none
+      real(r8), intent(in) :: depth(:)       ! units: m
+      real(r8), intent(in) :: temp(:)        ! units: K
+      real(r8), intent(in) :: freq(:)        ! units: s-2
+      real(r8), intent(in) :: wrho(:)        ! units: kg/m3
+      real(r8), intent(in) :: w10            ! units: m/s
+      real(r8), intent(in) :: lat            ! units: decimal
+      real(r8), intent(in) :: Heff           ! units: W/m2
+      real(r8), intent(out) :: keddy(:)      ! units: m2/s
+      real(r8), dimension(size(depth)) :: Vh_z     ! horizontal velocity of water
+      real(r8), dimension(size(depth)) :: Buoy_z   ! buoyancy
+      real(r8), dimension(size(depth)) :: nv_z     ! total diffusivity
+      real(r8) :: uts, eps, wind, kml
+      real(r8) :: Ri0, Ri, Rig, dRih
+      real(r8) :: zbnd, fk, Zmax, Vh_r
+      real(r8) :: Vt2, ws, phi, xi, dVh
+      real(r8) :: Cd10, Lscale, Bf
+      real(r8) :: sigma, Gsigma, Gsigma1
+      real(r8) :: dGsigma1, ws1, dnv1, dws1
+      real(r8) :: phi0, phi1
+      real(r8) :: a0, a1, a2, a3
+      integer :: ii, nn, ibnd
+
+      nn = size(depth)
+      Zmax = maxval(depth)
+      wind = ConvertWindSpeed(w10, 2.0_r8)
+      Cd10 = 1.0d-3*(2.7/w10+0.142+0.0764*w10)
+      uts = sqrt(Cd10*Roua/Roul)*w10
+      ! calculate bulk Richardson number
+      eps = 0.1_r8
+      do ii = 1, nn, 1
+         Buoy_z(ii) = G * (1._r8 - wrho(1)/wrho(ii))
+         Vh_z(ii) = 0.028_r8 * wind * (3.0*(depth(ii)/Zmax)**2 - &
+            4.0*(depth(ii)/Zmax) + 1.0)
+      end do
+      kml = 1.4d-7
+      do ii = 1, nn, 1
+         if (ii==1) then
+            dVh = (Vh_z(ii+1) - Vh_z(ii)) / (depth(ii+1) - depth(ii))
+         else if (ii==nn) then
+            dVh = (Vh_z(ii) - Vh_z(ii-1)) / (depth(ii) - depth(ii-1))
+         else
+            dVh = (Vh_z(ii+1) - Vh_z(ii-1)) / (depth(ii+1) - depth(ii-1))
+         end if
+         Rig = freq(ii) / dVh**2
+         if (Rig<0._r8) then
+            nv_z(ii) = 1.0d-5
+         else if (Rig<0.7_r8) then
+            nv_z(ii) = 1.0d-5 * (1.0 - (Rig/0.7)**2)**3
+         else
+            nv_z(ii) = 0._r8
+         end if
+         nv_z(ii) = nv_z(ii) + 1.0d-7 + kml
+      end do
+      Vh_r = 0.028_r8 * wind * (3.0*(0.1/Zmax)**2 - 4.0*(0.1/Zmax) + 1.0)
+      if (Heff<e8) then
+         Bf = G**2/(temp(1)*wrho(1)*Cpl)
+      else
+         Bf = CalcBuoyantFlux(temp(1), wrho(1), Heff)
+      end if
+      Lscale = uts**3._r8 / (Karman*Bf)
+      fk = 2.0 * 7.2921d-5 * sin(lat/180.0*Pi)
+      ! calculate the boundary layer depth
+      zbnd = depth(2)
+      Ri0 = 0._r8
+      do ii = 3, nn, 1
+         xi = depth(ii) / Lscale
+         phi = CalcPhiFunction(xi)
+         ws = Karman * uts / phi
+         Vt2 = 1.6*depth(ii)*sqrt(abs(freq(ii)))*ws*sqrt(0.2/98.96/eps) / &
+            0.25 / Karman**2
+         Ri = (Buoy_z(ii) - Buoy_z(2))*depth(ii)/((Vh_r-Vh_z(ii))**2 + Vt2)
+         if (Ri>=0.25_r8) then
+            zbnd = depth(ii-1)*(Ri-0.25)/(Ri-Ri0) + depth(ii)*(0.25-Ri0)/(Ri-Ri0)
+            exit
+         else
+            Ri0 = Ri
+         end if
+      end do
+      if (Lscale>0._r8) then
+         zbnd = min(min(zbnd,Lscale),0.7*uts/fk)
+      end if
+      zbnd = max(min(zbnd,Zmax),depth(2))   ! boundary layer depth
+      ibnd = COUNT(depth<=zbnd)
+      ! calculate shape function parameters
+      a0 = 0._r8
+      a1 = 1._r8
+      if (ibnd<nn) then
+         xi = zbnd / Lscale
+         phi = CalcPhiFunction(xi)
+         phi0 = CalcPhiFunction(0.999_r8*xi)
+         phi1 = CalcPhiFunction(1.001_r8*xi)
+         ws1 = Karman * uts / phi
+         dws1 = Karman * uts * (1.0/phi1 - 1.0/phi0) / 2.0d-3
+         dnv1 = (nv_z(ibnd+1) - nv_z(ibnd-1)) / (depth(ibnd+1) - depth(ibnd-1))
+      else
+         xi = zbnd / Lscale
+         phi = CalcPhiFunction(xi)
+         phi0 = CalcPhiFunction(0.999_r8*xi)
+         ws1 = Karman * uts / phi
+         dws1 = Karman * uts * (1.0/phi - 1.0/phi0) / 1.0d-3
+         dnv1 = (nv_z(ibnd) - nv_z(ibnd-1)) / (depth(ibnd) - depth(ibnd-1))
+      end if
+      Gsigma1 = nv_z(ibnd)/zbnd/ws1
+      dGsigma1 = -dnv1/ws1 - nv_z(ibnd)*dws1/zbnd/ws1**2
+      a2 = -2.0 + 3.0*Gsigma1 - dGsigma1
+      a3 = 1.0 - 2.0*Gsigma1 + dGsigma1
+
+      ! calculate eddy diffusivity
+      do ii = 1, nn, 1
+         if (depth(ii)<=zbnd) then
+            sigma = depth(ii)/zbnd
+            if (sigma>eps .and. sigma<1.0 .and. Lscale<0) then
+               xi = eps * zbnd / Lscale
+            else
+               xi = sigma * zbnd / Lscale
+            end if
+            phi = CalcPhiFunction(xi)
+            ws = Karman * uts / phi
+            Gsigma = a0 + a1*sigma + a2*sigma**2 + a3*sigma**3
+            keddy(ii) = zbnd * ws * Gsigma
+         else
+            keddy(ii) = nv_z(ii) - kml
+         end if
+      end do
+   end subroutine
+
+   function CalcPhiFunction(xi)
+      implicit none
+      real(r8), intent(in) :: xi
+      real(r8) :: CalcPhiFunction
+
+      if (xi>=0._r8) then
+         CalcPhiFunction = 1.0 + 5.0*xi
+      else if (xi>=-1._r8) then
+         CalcPhiFunction = (1.0 - 16.0*xi)**(-0.5)
+      else
+         CalcPhiFunction = (-28.86 - 98.96*xi)**(-1./3.)
+      end if
+      return
+   end function
 
    !------------------------------------------------------------------------------
    !
@@ -801,7 +1037,7 @@ contains
       integer, intent(in) :: gas
       real(r8), intent(in) :: temp        ! units: K
       real(r8), intent(in) :: pH          ! units: n/a
-      real(r8) :: CalcHenrySolubility     ! units: umol/(m3*Pa) (M = mole/L)
+      real(r8) :: CalcHenrySolubility     ! units: mol/(m3*Pa) (M = mole/L)
       real(r8) :: hi, kc1, kc2, par
       integer :: indx
 
@@ -827,7 +1063,6 @@ contains
       else if (gas==Wch4) then
          CalcHenrySolubility = 1.3d-5*exp(-1700*(1/temp-1/298.0))
       end if
-      CalcHenrySolubility = 1.0d+6*CalcHenrySolubility
       return
    end function
 
@@ -837,10 +1072,10 @@ contains
       real(r8), intent(in) :: temp        ! units: K
       real(r8), intent(in) :: pH          ! units: n/a
       real(r8) :: CalcBunsenSolubility    ! units: m3 / m3
-      real(r8) :: henry                   ! units: umol / (m3 * Pa)
+      real(r8) :: henry                   ! units: mol / (m3 * Pa)
 
       henry = CalcHenrySolubility(gas, temp, pH)
-      CalcBunsenSolubility = henry * temp * R * 1.0d-6
+      CalcBunsenSolubility = henry * temp * R
       return
    end function
 
@@ -878,17 +1113,18 @@ contains
    !          kinematic viscosity = dynamic viscosity / density
    !
    !------------------------------------------------------------------------------
-   subroutine CalcDynamicViscosity(temp, dVsc)
+   function CalcDynamicViscosity(temp)
       implicit none
-      real(r8), intent(in) :: temp(:)     ! units: K
-      real(r8), intent(out) :: dVsc(:)    ! units: kg/s/m
+      real(r8), intent(in) :: temp        ! units: K
+      real(r8) :: CalcDynamicViscosity    ! units: kg/s/m
 
-      where (temp<T0-e8)
-         dVsc = inf 
-      elsewhere
-         dVsc = 2.414d-5 * (10.0**(247.8/(temp-140.0)))
-      end where
-   end subroutine
+      if (temp<T0-e8) then
+         CalcDynamicViscosity = inf 
+      else
+         CalcDynamicViscosity = 2.414d-5 * (10.0**(247.8/(temp-140.0)))
+      end if
+      return
+   end function
 
    !------------------------------------------------------------------------------
    !
@@ -897,22 +1133,21 @@ contains
    !          D. and Thorpe, S., 1991].
    !
    !------------------------------------------------------------------------------
-   function CalcBuoyantVelocity(radius, vv)
+   function CalcBuoyantVelocity(radius, vsc)
       implicit none
       real(r8), intent(in) :: radius      ! units: m
-      real(r8), intent(in) :: vv          ! kinematic viscosity (m2/s)
+      real(r8), intent(in) :: vsc         ! kinematic viscosity (m2/s)
       real(r8) :: CalcBuoyantVelocity     ! units: m/s               
-      real(r8) :: xx, yy
+      real(r8) :: rr, xx, yy
 
-      if (vv>1.0d+10) then
-         CalcBuoyantVelocity = 0.0_r8
-         return
+      if (vsc>1.0d10) then
+         CalcBuoyantVelocity = 1.e-30_r8
+      else 
+         xx = G * (radius**3.0_r8) / (vsc**2.0_r8)
+         yy = 10.82_r8 / xx
+         CalcBuoyantVelocity = (2.0_r8*(radius**2.0_r8)*G/9.0_r8/vsc) * &
+            ((yy**2.0_r8+2.0_r8*yy)**0.5_r8-yy)
       end if
-
-      xx = G * (radius**3.0) / (vv**2.0)
-      yy = 10.82_r8 / xx
-      CalcBuoyantVelocity = (2.0_r8*(radius**2.0)*G/9.0_r8/vv) * &
-         ((yy**2.0+2.0_r8*yy)**0.5-yy)
       return
    end function
 
@@ -932,21 +1167,19 @@ contains
       real(r8) :: CalcSchmidtNumber
       real(r8) :: T
 
-      T = temp - T0     ! to celcius
+      T = min(temp-T0,30.0)     ! to celcius
       if (T<0) then
          CalcSchmidtNumber = inf
-         return
-      else if (T>30) then
-         T = 30
-      end if
-      if (gas==Wn2) then
-         CalcSchmidtNumber = 1970.7-131.45*T+4.139*T**2-0.052106*T**3
-      else if (gas==Wo2) then
-         CalcSchmidtNumber = 1800.6-120.1*T+3.7818*T**2-0.047608*T**3
-      else if (gas==Wco2) then
-         CalcSchmidtNumber = 1911-113.7*T+2.967*T**2-0.02943*T**3
-      else if (gas==Wch4) then
-         CalcSchmidtNumber = 1898-110.1*T+2.834*T**2-0.02791*T**3
+      else
+         if (gas==Wn2) then
+            CalcSchmidtNumber = 1970.7-131.45*T+4.139*T**2-0.052106*T**3
+         else if (gas==Wo2) then
+            CalcSchmidtNumber = 1800.6-120.1*T+3.7818*T**2-0.047608*T**3
+         else if (gas==Wco2) then
+            CalcSchmidtNumber = 1911-113.7*T+2.967*T**2-0.02943*T**3
+         else if (gas==Wch4) then
+            CalcSchmidtNumber = 1898-110.1*T+2.834*T**2-0.02791*T**3
+         end if
       end if
       return
    end function
@@ -1144,9 +1377,9 @@ contains
       implicit none
       integer, intent(in) :: gas
       real(r8), intent(in) :: temp           ! units: Kelvin
-      real(r8), intent(in) :: pH             ! units: n/a
+      real(r8), intent(in) :: pH
       real(r8), intent(in) :: pressure       ! partial pressure (Pa)
-      real(r8) :: CalcEQConc                 ! units: umol/m3
+      real(r8) :: CalcEQConc                 ! units: mol/m3
       real(r8) :: solubility
 
       solubility = CalcHenrySolubility(gas,temp,pH)
@@ -1161,7 +1394,7 @@ contains
    !------------------------------------------------------------------------------
    function CalcBubbleAirflow(mflow, area, depth, temp, pr0)
       implicit none
-      real(r8), intent(in) :: mflow    ! units: umol/m2/s
+      real(r8), intent(in) :: mflow    ! units: mol/m2/s
       real(r8), intent(in) :: area     ! units: m2
       real(r8), intent(in) :: depth    ! units: m
       real(r8), intent(in) :: temp     ! units: K
@@ -1170,48 +1403,48 @@ contains
       real(r8) :: pr
 
       pr = pr0 + Roul * G * depth
-      CalcBubbleAirflow = 1d-6 * mflow * area * R * temp / pr
+      CalcBubbleAirflow = mflow * area * R * temp / pr
    end function
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Construct the lake depth grid and bathymetry
+   ! Purpose: Construct depth and area grids
    !
    !------------------------------------------------------------------------------
-   subroutine ConstructDepthVector(info, Zw, Zs, dZw, dZs)
+   subroutine ConstructDepthVector(info, Zw, dZw, Zs, dZs)
       implicit none
       type(LakeInfo), intent(in) :: info     ! lake information object
-      real(r8), intent(out) :: Zw(:)         ! water depth vector
-      real(r8), intent(out) :: Zs(:)         ! sediment depth vector
-      real(r8), intent(out) :: dZw(:)        ! water grid thickness
-      real(r8), intent(out) :: dZs(:)        ! sediment grid thickness
+      real(r8), intent(out) :: Zw(:)         ! water layer depth vector
+      real(r8), intent(out) :: dZw(:)        ! water layer thickness
+      real(r8), intent(out) :: Zs(:)         ! sediment layer depth vector
+      real(r8), intent(out) :: dZs(:)        ! sediment layer thickness
       real(r8), parameter :: KArr(20) = (/0.0733, 0.0914, 0.1017, &
             0.1088, 0.1143, 0.1188, 0.1225, 0.1257, 0.1285, &
             0.1310, 0.1333, 0.1354, 0.1373, 0.1390, 0.1407, &
             0.1422, 0.1436, 0.1449, 0.1462, 0.1474/)
       real(r8) :: K1, K2, denom, pp
-      integer :: nw, ns, ii, idx
+      integer :: nw, ns, nz, ii, idx
 
       ! for water column
       nw = size(Zw) - 1
-      if (info%depth<=5.0) then
-         denom = info%depth / dble(nw)
+      if (info%maxdepth<=5.0) then
+         denom = info%maxdepth / dble(nw)
          do ii = 1, nw+1, 1
             Zw(ii) = (ii-1) * denom
          end do
       else
-         if (info%depth<=20) then
-            K1 = -1.572d-4*info%depth**2 + 6.861d-3*info%depth - 2.686d-2
-         else if (info%depth<=50) then
-            K1 = -1.372d-5*info%depth**2 + 1.794d-3*info%depth + 1.757d-2
-         else if (info%depth<1000) then
-            idx = INT(info%depth/50.0)
-            pp = (info%depth - 50*idx) / 50.0
+         if (info%maxdepth<=20) then
+            K1 = -1.572d-4*info%maxdepth**2 + 6.861d-3*info%maxdepth - 2.686d-2
+         else if (info%maxdepth<=50) then
+            K1 = -1.372d-5*info%maxdepth**2 + 1.794d-3*info%maxdepth + 1.757d-2
+         else if (info%maxdepth<1000) then
+            idx = INT(info%maxdepth/50.0)
+            pp = (info%maxdepth - 50*idx) / 50.0
             K1 = (1.0-pp)*KArr(idx) + pp*KArr(idx+1)
          else
-            K1 = KArr(20) + (info%depth - 1000) / 50.0 * 1.0d-3
+            K1 = KArr(20) + (info%maxdepth - 1000) / 50.0 * 1.0d-3
          end if
-         denom = info%depth / (exp(K1*nw) - 1)
+         denom = info%maxdepth / (exp(K1*nw) - 1)
          do ii = 1, nw+1, 1
             Zw(ii) = (exp(K1*(ii-1)) - 1) * denom
          end do
@@ -1227,7 +1460,7 @@ contains
       end do
       ! for sediment column
       ns = size(Zs) - 1
-      K2 = 0.03_r8
+      K2 = 0.05_r8
       denom = info%hsed / (exp(K2*ns) - 1)
       do ii = 1, ns+1, 1
          Zs(ii) = (exp(K2*(ii-1)) - 1) * denom
@@ -1243,27 +1476,41 @@ contains
       end do
    end subroutine
 
-   subroutine BuildLakeBathymetry(info, Zw, Az, dAz)
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Set sediment porosity vector 
+   !
+   !------------------------------------------------------------------------------
+   subroutine SetSedPorosity(Zs, dZs, sedpor)
       implicit none
-      type(LakeInfo), intent(in) :: info     ! lake information object
-      real(r8), intent(in) :: Zw(:)          ! water depth vector
-      real(r8), intent(out) :: Az(:)         ! water depth cross-section
-      real(r8), intent(out) :: dAz(:)        ! cross-section difference
-      integer :: ii, nz
+      real(r8), intent(in) :: Zs(:)          ! sediment layer depth 
+      real(r8), intent(in) :: dZs(:)         ! sediment layer thickness
+      real(r8), intent(out) :: sedpor(:,:)   ! sediment layer porosity
+      integer :: ns, ii
+      real(r8) :: tdepth, bdepth, par
 
-      ! for cross section
-      Az = info%Asurf
-      nz = size(Az)
-      do ii = 1, nz, 1
+      ns = size(Zs)
+      do ii = 1, ns, 1
          if (ii==1) then
-            dAz(ii) = 0.5 * (Az(ii) - Az(ii+1))
-         else if (ii==nz) then
-            dAz(ii) = 0.5 * (Az(ii) + Az(ii-1))
+            tdepth = Zs(ii)
+            bdepth = Zs(ii) + dZs(ii)
+         else if (ii==ns) then
+            tdepth = Zs(ii) - dZs(ii)
+            bdepth = Zs(ii)
          else
-            dAz(ii) = 0.5 * (Az(ii-1) - Az(ii+1))
+            tdepth = Zs(ii) - 0.5 * dZs(ii)
+            bdepth = Zs(ii) + 0.5 * dZs(ii)
          end if
-      end do 
-   end subroutine 
+         if (tdepth<=0.15 .and. bdepth<=0.15) then
+            sedpor(:,ii) = 0.8_r8
+         else if (tdepth<=0.15) then
+            par = (0.15 - tdepth) / (bdepth - tdepth)
+            sedpor(:,ii) = 0.4_r8 + 0.4_r8 * par 
+         else
+            sedpor(:,ii) = 0.4_r8
+         end if
+      end do
+   end subroutine
 
    !------------------------------------------------------------------------------
    !
@@ -1272,14 +1519,15 @@ contains
    !          bottom temperature (Fang et al., 1998)
    !
    !------------------------------------------------------------------------------
-   subroutine CalcSedBottomTemp(info, t2mref, tsb)
+   subroutine CalcSedBottomTemp(info, t2mref, margin, tsb)
       implicit none
       type(LakeInfo), intent(in) :: info
       real(r8), intent(in) :: t2mref      ! units: K
+      logical, intent(in) :: margin       ! margin flag 
       real(r8), intent(out) :: tsb        ! units: K
       real(r8) :: tgw, zl, geom
 
-      if (info%margin==1) then
+      if (info%thrmkst>0 .and. margin) then
          tgw = t2mref - T0 - 0.5_r8       ! ground water temperature
       else
          tgw = t2mref - T0 + 2.0_r8       ! ground water temperature
@@ -1326,59 +1574,6 @@ contains
       CalcSettlingVelocity = G * da * da * (rhos - rhow) / (18.0*dVsc)
       return
    end function
-
-   !------------------------------------------------------------------------------
-   !
-   ! Purpose: Calculate active layer thickness based on Nixon and McRoberts
-   !          Model (two-layer soils: upper layer 1 and lower layer 2)
-   !  "An Analytical Model of the Ground Surface Temperature Under Snowcover
-   !  with Soil Freezing" [RISEBOROUGH, 2001]
-   !
-   !------------------------------------------------------------------------------
-   subroutine CalcActiveLayerThickness(winter, temp, snow, k1, k2, L1, L2, &
-                                       t, dlt)
-      implicit none
-      integer, intent(in)  :: winter   ! winter flag
-      real(r8), intent(in) :: temp     ! air temperature (K)
-      real(r8), intent(in) :: snow     ! sonw thickness (m)
-      real(r8), intent(in) :: k1       ! heat conductivity of layer 1 (W/m/K)
-      real(r8), intent(in) :: k2       ! heat conductivity of layer 2 (W/m/K)
-      real(r8), intent(in) :: L1       ! volumetric latent heat of layer 1 (J/m3)
-      real(r8), intent(in) :: L2       ! volumetric latent heat of layer 2 (J/m3)
-      real(r8), intent(in) :: t        ! time since freezing/thawing starts (s)
-      real(r8), intent(inout) :: dlt   ! dynamic layer thickness (m)
-      real(r8), parameter :: H1 = 0.2_r8  ! organic layer thickness (m)
-      real(r8) :: Ts, rs, ra, XT
-
-      if (winter==1) then
-         if (temp>=T0) then
-            return
-         end if
-         ! calculate temperature at snow-soil interface
-         if (snow<0.01 .or. dlt<0.01) then
-            Ts = temp
-         else
-            rs = Kn0 / snow
-            ra = k1 / dlt
-            Ts = T0 + (temp-T0) * rs / (rs + ra)
-         end if
-         XT = sqrt( 2 * k1 * (T0-Ts) * t / L1 )
-         if (XT>H1) then
-            XT = sqrt( (H1*(k2/k1))**2 + 2*(k2/k1)*(L2/L1)*(XT**2-H1**2) ) &
-                  - (k2/k1-1)*H1
-         end if
-      else
-         if (temp<=T0) then
-            return
-         end if
-         XT = sqrt( 2 * k1 * (temp-T0) * t / L1 )
-         if (XT>H1) then
-            XT = sqrt( (H1*(k2/k1))**2 + 2*(k2/k1)*(L2/L1)*(XT**2-H1**2) ) &
-                  - (k2/k1-1)*H1
-         end if
-      end if
-      dlt = XT
-   end subroutine
 
    !------------------------------------------------------------------------------
    ! 
@@ -1440,7 +1635,7 @@ contains
 
       if (temp>=0) then
          CalcPureWaterDensity = 9.99868d+2 + 1.0d-3*(65.185*temp - &
-            8.4878*temp**2 + 0.05607*temp**3)
+            8.4878*temp**2. + 0.05607*temp**3.)
       else
          CalcPureWaterDensity = Roui 
       end if
@@ -1462,8 +1657,8 @@ contains
       real(r8) :: Tw, denom, numer
 
       Tw = temp - T0
-      denom = 9.99868d+2 + 1.0d-3*(65.185*Tw - 8.4878*Tw**2 + 0.05607*Tw**3)
-      numer = 1.0d-3 * (65.185 - 16.9756*Tw + 0.16821*Tw**2)
+      denom = 9.99868d+2 + 1.0d-3*(65.185*Tw - 8.4878*Tw**2. + 0.05607*Tw**3.)
+      numer = 1.0d-3 * (65.185 - 16.9756*Tw + 0.16821*Tw**2.)
       CalcThermalExpansionCoef = -numer / denom 
       return
    end function
@@ -1543,6 +1738,229 @@ contains
          Thr = Tmean + Tdiff * cos((tpeak-hour)/(tpeak-tdawn)*Pi)
       else
          Thr = Tmean - Tdiff * cos((24+tdawn-hour)/(24+tdawn-tpeak)*Pi)
+      end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !  
+   ! Purpose: the integral of PAR and total irradiance
+   !
+   !------------------------------------------------------------------------------
+   subroutine GetIncidentPAR(vwvln, fphot, rPAR, pPAR)
+      implicit none
+      real(r8), intent(in) :: vwvln(:)          ! nm
+      real(r8), intent(in) :: fphot(:)          ! mol m-2 s-1 nm-1
+      real(r8), intent(out) :: rPAR             ! mol m-2 s-1
+      real(r8), optional, intent(out) :: pPAR   ! W/m2
+      integer :: ii, nwvln
+
+      nwvln = size(fphot)
+      rPAR = 0.0d+0
+      do ii = 1, nwvln-1, 1
+         if (vwvln(ii)>=400 .and. vwvln(ii+1)<=700) then
+            rPAR = rPAR + 0.5 * (vwvln(ii+1)-vwvln(ii)) * &
+                  (fphot(ii)+fphot(ii+1))
+         end if
+      end do
+      if (present(pPAR)) then
+         pPAR = rPAR * 1.d6 / fconvPAR
+      end if
+   end subroutine
+
+   subroutine GetIncidentSRD(vwvln, fphot, rTOT)
+      implicit none
+      real(r8), intent(in) :: vwvln(:)       ! nm
+      real(r8), intent(in) :: fphot(:)       ! mol m-2 s-1 nm-1
+      real(r8), intent(out) :: rTOT          ! W/m2
+      real(r8), parameter :: PHOT = 0.119626565801574d+0  ! units: J m mol-1
+      real(r8) :: swv, dwv
+      integer :: ii, nwvln
+
+      nwvln = size(fphot)
+      rTOT = 0.0d+0
+      do ii = 1, nwvln-1, 1
+         dwv = vwvln(ii+1) - vwvln(ii)
+         swv = 0.5d-9 * (vwvln(ii) + vwvln(ii+1))  ! m
+         rTOT = rTOT + 0.5 * dwv * (fphot(ii)+fphot(ii+1)) * PHOT / swv
+      end do
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: calculate the absorption coefficient of pure water (Absorption
+   !           spectrum (380-700 nm) of pure water. II. Integrating cavity
+   !           measurements [Pope & Fry, 1997]).
+   !
+   !------------------------------------------------------------------------------
+   subroutine CalcAcWater(vwvln, aw)
+      implicit none
+      real(r8), intent(in) :: vwvln(:)       ! wavelength (nm)
+      real(r8), intent(out) :: aw(:)         ! absorption coefficient (m-1)
+      real(r8), allocatable :: aw_data(:)
+      real(r8) :: par, wvln, wvmin, wvmax, dwv
+      integer :: ii, nwvln, indx
+
+      allocate(aw_data(140))
+      aw_data = (/0.01137,0.01044,0.00941,0.00917,0.00851,0.00829,0.00813, &
+         0.00775,0.00663,0.00579,0.00530,0.00503,0.00473,0.00452,0.00444, &
+         0.00442,0.00454,0.00474,0.00478,0.00482,0.00495,0.00504,0.00530, &
+         0.00580,0.00635,0.00696,0.00751,0.00830,0.00922,0.00969,0.00962, &
+         0.00957,0.00979,0.01005,0.01011,0.0102,0.0106,0.0109,0.0114,0.0121, &
+         0.0127,0.0131,0.0136,0.0144,0.0150,0.0162,0.0173,0.0191,0.0204, &
+         0.0228,0.0256,0.0280,0.0325,0.0372,0.0396,0.0399,0.0409,0.0416, &
+         0.0417,0.0428,0.0434,0.0447,0.0452,0.0466,0.0474,0.0489,0.0511, &
+         0.0537,0.0565,0.0593,0.0596,0.0606,0.0619,0.0640,0.0642,0.0672, &
+         0.0695,0.0733,0.0772,0.0836,0.0896,0.0989,0.1100,0.1220,0.1351, &
+         0.1516,0.1672,0.1925,0.2224,0.2470,0.2577,0.2629,0.2644,0.2665, &
+         0.2678,0.2707,0.2755,0.2810,0.2834,0.2904,0.2916,0.2995,0.3012, &
+         0.3077,0.3108,0.322,0.325,0.335,0.340,0.358,0.371,0.393,0.410, &
+         0.424,0.429,0.436,0.439,0.448,0.448,0.461,0.465,0.478,0.486,0.502, &
+         0.516,0.538,0.559,0.592,0.624,0.663,0.704,0.756,0.827,0.914,1.007, &
+         1.119,1.231,1.356,1.489,1.678/)
+
+      wvmin = 380.0
+      wvmax = 727.5
+      dwv = 2.5
+      nwvln = size(vwvln)
+      do ii = 1, nwvln, 1
+         if (vwvln(ii)<wvmin) then
+            aw(ii) = aw_data(1) - 1.0d-3*(vwvln(ii)-wvmin)   ! approximately
+         else if (vwvln(ii)>wvmax) then
+            aw(ii) = min(100.0, 10**(5.61*(log10(vwvln(ii))-2.861833)))
+         else
+            indx = NINT( (vwvln(ii) - wvmin) / dwv ) + 1
+            indx = min(139, indx)
+            wvln = wvmin + (indx-1) * dwv
+            par = (vwvln(ii) - wvln) / dwv
+            aw(ii) = (1.0-par)*aw_data(indx) + par*aw_data(indx+1)
+         end if
+      end do
+      deallocate(aw_data)
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: calculate the absorption coefficient of pure ice
+   !          "Optical constants of ice from the ultraviolet to the microwave: A 
+   !          revised compilation" [Warren & Brandt, 2008]
+   !          "Visible and near-ultraviolet absorption spectrum of ice
+   !          from transmission of solar radiation into snow" [Warren et al.,
+   !          2006]
+   !
+   !          K_ice = 4*Pi*mim/wvln (m_im: imaginary index of refraction)
+   !
+   !------------------------------------------------------------------------------
+   subroutine CalcAcIce(vwvln, aI)
+      implicit none
+      real(r8), intent(in) :: vwvln(:)    ! wavelength (nm)
+      real(r8), intent(out) :: aI(:)      ! absorption coefficient (m-1)
+      real(r8), allocatable :: aI_data(:)
+      real(r8) :: wvln, wvmin, wvmax, par
+      integer :: nwvln, ii, indx
+
+      allocate(aI_data(181))
+      aI_data = (/1.78d-3,1.45d-3,1.25d-3,1.08d-3,9.21d-4,8.11d-4,7.31d-4, &
+         6.60d-4,6.38d-4,6.79d-4,7.43d-4,7.82d-4,8.18d-4,8.62d-4,9.38d-4, &
+         1.04d-3,1.21d-3,1.47d-3,1.79d-3,2.15d-3,2.58d-3,3.05d-3,3.62d-3, &
+         4.33d-3,5.23d-3,6.29d-3,7.49d-3,8.91d-3,1.07d-2,1.27d-2,1.48d-2, &
+         1.72d-2,1.98d-2,2.28d-2,2.60d-2,2.96d-2,3.34d-2,3.76d-2,4.22d-2, &
+         4.71d-2,5.23d-2,5.78d-2,6.37d-2,6.99d-2,7.63d-2,8.31d-2,9.01d-2, &
+         9.73d-2,1.05d-1,1.12d-1,1.20d-1,1.42d-1,1.74d-1,2.07d-1,2.40d-1, &
+         2.76d-1,3.16d-1,3.54d-1,3.86d-1,4.37d-1,5.21d-1,6.09d-1,7.03d-1, &
+         7.40d-1,8.35d-1,9.84d-1,1.17d+0,1.40d+0,1.64d+0,1.88d+0,2.10d+0, &
+         2.17d+0,2.19d+0,2.20d+0,2.26d+0,2.71d+0,3.14d+0,3.83d+0,4.78d+0, &
+         5.53d+0,5.86d+0,6.13d+0,6.47d+0,6.90d+0,7.39d+0,7.96d+0,9.88d+0, &
+         1.20d+1,1.44d+1,1.69d+1,2.04d+1,2.77d+1,2.82d+1,2.32d+1,2.02d+1, &
+         1.94d+1,2.04d+1,2.48d+1,3.29d+1,5.08d+1,7.03d+1,1.05d+2,1.24d+2, &
+         1.32d+2,1.31d+2,1.28d+2,1.26d+2,1.26d+2,1.31d+2,1.44d+2,1.78d+2, &
+         5.27d+2,1.32d+3,2.53d+3,4.11d+3,4.55d+3,4.17d+3,3.70d+3,3.18d+3, &
+         2.65d+3,2.27d+3,2.02d+3,1.87d+3,1.71d+3,1.53d+3,1.39d+3,1.26d+3, &
+         1.16d+3,1.09d+3,1.04d+3,9.85d+2,9.24d+2,8.95d+2,9.67d+2,1.40d+3, &
+         2.36d+3,4.29d+3,6.90d+3,9.13d+3,1.02d+4,1.03d+4,8.44d+3,4.90d+3, &
+         2.35d+3,1.46d+3,1.14d+3,1.55d+3,2.45d+3,3.03d+3,3.40d+3,3.78d+3, &
+         3.77d+3,3.65d+3,5.26d+3,1.13d+4,3.73d+4,1.08d+5,2.83d+5,7.46d+5, &
+         1.33d+6,1.80d+6,2.41d+6,2.36d+6,1.80d+6,1.12d+6,6.56d+5,3.92d+5, &
+         2.39d+5,1.46d+5,9.37d+4,6.13d+4,4.25d+4,3.25d+4,2.69d+4,2.42d+4, &
+         2.28d+4,2.45d+4,2.71d+4,3.05d+4,3.39d+4,3.76d+4/)
+
+      wvmin = 350.0
+      wvmax = 4000.0
+      nwvln = size(vwvln)
+      do ii = 1, nwvln, 1
+         wvln = vwvln(ii)
+         if (wvln<=wvmin) then
+            aI(ii) = aI_data(1)
+         else if (wvln>=wvmax) then
+            aI(ii) = aI_data(181)
+         else
+            if (wvln<=600) then
+               indx = int((wvln-350)/5) + 1
+               par = (wvln-350-5*(indx-1)) / 5.0
+            else if (wvln<=1000) then
+               indx = int((wvln-600)/10) + 51
+               par = (wvln-600-10*(indx-51)) / 10.0
+            else if (wvln<=2000) then
+               indx = int((wvln-1000)/20) + 91
+               par = (wvln-1000-20*(indx-91)) / 20.0
+            else
+               indx = int((wvln-2000)/50) + 141
+               par = (wvln-2000-50*(indx-141)) / 50.0
+            end if
+            aI(ii) = par*aI_data(indx+1) + (1.0-par)*aI_data(indx)
+         end if
+      end do
+      deallocate(aI_data)
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: calculate the absorption coefficient of snow and gray ice
+   !          (Rogers et al., 1995; Limnol. Oceanogr.)
+   !
+   !------------------------------------------------------------------------------
+   subroutine CalcAcSnow(vwvln, aN)
+      implicit none
+      real(r8), intent(in) :: vwvln(:)
+      real(r8), intent(out) :: aN(:)
+
+      where (vwvln<=700)
+         aN = EtanVIS
+      elsewhere
+         aN = EtanIR
+      end where
+   end subroutine
+
+   subroutine CalcAcGrayIce(vwvln, aN)
+      implicit none
+      real(r8), intent(in) :: vwvln(:)
+      real(r8), intent(out) :: aN(:)
+
+      where (vwvln<=700)
+         aN = EtaeVIS
+      elsewhere
+         aN = EtaeIR
+      end where
+   end subroutine
+
+   subroutine CalcCoverRadAbsfrc(hsnow, hgrayice, fs, fe)
+      implicit none
+      real(r8), intent(in) :: hsnow       ! units: m
+      real(r8), intent(in) :: hgrayice    ! units: m
+      real(r8), intent(out) :: fs         ! snow abs fraction
+      real(r8), intent(out) :: fe         ! gray ice abs fraction
+      real(r8) :: vis1, vis2, ir1, ir2
+
+      ! assume VIS:IR radiation = 1 : 1
+      if (hsnow<e8 .and. hgrayice<e8) then
+         fs = 0.0_r8
+         fe = 0.0_r8
+      else
+         vis1 = exp(-hsnow*EtanVIS)
+         vis2 = exp(-hsnow*EtanVIS-hgrayice*EtaeVIS)
+         ir1 = exp(-hsnow*EtanIR)
+         ir2 = exp(-hsnow*EtanIR-hgrayice*EtaeIR)
+         fe = 0.5*(vis1-vis2)/(1.0-vis2) + 0.5*(ir1-ir2)/(1.0-ir2)
+         fs = 1.0 - fe
       end if
    end subroutine
 

@@ -15,34 +15,32 @@ module shr_typedef_mod
       real(r8) :: sw_sim               ! simulated incoming short-wave radiation (W/m2)
       real(r8) :: srd                  ! simulated net SW irradiance (W/m2)
       real(r8) :: lw                   ! incoming long-wave radiation (W/m2)
-      real(r8) :: Qsi                  ! inlet discharge (m3/s)
-      real(r8) :: tQsi                 ! inlet water temperature (K)
-      real(r8) :: dQsi                 ! inlet water density (kg/m3)
-      real(r8) :: DICQsi               ! inlet water DIC (umol/m3)
-      real(r8) :: DOCQsi               ! inlet water DOC (umol/m3)
-      real(r8) :: POCQsi               ! inlet water POC (umol/m3)
-      real(r8) :: SRPQsi               ! inlet water SRP (umol/m3)
-      real(r8) :: DOQsi                ! inlet water O2 (umol/m3)
-      real(r8) :: Qso                  ! water outflow (m3/s)
-      real(r8) :: Qgw                  ! groundwater flow (m3/s)
+      real(r8) :: dzsurf               ! lake water level decrease (m)
+      real(r8) :: srp                  ! lake epilimnion SRP (gP/m3)
    end type
    type LakeInfo
       integer  :: id                   ! lake id
-      character(len=32) :: name        ! lake name
       integer  :: itype                ! lake type identifier
+      integer  :: sampleId             ! valid only in sensitivity mode
       real(r8) :: latitude             ! lake latitude
       real(r8) :: longitude            ! lake longitude
-      real(r8) :: depth                ! lake maximum depth (m)
-      real(r8) :: basin                ! lake mean depth (m)
+      real(r8) :: depth                ! lake depth (m)
+      real(r8) :: maxdepth             ! lake maximum depth (m)
       real(r8) :: Asurf                ! lake surface area (m2)
-      real(r8) :: Abasin               ! lake basin area (m2)
       real(r8) :: zalt                 ! lake altitude (km)
-      real(r8) :: kext                 ! chla and CDOM light attenuation (m-1)
+      real(r8) :: wrt                  ! lake water residence time (day)
       real(r8) :: excice               ! land excessive ice fraction
       real(r8) :: hsed                 ! sediment column thickness (m)
-      integer  :: thrmkst              ! 1=thermokarst, 0=vice
-      integer  :: margin               ! 1=margin, 2=slope, 0=center
-      integer  :: hydroconn            ! 1=hydro connect, 0=vice
+      real(r8) :: kext                 ! background light attenuation coef (m^-1)
+      real(r8) :: cdep                 ! OC deposition rate (gC/m2/yr)
+      real(r8) :: csed                 ! sediment OC density (kgC/m3)
+      real(r8) :: pH                   ! lake pH
+      real(r8) :: sal                  ! sediment porewater salinity (g/kg)
+      real(r8) :: srp                  ! lake epilimnion SRP (gP/m3)
+      real(r8) :: sedFe                ! lake sediment iron (gFe/m3)
+      real(r8) :: bfdep                ! bankfull depth of inflow (m)
+      real(r8) :: refPOC               ! reference phytoplankton biomass (gC/m3)
+      integer  :: thrmkst              ! 1=thermokarst, 2=yedoma, 0=vice
    end type
    type SimTime
       integer :: year0                 ! the starting year
@@ -62,6 +60,7 @@ module shr_typedef_mod
       real(r8) :: qCO2                 ! CO2 concentration (ppm)
       real(r8) :: Latit                ! site latitude (+/-)
       real(r8) :: Longit               ! site longitude (+/-)
+      real(r8) :: dayl                 ! day length
       integer  :: year, month, day     ! local time date
       integer  :: season               ! 0: winter or fall; 1: summer or spring
    end type
@@ -96,5 +95,17 @@ module shr_typedef_mod
       real(r8), pointer :: nxt5th(:,:)
       real(r8), pointer :: interim(:,:)
       real(r8), pointer :: rerr(:,:)
+   end type
+   type RungeKuttaCache3D
+      real(r8), pointer :: K1(:,:,:)
+      real(r8), pointer :: K2(:,:,:)
+      real(r8), pointer :: K3(:,:,:)
+      real(r8), pointer :: K4(:,:,:)
+      real(r8), pointer :: K5(:,:,:)
+      real(r8), pointer :: K6(:,:,:)
+      real(r8), pointer :: nxt4th(:,:,:)
+      real(r8), pointer :: nxt5th(:,:,:)
+      real(r8), pointer :: interim(:,:,:)
+      real(r8), pointer :: rerr(:,:,:)
    end type
 end module shr_typedef_mod

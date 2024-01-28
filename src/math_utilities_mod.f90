@@ -8,7 +8,8 @@ module math_utilities_mod
    use shr_kind_mod,       only : r8, r4, i8, NaN
    use shr_ctrl_mod,       only : inft => INFINITESIMAL_E8, inf => INFINITE_E8, &
                                   TOL_E8
-   use shr_typedef_mod,    only : RungeKuttaCache1D, RungeKuttaCache2D
+   use shr_typedef_mod,    only : RungeKuttaCache1D, RungeKuttaCache2D, &
+                                  RungeKuttaCache3D
    use ifport
 
    implicit none
@@ -18,6 +19,7 @@ module math_utilities_mod
    interface RungeKutta4
       module procedure RungeKutta4_1D
       module procedure RungeKutta4_2D
+      module procedure RungeKutta4_3D
    end interface
 
    interface Norm
@@ -168,25 +170,25 @@ contains
       if (dir==1) then
          nn = size(vec,2)
          mm = size(vec,3)
-         do ii = 1, mm, 1
-            do jj = 1, nn, 1
-               mean(jj,ii) = sum(vec(:,jj,ii)*weight) / wsum
+         do ii = 1, nn, 1
+            do jj = 1, mm, 1
+               mean(ii,jj) = sum(vec(:,ii,jj)*weight) / wsum
             end do
          end do
       else if (dir==2) then
          nn = size(vec,1)
          mm = size(vec,3)
-         do ii = 1, mm, 1
-            do jj = 1, nn, 1
-               mean(jj,ii) = sum(vec(jj,:,ii)*weight) / wsum
+         do ii = 1, nn, 1
+            do jj = 1, mm, 1
+               mean(ii,jj) = sum(vec(ii,:,jj)*weight) / wsum
             end do
          end do
       else if (dir==3) then
          nn = size(vec,1)
          mm = size(vec,2)
-         do ii = 1, mm, 1
-            do jj = 1, nn, 1
-               mean(jj,ii) = sum(vec(jj,ii,:)*weight) / wsum
+         do ii = 1, nn, 1
+            do jj = 1, mm, 1
+               mean(ii,jj) = sum(vec(ii,jj,:)*weight) / wsum
             end do
          end do
       end if
@@ -624,12 +626,110 @@ contains
 
    !------------------------------------------------------------------------------
    !
+   ! Purpose: 3-dimensional Adaptive 4th Runge-Kutta-Fehlberg Method
+   !
+   !------------------------------------------------------------------------------
+   subroutine RungeKutta4_3D(odeFunc, mem, mode, tol, curstep, nextstep, &
+                             invars, outvars)
+      external :: odeFunc                       ! ODEs 
+      type(RungeKuttaCache3D) :: mem            ! memory caches
+      integer, intent(in) :: mode               ! adaptive or fixed
+      real(r8), intent(in) :: tol(:)            ! absolute tolerances
+      real(r8), intent(inout) :: curstep        ! current time step
+      real(r8), intent(out) :: nextstep         ! next time step
+      real(r8), intent(in) :: invars(:,:,:)     ! last state variables
+      real(r8), intent(out) :: outvars(:,:,:)   ! current state variables
+      real(r8), dimension(size(invars,1)) :: dy, dytmp
+      real(r8), dimension(size(invars,1)) :: rdy, rdytmp
+      real(r8), dimension(size(invars,1)) :: dyn, dyntmp
+      real(r8), dimension(size(invars,1)) :: rlt_tol
+      real(r8), dimension(size(invars,1)) :: abs_rate
+      real(r8), dimension(size(invars,1)) :: rlt_rate
+      real(r8) :: step, rate, delta
+      logical :: isLargeErr, isConstraintViolated
+      integer :: iter, kk, ii, ndim1, ndim2
+
+      ndim1 = size(invars,1)
+      ndim2 = size(invars,2)
+      isLargeErr = .True.
+      isConstraintViolated = .False.
+      step = curstep
+      iter = 1
+      rlt_tol = TOL_E8
+      call odeFunc(invars, mem%K1)
+      do while (isLargeErr .or. isConstraintViolated)
+         if (iter>MAXITER) then
+            print *, "Runge-Kutta 3D iteration number is more than 100!!"
+            exit
+         end if
+         curstep = step
+         mem%interim = invars + step*0.25*mem%K1
+         call odeFunc(mem%interim, mem%K2)
+         mem%interim = invars + step*(0.09375*mem%K1 + 0.28125*mem%K2)
+         call odeFunc(mem%interim, mem%K3)
+         mem%interim = invars + step*(0.87938*mem%K1 - 3.27720*mem%K2 + &
+                     3.32089*mem%K3)
+         call odeFunc(mem%interim, mem%K4)
+         mem%interim = invars + step*(2.03241*mem%K1 - 8.0*mem%K2 + &
+                     7.17349*mem%K3 - 0.20590*mem%K4)
+         call odeFunc(mem%interim, mem%K5)
+         mem%nxt4th = invars + step*(0.11574*mem%K1 + 0.54893*mem%K3 + &
+                     0.53533*mem%K4 - 0.2*mem%K5)
+         if (mode==fixed_mode) then       ! fixed step
+            nextstep = step
+            outvars = mem%nxt4th
+            return
+         end if
+         mem%interim = invars + step*(-0.29630*mem%K1 + 2.0*mem%K2 - &
+                     1.38168*mem%K3 + 0.45297*mem%K4 - 0.275*mem%K5)
+         call odeFunc(mem%interim, mem%K6)
+         mem%nxt5th = invars + step*(0.11852*mem%K1 + 0.51899*mem%K3 + &
+                     0.50613*mem%K4 - 0.18*mem%K5 + 0.03636*mem%K6)
+         call Divide(mem%nxt4th-mem%nxt5th, mem%nxt4th, mem%rerr)
+         dy = 0.0_r8
+         rdy = 0.0_r8
+         dyn = 1.0d36
+         do kk = 1, ndim2, 1
+            call Norm(mem%rerr(:,kk,:), 1, rdytmp)
+            call Norm(mem%nxt4th(:,kk,:)-mem%nxt5th(:,kk,:), 1, dytmp)
+            call GetLeastValue(mem%nxt4th(:,kk,:), 1, dyntmp)
+            do ii = 1, ndim1, 1
+               rdy(ii) = max(rdytmp(ii),rdy(ii))
+               dy(ii) = max(dytmp(ii),dy(ii))
+               dyn(ii) = min(dyntmp(ii),dyn(ii))
+            end do
+         end do
+         isLargeErr = IsErrorStillLarge(dy,tol,rdy,rlt_tol)
+         isConstraintViolated = IsTooLargeNegative(dyn,-100*tol)
+         if (isConstraintViolated) then
+            step = 0.5*step
+         else
+            call Divide(tol,dy,abs_rate)
+            call Divide(rlt_tol,rdy,rlt_rate)
+            rate = max(minval(abs_rate), minval(rlt_rate))
+            delta = 0.84*rate**0.25
+            if (delta<=0.1) then
+               step = 0.1*step
+            else if (delta>=4.0) then
+               step = 4.0*step
+            else
+               step = delta*step
+            end if
+         end if
+         iter = iter + 1
+      end do
+      nextstep = step
+      outvars = mem%nxt4th
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
    ! Purpose: Sorting and search method
    !  example: result = BSEARCHQQ(LOC(target),LOC(array),length,SRT$INTEGER4)
    !  example: Call SORTQQ (LOC(array), length, SRT$INTEGER2)
    !
    !------------------------------------------------------------------------------
-   subroutine BinarySearch(array, obj, idx)
+   subroutine DichotomySectionSearch(array, obj, idx)
       implicit none
       real(r8), intent(in) :: array(:)
       real(r8), intent(in) :: obj
@@ -714,6 +814,28 @@ contains
          iter = iter + 1
       end do
    end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: solve quadratic equation a*x^2 + b*x + c = 0 for real roots.
+   !
+   !------------------------------------------------------------------------------
+   subroutine SolveQuadraticEquation(A, root)
+      implicit none
+      real(r8), intent(in) :: A(3)
+      real(r8), intent(out) :: root(2)
+      real(r8) :: vD
+
+      vD = A(2)**2.0 - 4.0*A(1)*A(3)
+      ! If vD>0, quadratic equation has 2 real roots; vD==0, it has 1 real root
+      if (vD>=0) then
+         root(1) = 0.5 * (-A(2) + sqrt(vD)) / A(1) 
+         root(2) = 0.5 * (-A(2) - sqrt(vD)) / A(1)
+      else
+         root(1) = inf
+         root(2) = inf
+      end if
+   end subroutine
    
    !------------------------------------------------------------------------------
    !
@@ -786,7 +908,7 @@ contains
                yi(ii) = yy(ndef)
             end if
          else
-            call BinarySearch(xx, xi(ii), idx)
+            call DichotomySectionSearch(xx, xi(ii), idx)
             par = (xi(ii) - xx(idx)) / (xx(idx+1) - xx(idx))
             yi(ii) = yy(idx) * (1.0 - par) + yy(idx+1) * par
          end if
@@ -820,7 +942,7 @@ contains
                yi(ii,:) = yy(ndef,:)
             end if
          else
-            call BinarySearch(xx, xi(ii), idx)
+            call DichotomySectionSearch(xx, xi(ii), idx)
             par = (xi(ii) - xx(idx)) / (xx(idx+1) - xx(idx))
             yi(ii,:) = yy(idx,:) * (1.0 - par) + yy(idx+1,:) * par
          end if
@@ -846,7 +968,7 @@ contains
          else if (xi(ii)>=xx(ndef)) then
             yi(ii) = yy(ndef)
          else
-            call BinarySearch(xx, xi(ii), idx)
+            call DichotomySectionSearch(xx, xi(ii), idx)
             if (idx==1) then
                dkm = (yy(idx+1) - yy(idx)) / (xx(idx+1) - xx(idx))
                dkh = (yy(idx+2) - yy(idx+1)) / (xx(idx+2) - xx(idx+1))
@@ -1109,25 +1231,5 @@ contains
          std(ii) = std(ii) / bound
       end do
    end subroutine
-
-   !------------------------------------------------------------------------------
-   !
-   ! Purpose: Calculate depth averaged lake physical variable
-   !
-   !------------------------------------------------------------------------------
-   function GetDepthAvgState(varZ, Zrange, Zw, Vz)
-      implicit none
-      real(r8), intent(in) :: varZ(:)     ! lake state variable (e.g., temp)
-      real(r8), intent(in) :: Zrange(2)   ! depth range (m)
-      real(r8), intent(in) :: Zw(:)       ! lake depth profile (m)
-      real(r8), intent(in) :: Vz(:)       ! lake volume profile (m^3)
-      real(r8) :: GetDepthAvgState
-      integer :: indx0, indx1
-
-      call BinarySearch(Zw, Zrange(1), indx0)
-      call BinarySearch(Zw, Zrange(2), indx1)
-      call WeightMean(varZ(indx0:indx1), Vz(indx0:indx1), GetDepthAvgState)
-      return
-   end function
 
 end module math_utilities_mod

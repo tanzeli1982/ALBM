@@ -8,10 +8,9 @@ module thermal_mod
 !---------------------------------------------------------------------------------
    use shr_kind_mod,          only : r8
    use shr_param_mod
-   use shr_ctrl_mod,          only : WATER_LAYER, lake_info
+   use shr_ctrl_mod,          only : WATER_LAYER, lake_info, run_mode
    use shr_typedef_mod,       only : RungeKuttaCache1D
    use phy_utilities_mod
-   use bg_utilities_mod
    use data_buffer_mod
 
    implicit none
@@ -29,10 +28,13 @@ module thermal_mod
    real(r8), allocatable :: freq(:)
    ! turbulent diffusivity (m2/s)
    real(r8), allocatable :: df_turb(:)
+   ! radiation-induced temperature change (K/m3/s)
+   real(r8), allocatable :: rad(:)
    ! boundary conditions
    real(r8) :: lw_hr, sh_hr, lh_hr
    real(r8) :: hnet_hr, fmm_hr
    real(r8) :: hf_top, hf_btm
+   real(r8) :: hf_bubble
 
 contains
    !------------------------------------------------------------------------------
@@ -46,6 +48,7 @@ contains
       allocate(Cvt(WATER_LAYER+1))
       allocate(freq(WATER_LAYER+1))
       allocate(df_turb(WATER_LAYER+1))
+      allocate(rad(WATER_LAYER+1))
       allocate(mem_tw%K1(WATER_LAYER+1))
       allocate(mem_tw%K2(WATER_LAYER+1))
       allocate(mem_tw%K3(WATER_LAYER+1))
@@ -61,14 +64,15 @@ contains
       Cvt = 0.0_r8
       freq = 0.0_r8
       df_turb = 0.0_r8
+      rad = 0.0_r8
       hf_top = 0.0_r8
       hf_btm = 0.0_r8
+      hf_bubble = 0.0_r8
       lw_hr = 0.0_r8
       sh_hr = 0.0_r8
       lh_hr = 0.0_r8
       hnet_hr = 0.0_r8
       fmm_hr = 0.0_r8
-      df_turb = 0.0_r8
    end subroutine
 
    subroutine DestructThermalModule()
@@ -77,6 +81,7 @@ contains
       deallocate(Cvt)
       deallocate(freq)
       deallocate(df_turb)
+      deallocate(rad)
       deallocate(mem_tw%K1)
       deallocate(mem_tw%K2)
       deallocate(mem_tw%K3)
@@ -93,21 +98,30 @@ contains
       implicit none
       real(r8) :: cita, icita, temp
       real(r8) :: Kml, wind, w10, lat
-      integer :: ii
+      integer :: ii, top, icol
 
+      top = m_lakeWaterTopIndex
       call UpdateWaterDensity()
-      call CalcDynamicViscosity(m_waterTemp, m_dVsc) 
       w10 = m_surfData%wind
       wind = ConvertWindSpeed(w10, 2.0d0) 
       lat = lake_info%latitude
-      fmm_hr = Roua * Cd10 * (w10**2)
+      fmm_hr = Roua * Cd10 * (w10**3)
       ! wind-driven eddy diffusivity
       call CalcBruntVaisalaFreq(m_dZw, m_wrho, freq)
       if (m_Hice<e8) then
          call CalcEddyDiffusivity(m_Zw, freq, wind, lat, m_Kt)
-         m_Kt = sa_params(Param_Ktscale) * m_Kt
+         m_Kt(1) = max(m_Kt(1), 1.0d-5)
       else
          call CalcEnhancedDiffusivity(freq, m_waterIce, m_Kt)
+         if (top<=WATER_LAYER+1) then
+            m_Kt(top) = max(m_Kt(top), 2.0d-6)
+         end if
+      end if
+      ! bubble-induced heat flux
+      if (m_waterTemp(top)<T0+4._r8) then
+         hf_bubble = min(1.d9*m_upbflux, Lf*Roul*m_dZw(1)/3.6d3)
+      else
+         hf_bubble = 0._r8
       end if
       df_turb = m_Kt 
       do ii = 1, WATER_LAYER+1, 1
@@ -116,9 +130,21 @@ contains
          temp = m_waterTemp(ii)
          Cvt(ii) = Cpl*Roul*cita + Cpi*Roui*icita
          ! molecular heat conductivity
-         Kml = CalcLWHeatConductivity(temp, cita, icita)
-         m_Kv(ii) = 1.25 * m_Kt(ii) + 1.5d-6
-         m_Kt(ii) = m_Kt(ii) + Kml/Cvt(ii)
+         Kml = CalcWaterHeatDiffusivity(temp)
+         m_Kv(ii) = 1.25 * m_Kt(ii)
+         m_Kt(ii) = m_Kt(ii) + Kml
+         if (ii<top) then
+            m_Ktb(ii) = Kml * DeltaD / 0.1_r8
+         else
+            m_Ktb(ii) = Kml
+         end if
+         ! radiation
+         icol = m_soilColInd(ii)
+         if ((m_Hice>e8 .and. ii==top-1) .or. (m_Hice<e8 .and. ii==top)) then
+            rad(ii) = (m_Iab(ii) + hf_bubble) / m_dZw(ii) / Cvt(ii)
+         else
+            rad(ii) = m_Iab(ii) / m_dZw(ii) / Cvt(ii)
+         end if
       end do
       call CalcBoundaryHeatFlux()
    end subroutine
@@ -131,8 +157,6 @@ contains
 
       call AdjustIceTemp()
       call UpdateWaterDensity()
-      call CalcDynamicViscosity(m_waterTemp, m_dVsc)
-      call CalcBruntVaisalaFreq(m_dZw, m_wrho, freq)
       call ConvectiveMixing(dt)
       if (m_Hice>e8) then
          Roun = sa_params(Param_Roun)
@@ -166,39 +190,46 @@ contains
       implicit none
       real(r8), intent(in)  :: temp(WATER_LAYER+1)     ! temperature column vector
       real(r8), intent(out) :: dtemp(WATER_LAYER+1)    ! temperature time derivative
-      real(r8) :: qb, qt, aa, bb, dT
-      real(r8) :: dT1, dT2, rad, Hf
-      logical  :: isfflow
-      integer  :: ii
+      real(r8) :: qb, qt, aa, bb, Az1, Az2 
+      real(r8) :: dT, dT1, dT2
+      integer  :: ii, icol, top
 
       ! Top and Bottom boundary conditions
-      ! for all experiments, heat flux across the water-sediment interface
-      ! is switched off.
-      dT = m_sedTemp(1) - temp(WATER_LAYER+1)
-      qb = m_Kbm * dT / DeltaD 
+      top = m_lakeWaterTopIndex
       qt = hf_top
-      isfflow = IsLatHeatFlowOn()
       do ii = 1, WATER_LAYER+1, 1
-         rad = m_Iab(ii) / m_dZw(ii) / Cvt(ii)
+         icol = m_soilColInd(ii)
+         if (m_Hice<e8) then
+            if (icol<NSCOL) then
+               qb = 0._r8
+            else
+               dT = m_sedTemp(icol,1) - temp(WATER_LAYER+1)
+               qb = m_Ktb(WATER_LAYER+1) * dT / DeltaD
+            end if
+         else
+            qb = m_Ktb(ii) * (m_sedTemp(icol,1) - temp(ii)) / DeltaD
+         end if
          if(ii==1) then
             aa = 0.5 * (m_Kt(ii+1) + m_Kt(ii))
             dT1 = (temp(ii+1) - temp(ii)) / (m_Zw(ii+1) - m_Zw(ii))
-            dtemp(ii) = (aa*dT1 - qt) / m_dZw(ii) + rad
+            Az1 = m_Az(ii)
+            dtemp(ii) = (aa*Az1*dT1 + qb*m_dAz(ii) - qt*m_Az(ii)) / &
+                  m_dZw(ii) / m_Az(ii) + rad(ii)
          else if(ii==WATER_LAYER+1) then
             bb = 0.5 * (m_Kt(ii-1) + m_Kt(ii))
             dT2 = (temp(ii) - temp(ii-1)) / (m_Zw(ii) - m_Zw(ii-1))
-            dtemp(ii) = (qb - bb*dT2) / m_dZw(ii) + rad
+            Az2 = m_Az(ii) 
+            dtemp(ii) = (qb*m_dAz(ii) - bb*Az2*dT2) / m_dZw(ii) / &
+                  m_Az(ii) + rad(ii)
          else
             aa = 0.5 * (m_Kt(ii+1) + m_Kt(ii))
             bb = 0.5 * (m_Kt(ii-1) + m_Kt(ii))
             dT1 = (temp(ii+1) - temp(ii)) / (m_Zw(ii+1) - m_Zw(ii))
             dT2 = (temp(ii) - temp(ii-1)) / (m_Zw(ii) - m_Zw(ii-1))
-            if (isfflow) then
-               Hf = m_Kbm * (temp(ii) - T0) / DeltaD
-            else
-               Hf = 0.0_r8
-            end if
-            dtemp(ii) = (aa*dT1 - bb*dT2) / m_dZw(ii) + rad - Hf
+            Az1 = m_Az(ii)
+            Az2 = m_Az(ii) 
+            dtemp(ii) = (aa*Az1*dT1 + qb*m_dAz(ii) - bb*Az2*dT2) / &
+                  m_dZw(ii) / m_Az(ii) + rad(ii)
          end if
       end do
    end subroutine
@@ -221,8 +252,8 @@ contains
       real(r8) :: Ttop, Twet, w10, wind, RH, Tair
       real(r8) :: icita, dtemp, temp, Rn, ps
       real(r8) :: sw_top, sw_btm, sw_remain
-      real(r8) :: Roun
-      integer :: ii
+      real(r8) :: Roun, Hscaler
+      integer :: ii, icol, top
 
       Ttop = m_waterTemp(1)
       w10 = m_surfData%wind
@@ -231,8 +262,9 @@ contains
       RH = m_surfData%RH
       ps = m_surfData%pressure
       Roun = sa_params(Param_Roun)
-      !Hsa = 4.29 * max(1d-1, wind)  ! units: W/m2/K 
-      Hsa = 3.90 * max(1d-1, wind)  ! units: W/m2/K
+      Hscaler = sa_params(Param_Hscale)
+      !Hsa = 4.29 * max(1.d-1, wind)  ! units: W/m2/K 
+      Hsa = 3.90 * max(1.d-1, wind)  ! units: W/m2/K
       if (m_Hsnow>e8 .or. m_Hgrayice>e8) then
          if (Tair<T0) then
             lw_net = 0.0_r8
@@ -272,10 +304,10 @@ contains
          hnet_hr = m_surfData%srd - lw_net - sh_hr - lh_hr 
       else
          lw_net = Epsw*Stefan*(Ttop**4) - Epsw*m_surfData%lw
-         lh_net = CalcLatentHeatWater(Ttop, Tair, RH, wind)
+         lh_net = Hscaler * CalcLatentHeatWater(Ttop, Tair, RH, wind)
          !Rn = m_surfData%srd - lw_net
          !lh_net = CalcLatentHeatWater(Ttop, Tair, RH, wind, ps, Rn)
-         sh_net = CalcSensibleHeat(Ttop, Tair, wind)
+         sh_net = Hscaler * CalcSensibleHeat(Ttop, Tair, wind)
          Twet = CalcWetBubTemp(Tair, RH, m_surfData%pressure)
          if (m_surfData%rainfall>e8) then
             runoff_net = Cpl*Roul*(Twet-Ttop)*m_surfData%rainfall
@@ -293,12 +325,14 @@ contains
       end if
       hf_top = (lw_net + sh_net + lh_net - runoff_net) / Cvt(1)
       ! bottom heat flux
-      temp = m_waterTemp(WATER_LAYER+1)
-      icita = m_waterIce(WATER_LAYER+1)
-      m_Kbm = CalcLWHeatConductivity(temp, 1.0-icita, icita)
-      hf_btm = m_Kbm * (m_sedTemp(1) - temp) / DeltaD
-      m_Kbm = m_Kbm / (Cpl*Roul*(1-icita) + Cpi*Roui*icita) 
-      if (Ttop>=T0) then
+      hf_btm = 0._r8
+      do ii = 1, WATER_LAYER+1, 1
+         icol = m_soilColInd(ii) 
+         temp = m_waterTemp(ii)
+         hf_btm = hf_btm + m_Ktb(ii) * (m_sedTemp(icol,1) - temp) / DeltaD * &
+            m_dAz(ii) / m_Az(1)
+      end do
+      if (m_Hice<e8) then
          ! see Imberger [1985] for the calculation of trapped shortwave
          ! radiation but it should be minor when buoyant flux is negative
          m_Heff = -sh_net - lh_net - lw_net
@@ -306,20 +340,6 @@ contains
          m_Heff = 0.0_r8
       end if
    end subroutine
-
-   ! lateral heat flux for lake margin
-   function IsLatHeatFlowOn()
-      implicit none
-      logical :: IsLatHeatFlowOn
-
-      if (lake_info%margin==1 .and. lake_info%thrmkst==1 &
-            .and. m_surfData%temp>=T0) then
-         IsLatHeatFlowOn = .True.
-      else
-         IsLatHeatFlowOn = .False.
-      end if
-      return 
-   end function
 
    !------------------------------------------------------------------------------
    !
@@ -333,12 +353,12 @@ contains
    subroutine AdjustIceTemp()
       implicit none
       real(r8) :: tmp1, tmp2, dH1, dH2
-      real(r8) :: dz1, dz2
+      real(r8) :: dv1, dv2
       integer :: ii, jj
 
       ! Water Freezing
       do ii = 1, WATER_LAYER+1, 1
-         if (m_Hice+e8>lake_info%depth) then
+         if (m_Hice+e8>lake_info%maxdepth) then
             exit  ! no liquid
          end if
          if (ii<m_lakeWaterTopIndex) then
@@ -363,20 +383,20 @@ contains
                tmp1 = Cpi*(T0-m_waterTemp(ii))*m_waterIce(ii) + &
                      Cpl*(T0-m_waterTemp(ii))*(1.0-m_waterIce(ii))
                tmp2 = Lf*(1.0-m_waterIce(jj))
-               dz1 = m_dZw(ii)
-               dz2 = m_dZw(jj)
-               dH1 = tmp1 * dz1
-               dH2 = tmp2 * dz2
+               dv1 = m_dZw(ii) * m_Az(ii)
+               dv2 = m_dZw(jj) * m_Az(jj)
+               dH1 = tmp1 * dv1
+               dH2 = tmp2 * dv2
                if (dH2>dH1) then
-                  m_waterIce(jj) = m_waterIce(jj) + dH1/dz2/Lf
+                  m_waterIce(jj) = m_waterIce(jj) + dH1/dv2/Lf
                   m_waterTemp(ii) = T0
                   exit
                else
                   m_waterIce(jj) = 1.0
                   if (ii==jj) then
-                     m_waterTemp(ii) = T0 - (dH1-dH2)/dz1/Cpi
+                     m_waterTemp(ii) = T0 - (dH1-dH2)/dv1/Cpi
                   else
-                     m_waterTemp(ii) = T0 - (dH1-dH2)/dz1/Cpl
+                     m_waterTemp(ii) = T0 - (dH1-dH2)/dv1/Cpl
                   end if
                   jj = jj + 1
                   if (jj>ii) then
@@ -400,20 +420,20 @@ contains
             tmp1 = Cpi*(m_waterTemp(ii)-T0)*m_waterIce(ii) + &
                   Cpl*(m_waterTemp(ii)-T0)*(1.0-m_waterIce(ii))
             tmp2 = Lf*m_waterIce(jj)
-            dz1 = m_dZw(ii)
-            dz2 = m_dZw(jj)
-            dH1 = tmp1 * dz1
-            dH2 = tmp2 * dz2
+            dv1 = m_dZw(ii) * m_Az(ii)
+            dv2 = m_dZw(jj) * m_Az(jj)
+            dH1 = tmp1 * dv1
+            dH2 = tmp2 * dv2
             if (dH2>dH1) then
-               m_waterIce(jj) = m_waterIce(jj) - dH1/dz2/Lf
+               m_waterIce(jj) = m_waterIce(jj) - dH1/dv2/Lf
                m_waterTemp(ii) = T0
                exit
             else
                m_waterIce(jj) = 0.0
                if (ii==jj) then
-                  m_waterTemp(ii) = T0 + (dH1-dH2)/dz1/Cpl
+                  m_waterTemp(ii) = T0 + (dH1-dH2)/dv1/Cpl
                else
-                  m_waterTemp(ii) = T0 + (dH1-dH2)/dz1/Cpi
+                  m_waterTemp(ii) = T0 + (dH1-dH2)/dv1/Cpi
                end if
                jj = jj - 1
                if (jj<ii) then
@@ -437,19 +457,22 @@ contains
    subroutine ConvectiveMixing(dt)
       implicit none
       real(r8), intent(in) :: dt
-      real(r8) :: tavg, tzw, Vepi, Vz
-      real(r8) :: hmix, Wstr, w10, As, Pkin
-      real(r8) :: Epot, drho, mepi, mz
-      real(r8) :: zepi, zmz, Mv
-      integer :: ii, top, bottom 
+      real(r8) :: tavg, tmv, Vz, Mv, mavg
+      real(r8) :: Wstr, w10, As, Pkin
+      real(r8) :: Epot, drho, maxrho, zmz, mz
+      real(r8) :: zepi, zmepi, mepi, Vepi
+      real(r8) :: zhpi, zmhpi, mhpi, Vhpi
+      real(r8) :: tbot, tcur
+      integer :: ii, jj, top, bottom 
+      integer :: indx, btmIdx(2)
 
       top = m_lakeWaterTopIndex
       bottom = WATER_LAYER + 1
 
       if (m_Hice<e8) then
          w10 = m_surfData%wind 
-         As = 1d-6 * lake_info%Asurf
-         Wstr = min(sa_params(Param_Wstr)*(1.0-exp(-0.3*As)), 1.0)
+         As = 1.d-6 * lake_info%Asurf
+         Wstr = sa_params(Param_Wstr) * (1.0 - exp(-0.3*As))
          call CalcTotalKineticPower(lake_info, w10, Pkin)
          m_Ekin = m_Ekin + Wstr * Pkin * dt
       else
@@ -460,13 +483,23 @@ contains
       m_mixTopIndex = top
       ii = top + 1 
       do while (ii<=bottom)
-         hmix = sum( m_dZw(top:ii-1) )
+         zepi = sum( m_dZw(top:ii-1) )
+         zmepi = 0.0_r8
+         tmv = 0.0_r8
+         mepi = 0.0_r8
+         do jj = top, ii-1, 1
+            Mv = m_wrho(jj) * m_dZw(jj) * m_Az(jj)
+            mepi = mepi + Mv
+            tmv = tmv + m_dZw(jj) * m_Az(jj)
+            zmepi = zmepi + (sum(m_dZw(top:jj))-0.5*m_dZw(jj)) * Mv
+         end do
+         zmepi = zmepi / mepi
          zmz = m_dZw(ii)
-         mepi = sum(m_wrho(top:ii-1)*m_dZw(top:ii-1))/hmix
-         Vepi = 1d-6 * sum( m_Az(top:ii-1)*m_dZw(top:ii-1) )
-         Vz = 1d-6 * m_Az(ii) * zmz
+         mepi = mepi / tmv 
+         Vepi = 1.d-6 * tmv 
+         Vz = 1.d-6 * m_Az(ii) * zmz
          drho = m_wrho(ii) - mepi
-         Epot = G*drho*Vepi*Vz/(Vepi+Vz)*(0.5*hmix+0.5*zmz)
+         Epot = G*drho*Vepi*Vz/(Vepi+Vz)*(zepi - zmepi + 0.5*zmz)
          if (m_Ekin<Epot) then
             exit
          end if
@@ -484,38 +517,78 @@ contains
       m_mixTopIndex = min(m_mixTopIndex, bottom)
       ! convective mixing
       if (m_mixTopIndex>top) then
-         tavg = 0.0_r8
-         tzw = 0.0_r8
+         tavg = 0.0_r8 
+         tmv = 0.0_r8
+         mavg = 0.0_r8
          do ii = top, m_mixTopIndex, 1
-            Mv = m_wrho(ii) * m_dZw(ii)
-            tzw = tzw + Mv
-            tavg = tavg + m_waterTemp(ii)*Mv
+            Mv = m_dZw(ii) * m_Az(ii)
+            tmv = tmv + Mv
+            tavg = tavg + m_waterTemp(ii) * Mv
+            mavg = mavg + m_wrho(ii) * Mv 
          end do
-         tavg = tavg / tzw 
+         tavg = tavg / tmv
+         mavg = mavg / tmv
          m_waterTemp(top:m_mixTopIndex) = tavg
-         m_Hmix = sum( m_dZw(top:m_mixTopIndex) )
+         m_wrho(top:m_mixTopIndex) = mavg
+         m_Hmix(1) = sum( m_dZw(top:m_mixTopIndex) )
       else
-         m_Hmix = 0.0_r8
+         m_Hmix(1) = 0.0_r8
       end if
-      if (m_Hice<e8) then
-         do ii = top, bottom, 1
-            if (abs(m_waterTemp(ii)-m_waterTemp(top))>1.0) then
-               exit
+
+      ! density-induced bottom mixing
+      do while (m_mixTopIndex<bottom)
+         maxrho = m_wrho(bottom)
+         tbot = m_waterTemp(bottom) - T0 - 4._r8
+         indx = bottom
+         do ii = top, bottom-1, 1
+            tcur = m_waterTemp(ii) - T0 - 4._r8
+            if (maxrho+1.d-6<m_wrho(ii)) then
+               maxrho = m_wrho(ii)
+               indx = ii
+            else if (((tbot<-e8 .and. tcur>e8) .or. (tbot>e8 .and. tcur<-e8)) &
+               .and. abs(tbot-tcur)>0.1) then
+               maxrho = maxval(m_wrho) + 1.d-3 
+               indx = ii
             end if
-            m_HbLayer(1) = m_Zw(ii)
          end do
-         do ii = bottom, top, -1
-            if (abs(m_waterTemp(ii)-m_waterTemp(bottom))>1.0) then
-               exit
-            end if
-            m_HbLayer(2) = m_Zw(bottom) - m_Zw(ii)
-         end do
-         if (sum(m_HbLayer)>m_Zw(bottom)) then
-            m_HbLayer = (/m_Zw(bottom), 0.0_r8/)
+         ! no inverse density gradient
+         if (indx==bottom) then
+            exit
          end if
+         btmIdx(1) = indx
+         btmIdx(2) = bottom
+         ! convective mixing
+         tavg = 0.0_r8
+         tmv = 0.0_r8
+         mavg = 0.0_r8
+         do ii = btmIdx(1), btmIdx(2), 1
+            Mv = m_dZw(ii) * m_Az(ii)
+            tmv = tmv + Mv
+            tavg = tavg + m_waterTemp(ii) * Mv
+            mavg = mavg + m_wrho(ii) * Mv
+         end do
+         tavg = tavg / tmv
+         mavg = mavg / tmv
+         m_waterTemp(btmIdx(1):btmIdx(2)) = tavg
+         m_wrho(btmIdx(1):btmIdx(2)) = mavg
+      end do
+
+      ! search the range of bottom mixing layer
+      m_mixBotIndex = bottom
+      do ii = bottom-1, m_mixTopIndex+1, -1
+         if (abs(m_wrho(ii)-m_wrho(bottom))>=0.02_r8) then
+            exit
+         end if
+         m_mixBotIndex = ii
+      end do
+      if (m_mixBotIndex<bottom) then
+         m_Hmix(2) = sum( m_dZw(m_mixBotIndex:bottom) )
       else
-         m_HbLayer = (/m_Zw(bottom), 0.0_r8/)
+         m_Hmix(2) = 0.0_r8
       end if
+
+      m_HbLayer(1) = sum( m_dZw(1:m_mixTopIndex) ) 
+      m_HbLayer(2) = lake_info%maxdepth - sum( m_dZw(m_mixBotIndex:bottom) )
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -541,7 +614,7 @@ contains
       if (m_surfData%temp>T0+e8 .or. m_radPars%season==1) then
          ! absorbed solar energy, latent heat, sensible heat and runoff heat
          wind = ConvertWindSpeed(m_surfData%wind, 2.0d0)
-         rad = m_surfData%srd - sum(m_Iab)
+         rad = m_surfData%srd - m_Idw(1)
          lw = max( Epsn*m_surfData%lw-Epsn*Stefan*(T0**4), 0.0_r8 )
          sh = CalcSensibleHeat(T0, m_surfData%temp, wind)                               
          lh = 0.0_r8 
@@ -568,7 +641,7 @@ contains
       if ((m_surfData%temp>T0+e8 .or. m_radPars%season==1) &
             .and. m_Hsnow<e8) then
          wind = ConvertWindSpeed(m_surfData%wind, 2.0d0)
-         rad = m_surfData%srd - sum(m_Iab)
+         rad = m_surfData%srd - m_Idw(1)
          lw = max( Epse*m_surfData%lw-Epse*Stefan*(T0**4), 0.0_r8 )
          sh = CalcSensibleHeat(T0, m_surfData%temp, wind)
          lh = 0.0_r8 
@@ -589,7 +662,7 @@ contains
       implicit none
       real(r8), intent(out) :: sh      ! upward sensible heat (W/m2)
       real(r8), intent(out) :: lh      ! upward latent heat (W/m2)
-      real(r8), intent(out) :: fmm     ! momentum flux (kg/m/s2)
+      real(r8), intent(out) :: fmm     ! momentum energy flux (W/m2)
       real(r8), intent(out) :: lw      ! upward longwave radiation (W/m2)
       real(r8), intent(out) :: hnet    ! net downward heat flux (W/m2)
       real(r8), intent(out) :: fsed    ! net upward sed heat flux (W/m2)
@@ -623,36 +696,18 @@ contains
       m_Hgrayice = 0.0_r8
       m_Kt = 1.5d-7
       m_Kv = 1.5d-6
-      m_Kbm = 1.5d-7
+      m_Ktb = 1.5d-7
       m_Iab = 0.0_r8
+      m_Idw = 0.0_r8
       m_wrho = Roul
-      m_dVsc = 8.9d-4
       m_Hmix = 0.0_r8
       m_HbLayer = 0.0_r8
       m_Heff = 0.0_r8
       m_Ekin = 0.0_r8
       m_mixTopIndex = 1
+      m_mixBotIndex = WATER_LAYER+1
       call UpdateLakeWaterTopIndex()
       call UpdateLakeIceThickness()
-
-      ! catchment thermal variables
-      if (lake_info%latitude>=0) then
-         if (Spinup_Month>=6 .and. Spinup_Month<=10) then
-            winter_flag = 0
-            prewinter_flag = 0
-         else
-            winter_flag = 1
-            prewinter_flag = 1
-         end if
-      else
-         if (Spinup_Month>=11 .or. Spinup_Month<=5) then
-            winter_flag = 0
-            prewinter_flag = 0
-         else
-            winter_flag = 1
-            prewinter_flag = 1
-         end if
-      end if
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -664,23 +719,28 @@ contains
    !------------------------------------------------------------------------------
    subroutine UpdateWaterDensity()
       implicit none
-      real(r8) :: DCO2(WATER_LAYER+1)
-      real(r8) :: DCH4(WATER_LAYER+1)
+      real(r8) :: DCO2(WATER_LAYER+1)  ! units: g/kg
+      real(r8) :: DCH4(WATER_LAYER+1)  ! units: g/kg
 
       if (count(m_waterTemp>T0+100)>0) then
-         call Endrun(lake_info%id, "Water temperature out of range")
+         if (trim(run_mode)=='sensitivity') then
+            call Endrun(lake_info%sampleId, "Water temperature out of range")
+         else
+            call Endrun(lake_info%id, "Water temperature out of range")
+         end if
       end if
 
       ! 2.75 is a compensation for non-CO2 substances
-      DCO2 = 2.75 * m_waterSubCon(Wco2,:) * 1.0d-9 * MasCO2
-      DCH4 = m_waterSubCon(Wch4,:) * 1.0d-9 * MasCH4
+      DCO2 = 2.75 * m_waterSubCon(Wco2,:) * MasCO2 * 1.d-3
+      DCH4 = m_waterSubCon(Wch4,:) * MasCH4 * 1.d-3
+      !salinity = 0._r8 ! 15.0d-3 for freshwater (not used due to DCO2)
       ! update water density
       where (m_waterTemp<T0)
          m_wrho = Roui
       elsewhere
          m_wrho = ( 9.99868d+2 + 1.0d-3 * (65.185*(m_waterTemp-T0)- &
             8.4878*(m_waterTemp-T0)**2+0.05607*(m_waterTemp-T0)**3) ) * &
-            ( 1.0 + 0.75d-3*15d-3 + 0.284d-3*DCO2 - 1.25d-3*DCH4 )
+            ( 1.0 + 0.75d-3*m_SAL + 0.284d-3*DCO2 - 1.25d-3*DCH4 )
       end where
    end subroutine
 
@@ -697,8 +757,13 @@ contains
       do ii = 1, WATER_LAYER, 1
          m_Hice = m_Hice + m_waterIce(ii)*m_dZw(ii)
          if (m_waterIce(ii)>e8 .and. m_lakeWaterTopIndex<=ii) then
-            call Endrun(lake_info%id, 'incorrect ice layers under ' // &
-               'ice-water interface')
+            if (trim(run_mode)=='sensitivity') then
+               call Endrun(lake_info%sampleId, 'incorrect ice layers ' // &
+                  'under the ice-water interface')
+            else
+               call Endrun(lake_info%id, 'incorrect ice layers under ' // &
+                  'the ice-water interface')
+            end if
          end if
       end do
    end subroutine

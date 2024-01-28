@@ -44,18 +44,18 @@ contains
 
       ! check the end sample id, if not end, refresh the sample range
       ! and restart with a new job
-      if (masterproc .and. RESUBMIT) then
-         if (maxid<ntotlake) then
-            lake_next_range = lake_range
-            lake_range = (/minid+ndid, min(maxid+ndid,ntotlake)/)
-            call WriteSimulationSettings(arg)
-            call GetFullFileName('bLakeJob.sub', script)
-            script = "sbatch " // trim(script)
-            err = system(trim(script))
-            print "(A, I0)", "A new job is submitted. Return = ", err
-            lake_range = lake_next_range
-         end if
-      end if
+      !if (masterproc .and. (.NOT. DEBUG)) then
+      !   if (maxid<ntotlake) then
+      !      lake_next_range = lake_range
+      !      lake_range = (/minid+ndid, min(maxid+ndid,ntotlake)/)
+      !      call WriteSimulationSettings(arg)
+      !      call GetFullFileName('bLakeJob.sub', script)
+      !      script = "qsub " // trim(script)
+      !      err = system(trim(script))
+      !      print "(A, I0)", "A new job is submitted. Return = ", err
+      !      lake_range = lake_next_range
+      !   end if
+      !end if
       
       do istep = 1, nlake, numprocs
          if (masterproc) then
@@ -92,58 +92,106 @@ contains
       type(SimTime) :: time
       
       call ReadLakeTotalNumber(nlake)
-      if (minid==1 .or. DEBUG) then
-         time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
+      time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
                      End_Month, End_Day)
-         call CreateOutputFile(NSLAYER+1, 'zs', 'sediment layer depth', 'm')
-         call CreateOutputFile(NWLAYER+1, 'zw', 'water layer depth', 'm') 
-         call CreateOutputFile(time, 'snowthick', 'snow cover thickness', &
-                              'm', -9999.0_r4)
-         call CreateOutputFile(time, 'icethick', 'ice cover thickness', &
-                              'm', -9999.0_r4)
-         call CreateOutputFile(time, 'sensheatf', 'upward sensible ' // &
-                              'heat flux', 'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'latentheatf', 'upward latent ' // &
-                              'heat flux', 'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'momf', 'momentum energy flux', &
-                              'kg m-1 s-2', -9999.0_r4)
-         call CreateOutputFile(time, 'lwup', 'upward longwave radiation', &
-                              'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'lakeheatf', 'downward net heat flux', &
-                              'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'swdw', 'downward shortwave radiation', &
-                              'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'swup', 'upward shortwave radiation', &
-                              'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'sedheatf', 'upward sediment heat ' // &
-                              'flux', 'W m-2', -9999.0_r4)
-         call CreateOutputFile(time, 'fch4d', 'diffusive methane flux', &
-                              'mole m-2 d-1', -9999.0_r4)
-         call CreateOutputFile(time, 'fch4e', 'ebullitive methane flux', &
-                              'mole m-2 d-1', -9999.0_r4)
-         call CreateOutputFile(time, 'fco2', 'total CO2 flux (negative ' // &
-                              'for C sink)', 'mole m-2 d-1', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'watertemp', 'water ' // &
-                              'temperature', 'K', -9999.0_r4)
-         call CreateOutputFile(time, NSLAYER+1, 'sedtemp', 'sediment ' // &
-                              'temperature', 'K', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'turbdiffheat', &
-                               'Turbulent diffusivity of heat', 'm2 s-1', &
-                               -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'do', 'dissolved oxygen', &
-                               'mole m-3', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'dch4', 'dissolved methane', &
-                               'mole m-3', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'dco2', 'dissolved CO2', &
-                               'mole m-3', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'doc', 'dissolved organic carbon', &
-                               'mole m-3', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'srp', 'soluble reactive phosphorus', &
-                               'mole m-3', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'chl', 'chlorophyll', &
-                               'g m-3', -9999.0_r4)
-         call CreateOutputFile(time, NWLAYER+1, 'phytobio', 'phytoplankton biomass', &
-                               'mole m-3', -9999.0_r4)
+      if (minid==1 .and. masterproc) then
+         call CreateOutputFile(time, NWLAYER+1, 'zw', 'water layer depth', 'm') 
+         call CreateOutputFile(time, NSLAYER+1, 'zs', 'sediment layer depth', 'm')
+         call CreateOutputFile(time, NWLAYER+1, 'Az', 'water layer ' // & 
+                              'cross-section area', 'm^2');
+         call CreateOutputFile(time, NWLAYER+1, 'colindx', 'water layer ' // &
+                              'connected sediment column index', 'index')
+         if (Thermal_Module) then
+            call CreateOutputFile(time, 'snowthick', 'Snow Thickness', &
+                                 'm', -9999.0_r4)
+            call CreateOutputFile(time, 'icethick', 'Ice Thickness', &
+                                 'm', -9999.0_r4)
+            call CreateOutputFile(time, 'sensheatf', 'Sensible Heat Flux ' // &
+                                 'at Lake-Atmosphere Interface', 'W m-2', &
+                                 -9999.0_r4)
+            call CreateOutputFile(time, 'latentheatf', 'Latent Heat Flux ' // &
+                                 'at Lake-Atmosphere Interface', 'W m-2', &
+                                 -9999.0_r4)
+            call CreateOutputFile(time, 'momf', 'Momentum Flux at ' // &
+                                 'Lake-Atmosphere Interface', 'kg m-1 s-2', &
+                                 -9999.0_r4)
+            call CreateOutputFile(time, 'lwup', 'Upward Long-Wave ' // &
+                                 'Radiation Flux at Lake-Atmosphere Interface', &
+                                 'W m-2', -9999.0_r4)
+            call CreateOutputFile(time, 'lakeheatf', 'Downward Heat Flux ' // &
+                                 'at Lake-Atmosphere Interface', 'W m-2', &
+                                 -9999.0_r4)
+            !call CreateOutputFile(time, 'swdw', 'downward shortwave radiation', &
+            !                     'W/m2', -9999.0_r4)
+            call CreateOutputFile(time, 'swup', 'Upward Short-Wave ' // &
+                                 'Radiation Flux at Lake-Atmosphere Interface', &
+                                 'W m-2', -9999.0_r4)
+            call CreateOutputFile(time, 'sedheatf', 'Sediment Upward Heat ' // &
+                                 'Flux at Lake-Sediment Interface', 'W m-2', &
+                                 -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'watertemp', 'Z', &
+                                 'Temperature of Lake Water', 'K', -9999.0_r4)
+            !call CreateOutputFile(time, NWLAYER+1, 'turbdiffheat', 'Z', &
+            !                     'Turbulent diffusivity of heat', 'm2/s', &
+            !                     -9999.0_r4)
+            call CreateOutputFile(time, NSCOL, NSLAYER+1, 'sedtemp', 'COL', 'Z', &
+                                 'Temperature of Lake Sediment', 'K', -9999.0_r4)
+         end if
+         if (Carbon_Module) then
+            call CreateOutputFile(time, 'ch4df', 'surface methane diffusion flux', &
+                                 'mol m-2 s-1', -9999.0_r4)
+            call CreateOutputFile(time, 'gpp', 'total gross primary production', &
+                                 'gC m-2 s-1', -9999.0_r4)
+            call CreateOutputFile(time, 'npp', 'total net primary production', &
+                                 'gC m-2 s-1', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'ch4oxid', 'Z', &
+                                 'Methane Oxidation', 'mol m-3 s-1', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'och4prod', 'Z', 'oxic ' // &
+                                 'methane production', 'mol m-3 s-1', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'ch4conc', 'Z', 'dissolved ' // &
+                                 'CH4 concentration', 'mol m-3', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'o2conc', 'Z', 'dissolved ' // &
+                                 'O2 concentration', 'mol m-3', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'n2conc', 'Z', 'dissolved ' // &
+                                 'N2 concentration', 'mol m-3', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'co2conc', 'Z', 'dissolved ' // &
+                                 'CO2 concentration', 'mol m-3', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'srp', 'Z', 'soluable ' // &
+                                 'reactive P concentration', 'mol m-3', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'chla', 'Z', 'chlorophyll ' // &
+                                 'concentration', 'g m-3', -9999.0_r4)
+            call CreateOutputFile(time, NSCOL, 'cdep', 'COL', 'active organic ' // &
+                                 'carbon deposition', 'gC m-2 s-1', -9999.0_r4)
+            call CreateOutputFile(time, NPOC, NWLAYER+1, 'biomass', 'POC', 'Z', &
+                                 'phytoplankton biomass', 'gC m-3', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'bveg', 'Z', 'submerged ' // &
+                                 'macrophyte biomass', 'gC m-2', -9999.0_r4)
+         end if
+         if (Diagenesis_Module) then
+            call CreateOutputFile(time, NSCOL, 'sedch4df', 'COL', 'sediment methane ' // &
+                                 'diffusion flux', 'mol m-2 s-1', -9999.0_r4)
+            call CreateOutputFile(time, NSCOL, 'sedch4eb', 'COL', 'sediment methane ' // &
+                                 'ebullition flux', 'mol m-2 s-1', -9999.0_r4)
+            call CreateOutputFile(time, NSCOL, 'ch4prod', 'COL', 'total sediment  ' // &
+                                 'methane production', 'mol m-2 s-1', -9999.0_r4)
+            call CreateOutputFile(time, NSCOL, NSLAYER+1, 'pascarb', 'COL', 'Z', &
+                                 'sediment available passive carbon density', &
+                                 'gC m-3', -9999.0_r4)
+            call CreateOutputFile(time, NSCOL, NSLAYER+1, 'actcarb', 'COL', 'Z', &
+                                 'sediment available active carbon density', &
+                                 'gC m-3', -9999.0_r4)
+            call CreateOutputFile(time, NSCOL, NSLAYER+1, 'oldcarb', 'COL', 'Z', &
+                                 'sediment available permafrost carbon density', &
+                                 'gC m-3', -9999.0_r4)
+            call CreateOutputFile(time, NSCOL, NSLAYER+1, 'sedrdx', 'COL', 'Z', &
+                                 'sediment redox potential', 'mV', -9999.0_r4)
+         end if
+         if (Bubble_Module) then
+            call CreateOutputFile(time, 'ch4eb', 'surface methane ebullition flux', &
+                                 'mol m-2 s-1', -9999.0_r4)
+            call CreateOutputFile(time, 'icebch4', 'total CH4 in ice-trapped ' // &
+                                 'bubbles', 'mole', -9999.0_r4)
+         end if
       end if
    end subroutine
 
@@ -151,23 +199,24 @@ contains
       implicit none
       integer, intent(in) :: lakeId
       integer, intent(out) :: error
-      type(SimTime) :: time, spinup
+      type(SimTime) :: time, spinup, otime
       real(r8) :: OptParams(NPARAM)
       integer :: i4ret
 
       i4ret = SIGNALQQ(SIG$FPE, hand_fpe)
       ! read lake information (i.e. depth, location ...)
-      call ReadLakeName(lakeId)
+      call ReadLakeInfo(lakeId, -9999)
       call ReadOptimumParameters(OptParams)
       call LoadSensitiveParameters(OptParams)
-      call ReadLakeInfo(lakeId)
       time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
                      End_Month, End_Day)
       spinup = SimTime(Start_Year-nSpinup, Spinup_Month, Spinup_Day, &
                      Start_Year, Start_Month, Start_Day)
+      otime = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
+                      End_Month, End_Day)
       call InitializeSimulation()
-      call ModelRun(lakeId, time, spinup, error)
-      call ArchiveModelOutput(lakeId, time)
+      call ModelRun(lakeId, time, spinup, otime, error)
+      call ArchiveModelOutput(lakeId, otime)
       call FinalizeSimulation()
    end subroutine
 

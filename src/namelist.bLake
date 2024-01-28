@@ -1,70 +1,78 @@
 &general
  run_mode = 'regular'
- lake_file = './Lakes_ISIMIP.nc'
- lakeid_file = './Lakes_ISIMIP_id.list'
- lake_range = 1, 59
- bthmtry_dir = './Bathymetry/'
- param_dir = './Parameters/'
+ lake_file = './Lakes_E3SM.nc'
+ lake_range = 1, 106 
+ bathy_file = './Lakes_E3SM_bathymetry.nc'
+ opt_file = ''
 /
 
 &simulation
  Thermal_Module = .True.
- Bubble_Module = .False.
- Diagenesis_Module = .False.
- Carbon_Module = .False.
- Hydro_Module = .False.
- Start_Year = 1979
+ Bubble_Module = .True.
+ Diagenesis_Module = .True.
+ Carbon_Module = .True.
+ Start_Year = 1901
  Start_Month = 1
  Start_Day = 1
- End_Year = 2016
+ End_Year = 2020
  End_Month = 1
  End_Day = 1
  Spinup_Month = 7
  Spinup_Day = 1
  nSpinup = 2
+ Use_Leap = .False.
 /
 
 &resolution
  NWLAYER = 50
  NSLAYER = 40
  NRLAYER = 10
+ NSCOL = 5
 /
 
 &bayesian
- NMAXSAMPLE = 75000
+ NMAXSAMPLE = 10000
  sample_range = 1, 10000
- obs_dir = './Observations/'
- obs_var = 'tw,DO,Dco2,ice,iceon,iceoff,chla'
- obs_weight = '1.0,1.0,1.0,1.0,1.0,1.0,1.0'
  mc_file = './model_parameters.dat'
- sa_file = './SA.nc'
+ SA_Start_Year = 2012
+ SA_Start_Month = 1
+ SA_Start_Day = 1
+ SA_End_Year = 2015
+ SA_End_Month = 1
+ SA_End_Day = 1
 /
 
 &radiation
  solar_dir = './Solar/'
  gas_dir = './Gases/'
  albedo_dir = './Albedo/'
- co2_file = '/qfs/projects/taim/Data/others/cmip5_co2.nc'
- o3_file = '/qfs/projects/taim/Data/others/o3_Amon_rcp45_r1i1p1_197801-210012.nc'
- aod_file = '/qfs/projects/taim/Data/others/aod550_Amon_rcp45_r1i1p1_197801-210012.nc'
+ co2_file = '/compyfs/tanz151/user_inputdata/albm/others/cmip5_co2.nc'
+ o3_file = '/compyfs/tanz151/user_inputdata/albm/others/o3_Amon_rcp45_r1i1p1_197801-210012.nc'
+ aod_file = '/compyfs/tanz151/user_inputdata/albm/others/aod550_Amon_rcp45_r1i1p1_197801-210012.nc'
 /
 
 &rundata
- forcing_tstep = 'day'
- forcing_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/forcing_obs_'
- hydro_dir = '/qfs/projects/taim/Data/ISIMIP/EWEMBI/historical/'
- tref_file = '/qfs/projects/taim/Data/others/ecmwf_ref_1990s.nc'
- soc_file = '/qfs/projects/taim/Data/bLake/Gridded/soc_005deg.nc'
- veg_file = '/qfs/projects/taim/Data/bLake/Gridded/GLCFTreeCover.nc'
- wlnd_file = '/qfs/projects/taim/Data/nclimate/Gridded/glwd.nc'
+ forcing_tstep = '3hour'
+ forcing_time = 'UTC'
+ tas_file = '/compyfs/tanz151/user_inputdata/albm/atm_forcing.datm7.GSWP3.combined/tas_3hrly_GSWP3_combined_19010101-20191231.nc'
+ hurs_file = '/compyfs/tanz151/user_inputdata/albm/atm_forcing.datm7.GSWP3.combined/hurs_3hrly_GSWP3_combined_19010101-20191231.nc'
+ ps_file = '/compyfs/tanz151/user_inputdata/albm/atm_forcing.datm7.GSWP3.combined/ps_3hrly_GSWP3_combined_19010101-20191231.nc'
+ pr_file = '/compyfs/tanz151/user_inputdata/albm/atm_forcing.datm7.GSWP3.combined/pr_3hrly_GSWP3_combined_19010101-20191231.nc'
+ rsds_file = '/compyfs/tanz151/user_inputdata/albm/atm_forcing.datm7.GSWP3.combined/rsds_3hrly_GSWP3_combined_19010101-20191231.nc'
+ rlds_file = '/compyfs/tanz151/user_inputdata/albm/atm_forcing.datm7.GSWP3.combined/rlds_3hrly_GSWP3_combined_19010101-20191231.nc'
+ wind_file = '/compyfs/tanz151/user_inputdata/albm/atm_forcing.datm7.GSWP3.combined/sfcwind_3hrly_GSWP3_combined_19010101-20191231.nc'
+ hydro_file = '/compyfs/tanz151/user_inputdata/albm/Lakes_E3SM_hydro_19010101-20191231_noleap.nc'
+ tref_file = '/compyfs/tanz151/user_inputdata/albm/others/ecmwf_ref_1990s.nc'
+ soc_file = '/compyfs/tanz151/user_inputdata/albm/bLake/Gridded/soc_005deg.nc'
+ veg_file = '/compyfs/tanz151/user_inputdata/albm/bLake/Gridded/GLCFTreeCover.nc'
+ wlnd_file = '/compyfs/tanz151/user_inputdata/albm/nclimate/Gridded/glwd.nc'
 /
 
 &archive
  archive_tstep = 'day'
- archive_dir = '/qfs/projects/taim/Data/bLake/Site-level/'
+ archive_dir = './'
 /
 
 &dbg
  DEBUG = .False.
- RESUBMIT = .False.
 /

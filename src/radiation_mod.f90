@@ -16,10 +16,10 @@ module radiation_mod
 !---------------------------------------------------------------------------------
    use shr_kind_mod,       only : i8, r8
    use shr_ctrl_mod, e8 => SHR_CTRL_E8, e30 => INFINITESIMAL_E8
-   use math_utilities_mod, only : BinarySearch
+   use math_utilities_mod, only : DichotomySectionSearch
    use phy_const_mod
-   use bg_utilities_mod,   only : CalcAcWater, CalcAcIce
-   use bg_utilities_mod,   only : CalcAcSnow, CalcAcGrayIce
+   use phy_utilities_mod,  only : CalcAcWater, CalcAcIce
+   use phy_utilities_mod,  only : CalcAcSnow, CalcAcGrayIce
    use radiation_io_mod
    use data_buffer_mod,    only : m_radPars, m_surfData, m_wvln
 
@@ -29,11 +29,11 @@ module radiation_mod
    public :: CalcClearSkyIrradiance, CorrIrradianceByCloud
    public :: CorrIrradianceByReflection
    public :: CorrIrradianceForSnow
+   public :: CorrIrradianceForGrayIce
    public :: CorrIrradianceForIce
    public :: abW, abI, abN, abE
-   public :: abCDOM, abAP, abNAP, bsP
    public :: Abd_fsnow, Abd_msnow
-   public :: fgphot, frdif, fbphot
+   public :: fgphot, fgphot_tmp, frdif
    public :: mem_pico, mem_micro
    real(r8), parameter :: NLosch = 2.6867775d+19
    real(r8), parameter :: epsilm = 1.0d-6
@@ -57,12 +57,8 @@ module radiation_mod
       BQ21, BQ22, AG41, AG42, AG00, AG01, AG02, AG10, AG11, AG12, &
       AG20, AG21, AG22, AG30, AG31, AG32, AG40
    real(r8), allocatable :: fgphot(:)     ! surface global downward irradiance
+   real(r8), allocatable :: fgphot_tmp(:)
    real(r8), allocatable :: frdif(:)      ! diffuse fraction
-   real(r8), allocatable :: fbphot(:)     ! backscattering irradiance
-   real(r8), allocatable :: abCDOM(:)     ! CDOM absorption (m-1)
-   real(r8), allocatable :: abAP(:)       ! algae absorption (m-1)
-   real(r8), allocatable :: abNAP(:)      ! detritus absorption (m-1)
-   real(r8), allocatable :: bsP(:)        ! particle backscattering (m-1) 
    real(r8), allocatable :: vH0(:)        ! spectrum coefficient
    real(r8), allocatable :: abW(:)        ! water absorption coefficient
    real(r8), allocatable :: abI(:)        ! ice absorption coefficient
@@ -114,12 +110,8 @@ contains
       allocate(Wref(50,10))
       allocate(TO3(50,10))
       allocate(fgphot(NSPCTM))
+      allocate(fgphot_tmp(NSPCTM))
       allocate(frdif(NSPCTM))
-      allocate(fbphot(NSPCTM))
-      allocate(abCDOM(NSPCTM))
-      allocate(abAP(NSPCTM))
-      allocate(abNAP(NSPCTM))
-      allocate(bsP(NSPCTM))
       allocate(vH0(NSPCTM))
       allocate(abW(NSPCTM))
       allocate(abI(NSPCTM))
@@ -200,12 +192,8 @@ contains
       deallocate(Wref)
       deallocate(TO3)
       deallocate(fgphot)
+      deallocate(fgphot_tmp)
       deallocate(frdif)
-      deallocate(fbphot)
-      deallocate(abCDOM)
-      deallocate(abAP)
-      deallocate(abNAP)
-      deallocate(bsP)
       deallocate(vH0)
       deallocate(abW)
       deallocate(abI)
@@ -295,40 +283,39 @@ contains
    !  Purpose: Correct belowwater downward irradiance for snow reflection.
    !
    !------------------------------------------------------------------------------
-   subroutine CorrIrradianceForSnow(zenith, temp, fgphot, ofrdif, zcos)
+   subroutine CorrIrradianceForSnow(zenith, temp, ofgphot, ofrdif, zcos)
       implicit none
       real(r8), intent(in) :: zenith         ! abovewater zenith angle
       real(r8), intent(in) :: temp           ! air temperature
-      real(r8), intent(inout) :: fgphot(:)   ! downward irradiance
+      real(r8), intent(inout) :: ofgphot(:)  ! downward irradiance
       real(r8), intent(in) :: ofrdif(:)      ! diffuse fraction
       real(r8), intent(out) :: zcos          ! cosine of underwater zenith angle
 
       zcos = cos(zenith*Pi/180.0)
       if (temp<=T0 .and. m_radPars%season==0) then
-         fgphot = (1.0 - (0.939*ofrdif + (1.0-0.176*zcos)/0.94* &
-               (1.0-ofrdif)) * Abd_fsnow) * fgphot
+         ofgphot = (1.0 - (0.939*ofrdif + (1.0-0.176*zcos)/0.94* &
+               (1.0-ofrdif)) * Abd_fsnow) * ofgphot
       else
          if (zcos>1.0d-6) then
-            fgphot = (1.0 - (1.167*ofrdif + (1.0-zcos*log(1.0+1.0/zcos))/ &
-                  0.35*(1.0-ofrdif)) * Abd_msnow) * fgphot
+            ofgphot = (1.0 - (1.167*ofrdif + (1.0-zcos*log(1.0+1.0/zcos))/ &
+                  0.35*(1.0-ofrdif)) * Abd_msnow) * ofgphot
          else
-            fgphot = (1.0 - (1.167*ofrdif + (1.0-ofrdif)/0.35) * &
-                  Abd_msnow) * fgphot
+            ofgphot = (1.0 - (1.167*ofrdif + (1.0-ofrdif)/0.35) * &
+                  Abd_msnow) * ofgphot
          end if
       end if
    end subroutine
 
    !------------------------------------------------------------------------------
    !
-   !  Purpose: Correct belowwater downward irradiance for ice reflection.
+   !  Purpose: Correct belowwater downward irradiance for gray ice reflection.
    !
    !------------------------------------------------------------------------------
-   subroutine CorrIrradianceForIce(zenith, rfrIndx, albedo, fgphot, ofrdif, zcos)
+   subroutine CorrIrradianceForGrayIce(zenith, rfrIndx, ofgphot, ofrdif, zcos)
       implicit none
       real(r8), intent(in) :: zenith         ! abovewater zenith angle
       real(r8), intent(in) :: rfrIndx        ! refractive index
-      real(r8), intent(in) :: albedo         ! reference ice albedo
-      real(r8), intent(inout) :: fgphot(:)   ! downward irradiance
+      real(r8), intent(inout) :: ofgphot(:)  ! downward irradiance
       real(r8), intent(in) :: ofrdif(:)      ! diffuse fraction
       real(r8), intent(out) :: zcos          ! cosine of underwater zenith angle
       real(r8), parameter :: txd = 0.934     ! see Koehler et al., 2014
@@ -341,8 +328,34 @@ contains
       txb = 1.0 - 0.5 * ( (sin(tha-thw)/sin(tha+thw))**2 + &
             (tan(tha-thw)/tan(tha+thw))**2 )
       ! radiation after transmitting through the gray ice-ice interface
-      fgphot = (1.0 - (txd*ofrdif + txb*(1.0-ofrdif))*albedo) &
-            * fgphot
+      ofgphot = (1.0 - (txd*ofrdif + txb*(1.0-ofrdif))*Alphae) * ofgphot
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   !  Purpose: Correct belowwater downward irradiance for black ice reflection.
+   !
+   !------------------------------------------------------------------------------
+   subroutine CorrIrradianceForIce(zenith, rfrIndx, Hice, ofgphot, ofrdif, zcos)
+      implicit none
+      real(r8), intent(in) :: zenith         ! abovewater zenith angle
+      real(r8), intent(in) :: rfrIndx        ! refractive index
+      real(r8), intent(in) :: Hice           ! ice thickness (m)
+      real(r8), intent(inout) :: ofgphot(:)  ! downward irradiance
+      real(r8), intent(in) :: ofrdif(:)      ! diffuse fraction
+      real(r8), intent(out) :: zcos          ! cosine of underwater zenith angle
+      real(r8), parameter :: txd = 0.934     ! see Koehler et al., 2014
+      real(r8) :: tha, thw, txb, albedo
+
+      tha = zenith * Pi / 180.0
+      thw = asin(sin(tha)/rfrIndx)
+      zcos = cos(thw)
+      albedo = min(Alphai, 0.85*Hice**1.5 + 0.15) 
+      ! Fresnel's equation for beam radiation reflectance
+      txb = 1.0 - 0.5 * ( (sin(tha-thw)/sin(tha+thw))**2 + &
+            (tan(tha-thw)/tan(tha+thw))**2 )
+      ! radiation after transmitting through the gray ice-ice interface
+      ofgphot = (1.0 - (txd*ofrdif + txb*(1.0-ofrdif))*albedo) * ofgphot
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -350,11 +363,11 @@ contains
    !  Purpose: Correct belowwater downward irradiance for reflection.
    !
    !------------------------------------------------------------------------------
-   subroutine CorrIrradianceByReflection(zenith, rfrIndx, fgphot, ofrdif, zcos)
+   subroutine CorrIrradianceByReflection(zenith, rfrIndx, ofgphot, ofrdif, zcos)
       implicit none
       real(r8), intent(in) :: zenith         ! abovewater zenith angle
       real(r8), intent(in) :: rfrIndx        ! refractive index 
-      real(r8), intent(inout) :: fgphot(:)   ! downward irradiance
+      real(r8), intent(inout) :: ofgphot(:)  ! downward irradiance
       real(r8), intent(in) :: ofrdif(:)      ! diffuse fraction
       real(r8), intent(out) :: zcos          ! cosine of underwater zenith angle
       real(r8), parameter :: txd = 0.934     ! see Koehler et al., 2014
@@ -367,7 +380,7 @@ contains
       txb = 1.0 - 0.5 * ( (sin(tha-thw)/sin(tha+thw))**2 + &
             (tan(tha-thw)/tan(tha+thw))**2 )
       ! radiation after transmitting through the water-air interface
-      fgphot = (txd * ofrdif + txb * (1.0 - ofrdif)) * fgphot
+      ofgphot = (txd * ofrdif + txb * (1.0 - ofrdif)) * ofgphot
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -375,13 +388,13 @@ contains
    ! Purpose: The main algorithm to calculate transfer radiation.
    !
    !------------------------------------------------------------------------------
-   subroutine CalcClearSkyIrradiance(hour, fgphot, ofrdif, zenith)
+   subroutine CalcClearSkyIrradiance(hour, ofgphot, ofrdif, zenith)
       implicit none
       real(r8), intent(in) :: hour        ! local hour
-      real(r8), intent(out) :: fgphot(:)  ! global radiation (mol/m2/s/nm)
+      real(r8), intent(out) :: ofgphot(:) ! global radiation (mol/m2/s/nm)
       real(r8), intent(out) :: ofrdif(:)  ! diffuse fraction
       real(r8), intent(out) :: zenith     ! zenith angle (decimal)
-      real(r8), parameter :: epsiln = 1d-3
+      real(r8), parameter :: epsiln = 1.d-3
       real(r8), parameter :: pinb = 3.14159265d+0
       real(r8), parameter :: PHOT = 5.03411762d+24
       real(r8), parameter :: evolt = 1.602176463d-19
@@ -491,7 +504,7 @@ contains
                   m_radPars%year, m_radPars%month, DayUT)
       zenith = Zenit
       if (zenith>90) then
-         fgphot = 0.0_r8
+         ofgphot = 0.0_r8
          ofrdif = 1.0_r8
          return
       end if
@@ -530,8 +543,13 @@ contains
          HV = max(min(HV,8.0_r8),1.0_r8)
          W = 0.1*HV*ROV
          if (W>12) then
-            call Endrun(lake_info%id, 'Precipitable water W is above ' // &
-               'the allowed maximum value of 12 cm') 
+            if (trim(run_mode)=='sensitivity') then
+               call Endrun(lake_info%sampleId, 'Precipitable water W is ' // &
+                  'above the allowed maximum value of 12 cm')
+            else
+               call Endrun(lake_info%id, 'Precipitable water W is above ' // &
+                  'the allowed maximum value of 12 cm')
+            end if
          end if
          TEMPO = TEMPA
          TEMPN = TEMPA
@@ -580,7 +598,7 @@ contains
          ! Aerosol Turbidity
          tau550 = m_radPars%tau550
          tau5 = tau550*(1.1**alpha2)
-         if (tau5<1d-4) then
+         if (tau5<1.d-4) then
             beta = tau5*(0.5**alpha2)
          else
             Call ALFA(m_radPars%season,IAER,ITURB,IREF,alpha1,alpha2,tau5, &
@@ -589,9 +607,21 @@ contains
             alpha2 = alf2 
          end if
          if (tau550>5.0) then
-            call Endrun(lake_info%id, 'Input value for turbidity is too large')
+            if (trim(run_mode)=='sensitivity') then
+               call Endrun(lake_info%sampleId, 'Input value for turbidity ' // &
+                  'is too large')
+            else
+               call Endrun(lake_info%id, 'Input value for turbidity is ' // &
+                  'too large')
+            end if
          else if (tau550<0) then
-            call Endrun(lake_info%id, 'Input value for turbidity is too small')
+            if (trim(run_mode)=='sensitivity') then
+               call Endrun(lake_info%sampleId, 'Input value for turbidity ' // &
+                  'is too small')
+            else
+               call Endrun(lake_info%id, 'Input value for turbidity is ' // &
+                  'too small')
+            end if
          end if
 
          ! FUNCTION RANGE=F(BETA,ALPHA) FROM NEW FIT
@@ -699,8 +729,8 @@ contains
       AbN2O = .24344*(pp0**1.1625)
       AbN2 = 3.8298*(pp0**1.8643)/(TT0**.50342)
       AbHNO3 = 3.6739d-4*(pp0**.13568)/(TT0**.0714)
-      AbNO2 = 1d-4*Min(1.864+.20314*pp0,41.693*pp0)
-      AbNO = 1d-4*Min(.74039+2.4154*pp0,57.314*pp0)
+      AbNO2 = 1.d-4*Min(1.864+.20314*pp0,41.693*pp0)
+      AbNO = 1.d-4*Min(.74039+2.4154*pp0,57.314*pp0)
       AbSO2 = 1.114d-5*(pp0**.81319)*exp(.81356+3.0448*pp0x2-1.5652*pp0x2*pp0)
       AbNH3 = exp(-8.6472+2.239*pLN-2.3822*PLN2-1.4408*PLN3-.46322*pln3*pln)
 
@@ -1051,7 +1081,7 @@ contains
 
                   Bp = 1.0
                   wamw = W*AmH2O
-                  if(abs(qp)>=1d-5) then
+                  if(abs(qp)>=1.d-5) then
                      qp1 = min(.35,qp)
                      pp01 = max(.65,pp0)
                      pp02 = pp01*pp01
@@ -1172,7 +1202,7 @@ contains
                wvlo = Abs_O4(iabs_indx,1)
                xsO4 = Abs_O4(iabs_indx,2)
                if(xsO4>0.0) then
-                  AO4 = xsO4*1d-46
+                  AO4 = xsO4*1.d-46
                   TO4 = exp(-AO4*AbO4*AmO2)
                   TO4P = exp(-AO4*AbO4*Amdif)
                end if
@@ -1348,7 +1378,7 @@ contains
             Trace = TNO*TNO2*TNO3*THNO3*TSO2*TNH3*TBrO*TCH2O*THNO2*TClNO
             TraceP = TNOP*TNO2P*TNO3P*THNO3P*TSO2P*TNH3P*TBrOP*TCH2OP*THNO2P*TClNOP
             if (Tmixd<e30 .or. Trace<e30) then
-               fgphot(isptm) = 0.0_r8
+               ofgphot(isptm) = 0.0_r8
                ofrdif(isptm) = 1.0_r8
                cycle
             end if
@@ -1381,23 +1411,23 @@ contains
                if(IAER==1 .and. IREF==1) then
                   if (wvl<=0.2999) then
                      alpha = 1.1696-4.6814*wvl+12.96*wvl2
-                  else if (abs(wvl-0.3)<1d-4) then
+                  else if (abs(wvl-0.3)<1.d-4) then
                      alpha = 0.93178
                   else if (wvl>=0.3001 .and. wvl<=0.3369) then
                      alpha = 1.443-4.6051*wvl+9.6723*wvl2
-                  else if (abs(wvl-0.337)<1d-4) then
+                  else if (abs(wvl-0.337)<1.d-4) then
                      alpha = 0.989
                   else if (wvl>=0.3371 .and. wvl<=0.5499) then
                      alpha = 0.98264+.032539*wvl-.040251*wvl2
-                  else if (abs(wvl-0.55)<1d-4) then
+                  else if (abs(wvl-0.55)<1.d-4) then
                      alpha = 0.98839
                   else if (wvl>=0.5501 .and. wvl<=0.6939) then
                      alpha = -32.0108+151.02*wvl-229.75*wvl2+116.83*wvl3
-                  else if (abs(wvl-0.694)<1d-4) then
+                  else if (abs(wvl-0.694)<1.d-4) then
                      alpha = 1.192
                   else if (wvl>=0.6941 .and. wvl<=1.0599) then
                      alpha = -1.9669+9.576*wvl-9.4345*wvl2+3.1621*wvl3
-                  else if (abs(wvl-1.06)<1d-4) then
+                  else if (abs(wvl-1.06)<1.d-4) then
                      alpha = 1.3485
                   else if (wvl>=1.0601 .and. wvl<=1.536) then
                      alpha = -.25628+3.0677*wvl-1.9011*wvl2+.41005*wvl3
@@ -1441,7 +1471,7 @@ contains
             H0H = H0*ZCOS
             FHTO = 1.0
             FHT1 = 1.0
-            if (TAUZ3>5d-6) then
+            if (TAUZ3>5.d-6) then
                FHTO = exp(-FHTcz-FHTdx*(TAUZ3-2.0))
             end if
             if (TAUZ3<=2.0) then
@@ -1518,7 +1548,7 @@ contains
                                     else
                                        ra1 = ra15
                                     end if
-                                    FHT1 = min(7.5, ra0+(Tauz3-2.505D00)*ra1)
+                                    FHT1 = min(7.5, ra0+(Tauz3-2.505d0)*ra1)
                                  end if
                               end if
                            end if
@@ -1606,7 +1636,7 @@ contains
             TASP = exp(-OMEGL*TAUAP)
             TTp5 = Tabs0p**.5
             if (wvln<=379.5) then
-               GAMOZ = exp(-1D+5*(4.8344+23.088*(AbO3+ApO3))*(.38-WVL)**5.8)
+               GAMOZ = exp(-1.d5*(4.8344+23.088*(AbO3+ApO3))*(.38-WVL)**5.8)
             else
                GAMOZ = 1.0
             end if
@@ -1649,7 +1679,7 @@ contains
             ! PHOTON FLUX per wavelength (mole photons m-2 s-1 nm-1)
             ! save for radiation and diffuse fraction 
             WPHT = 1.0d-6*WVL*PHOT/NA
-            fgphot(isptm) = GLOB*WPHT
+            ofgphot(isptm) = GLOB*WPHT
             if (GLOB>e30) then
                ofrdif(isptm) = DIF / GLOB
             else
@@ -1684,7 +1714,7 @@ contains
       integer :: indx, nn
 
       nn = size(vwvlm)
-      call BinarySearch(vwvlm, wvln, indx)
+      call DichotomySectionSearch(vwvlm, wvln, indx)
       if (indx<nn) then
          if (abs(wvln-vwvlm(indx))<=epsilm) then
             iabs_indx = indx
@@ -1724,8 +1754,8 @@ contains
       real(r8), intent(out) :: THNO3, THNO3P
       real(r8) :: xnl, AHNO3
 
-      xnl = NLosch*1d-19
-      AHNO3 = xsHNO3*0.1*exp(athno3*1d-3*(T-298.))*xnl
+      xnl = NLosch*1.d-19
+      AHNO3 = xsHNO3*0.1*exp(athno3*1.d-3*(T-298.))*xnl
       THNO3 = exp(-AHNO3*AbHNO3*AmHNO3)
       THNO3P = exp(-AHNO3*AbHNO3*Amdif)
    end subroutine
@@ -2186,7 +2216,7 @@ contains
       REFR = 0.0
       PT = P/T
       if(ELD<15.0 .and. ELD>=-2.5) then
-         REFR = PT*(.1594+.0196*ELD+2d-5*ELD2)/(1.+.505*ELD+.0845*ELD2)
+         REFR = PT*(.1594+.0196*ELD+2.d-5*ELD2)/(1.+.505*ELD+.0845*ELD2)
       else if (ELD>=15.0 .and. ELD<90.0) then
          REFR = .00452*PT/tan(ELD*rad)
       end if

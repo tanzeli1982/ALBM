@@ -9,7 +9,7 @@ module diagenesis_mod
 !
 !---------------------------------------------------------------------------------
    use shr_ctrl_mod, inft => INFINITESIMAL_E8
-   use shr_typedef_mod,       only : RungeKuttaCache2D
+   use shr_typedef_mod,       only : RungeKuttaCache3D
    use shr_param_mod
    use phy_utilities_mod
    use bg_utilities_mod
@@ -20,48 +20,53 @@ module diagenesis_mod
    public :: InitializeDiagenesisModule, DestructDiagenesisModule
    public :: DiagenesisModuleSetup, DiagenesisModuleCallback 
    public :: DiagenesisEquation, GetSedCLossRate 
-   public :: ConstructActCarbonPool
+   public :: ConstructOldCarbonPool, ConstructActCarbonPool
    public :: mem_ch4
    ! memory cache for Runge-Kutta
-   type(RungeKuttaCache2D) :: mem_ch4
-   ! CH4 anaerobic production rates (umol C m-3 s-1)
-   real(r8), allocatable :: rPCH4(:,:)
-   ! CO2 anaerobic production rates (umol C m-3 s-1)
-   real(r8), allocatable :: rnPCO2(:,:)
-   ! CO2 aerobic production rates (umol C m-3 s-1)
-   real(r8), allocatable :: rPCO2(:,:)
-   ! water substance dynamcis (umol/m3/s)
-   real(r8), allocatable :: rDYN(:,:)
-   ! gas ebullition rates in the sediments
-   real(r8), allocatable :: Ebch4(:,:)
+   type(RungeKuttaCache3D) :: mem_ch4
+   ! CH4 anaerobic production rates (mol/m3/s)
+   real(r8), allocatable :: rPCH4(:,:,:)
+   ! CO2 anaerobic production rates (mol/m3/s) 
+   real(r8), allocatable :: rnPCO2(:,:,:)
+   ! CO2 aerobic production rates (mol/m3/s) 
+   real(r8), allocatable :: rPCO2(:,:,:)
+   ! pore-water substance dynamcis (mol/m3/s)
+   real(r8), allocatable :: rDYN(:,:,:)
+   ! gas ebullition rates in the sediments (mol/m3/s)
+   real(r8), allocatable :: Ebch4(:,:,:)
    ! lagged ice percentage
-   real(r8), allocatable :: lagged_ice(:)
+   real(r8), allocatable :: lagged_ice(:,:)
    ! diffusivity in the sediments (m2/s)
-   real(r8), allocatable :: Dch4(:)
-   ! passive pool mobilization rate (umol/m3/s)
-   real(r8) :: pas2actC
+   real(r8), allocatable :: Kch4(:,:)
+   ! water-sediment diffusion (mol/m2/s)
+   real(r8), allocatable :: qt(:,:)
+   ! active carbon layer
+   real(r8) :: ztot_act
+   integer :: indx_act
 
 contains
    subroutine InitializeDiagenesisModule()
       implicit none
+      integer :: ii
 
-      allocate(rDYN(NSSUB,NSLAYER+1))
-      allocate(rPCH4(NPOOL,NSLAYER+1))
-      allocate(rPCO2(NPOOL,NSLAYER+1))
-      allocate(rnPCO2(NPOOL,NSLAYER+1))
-      allocate(Ebch4(NSSUB,NSLAYER+1))
-      allocate(lagged_ice(NSLAYER+1))
-      allocate(Dch4(NSLAYER+1))
-      allocate(mem_ch4%K1(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%K2(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%K3(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%K4(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%K5(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%K6(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%nxt4th(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%nxt5th(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%interim(NSSUB,NSLAYER+1))
-      allocate(mem_ch4%rerr(NSSUB,NSLAYER+1))
+      allocate(rDYN(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(rPCH4(NPOOL,NSCOL,SED_LAYER+1))
+      allocate(rPCO2(NPOOL,NSCOL,SED_LAYER+1))
+      allocate(rnPCO2(NPOOL,NSCOL,SED_LAYER+1))
+      allocate(Ebch4(NGAS,NSCOL,SED_LAYER+1))
+      allocate(lagged_ice(NSCOL,SED_LAYER+1))
+      allocate(Kch4(NSCOL,SED_LAYER+1))
+      allocate(qt(NSSUB,NSCOL))
+      allocate(mem_ch4%K1(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%K2(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%K3(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%K4(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%K5(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%K6(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%nxt4th(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%nxt5th(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%interim(NSSUB,NSCOL,SED_LAYER+1))
+      allocate(mem_ch4%rerr(NSSUB,NSCOL,SED_LAYER+1))
 
       call InitializeDiagenesisStateVariables()
       Ebch4 = 0.0_r8
@@ -69,8 +74,10 @@ contains
       rPCH4 = 0.0_r8
       rPCO2 = 0.0_r8
       rnPCO2 = 0.0_r8
-      Dch4 = 0.0_r8
-      pas2actC = 0.0_r8
+      Kch4 = 0.0_r8
+      qt = 0.0_r8
+      indx_act = 2
+      ztot_act = sum(m_dZs(1:indx_act))
    end subroutine
 
    subroutine DestructDiagenesisModule()
@@ -82,7 +89,8 @@ contains
       deallocate(rnPCO2)
       deallocate(Ebch4)
       deallocate(lagged_ice)
-      deallocate(Dch4)
+      deallocate(Kch4)
+      deallocate(qt)
       deallocate(mem_ch4%K1)
       deallocate(mem_ch4%K2)
       deallocate(mem_ch4%K3)
@@ -95,26 +103,49 @@ contains
       deallocate(mem_ch4%rerr)
    end subroutine
    
-   subroutine DiagenesisModuleSetup()
+   subroutine DiagenesisModuleSetup(isUpdate)
       implicit none
+      logical, intent(in) :: isUpdate
+      real(r8) :: minP, minFe, Do2
+      integer :: icol, top
+      integer :: indx0, indx, newindx0
 
-      call CalcDiagenesisRates()
+      top = m_lakeWaterTopIndex
+      if (isUpdate) then
+         ! update sediment SRP
+         do icol = 1, NSCOL, 1
+            indx0 = COUNT(m_soilColInd<=icol-1) + 1
+            indx = COUNT(m_soilColInd<=icol)
+            ! invalid sediment column
+            if (indx0>indx .or. indx<top) then
+               cycle
+            end if
+            newindx0 = max(indx0, top)
+            minP = m_sedSubCon(Wsrp,icol,1)
+            minFe = lake_info%sedFe
+            call Mean(m_waterSubCon(Wo2,newindx0:indx), Do2)
+            Do2 = max(Do2, 0.0625_r8)
+            m_sedSRPCon(icol) = CalcSedSRPConc(minP, minFe, Do2)
+         end do
+         call CalcDiagenesisRates()
+         call UpdateSubDiffusivity()
+      end if
+
+      call CalcSurfaceExchange()
       call UpdateBubbleFlux()
-      call UpdateSubDiffusivity() 
    end subroutine
 
    subroutine DiagenesisModuleCallback(dt)
       implicit none
       real(r8), intent(in) :: dt
-      real(r8) :: Porosity
 
-      Porosity = sa_params(Param_Por)
-      lagged_ice = m_sedIce / Porosity
+      lagged_ice = m_sedIce / m_sedpor
       call AdjustNegativeConcentration()
-      ! Add wind- and thermo-karst eroded C to surface C pool
-      ! units: umol/m3/s
-      call UpdateActCarbonPool(dt, 0d0)
-      call UpdatePasCarbonPool(dt, 0d0)
+      call UpdateActCarbonPool(dt)
+      call UpdatePasCarbonPool()
+      call UpdateOldCarbonPool(dt)
+      call UpdateSurfaceminP()
+      call UpdateSediRedox(dt)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -124,39 +155,44 @@ contains
    !------------------------------------------------------------------------------
    subroutine DiagenesisEquation(con, dcon)
       implicit none
-      real(r8), intent(in) :: con(NSSUB,NSLAYER+1)
-      real(r8), intent(out) :: dcon(NSSUB,NSLAYER+1)
-      real(r8), dimension(NSSUB) :: qb, qt, dC1, dC2
+      real(r8), intent(in) :: con(NSSUB,NSCOL,SED_LAYER+1)
+      real(r8), intent(out) :: dcon(NSSUB,NSCOL,SED_LAYER+1)
+      real(r8), dimension(NSSUB) :: qb, dC1, dC2
       real(r8) :: a, b
-      integer :: ii, Top_Index, Bottom_Index
+      integer :: Top_Index, Bottom_Index
+      integer :: ii, icol
 
-      Top_Index = m_sedWaterTopIndex
-      Bottom_Index = m_sedWaterBtmIndex
-      if (Top_Index>Bottom_Index) then
-         dcon = 0.0_r8
-         return
-      end if
-      call GetTopBoundaryFlux(con(:,1), qt)
-      qb = 0.0_r8
-      do ii = 1, NSLAYER+1, 1
-         if (ii==1) then
-            a = 0.5*(Dch4(ii) + Dch4(ii+1))
-            dC1 = (con(:,ii+1) - con(:,ii)) / (m_Zs(ii+1) - m_Zs(ii))
-            dcon(:,ii) = (a*dC1 - qt) / m_dZs(ii) + rDYN(:,ii) &
-                     - Ebch4(:,ii)
-         else if (ii==NSLAYER+1) then
-            b = 0.5*(Dch4(ii-1) + Dch4(ii))
-            dC2 = (con(:,ii) - con(:,ii-1)) / (m_Zs(ii) - m_Zs(ii-1))
-            dcon(:,ii) = (qb - b*dC2) / m_dZs(ii) + rDYN(:,ii) &
-                     - Ebch4(:,ii)
-         else
-            a = 0.5*(Dch4(ii) + Dch4(ii+1))
-            b = 0.5*(Dch4(ii-1) + Dch4(ii))
-            dC1 = (con(:,ii+1) - con(:,ii)) / (m_Zs(ii+1) - m_Zs(ii))
-            dC2 = (con(:,ii) - con(:,ii-1)) / (m_Zs(ii) - m_Zs(ii-1))
-            dcon(:,ii) = (a*dC1 - b*dC2) / m_dZs(ii) + rDYN(:,ii) &
-                     - Ebch4(:,ii)
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            dcon(:,icol,:) = 0.0_r8
+            cycle
          end if
+         ! frozen sediment column
+         Top_Index = m_sedWaterTopIndex(icol)
+         Bottom_Index = m_sedWaterBtmIndex(icol)
+         if (Top_Index>Bottom_Index) then
+            dcon(:,icol,:) = 0.0_r8
+            cycle 
+         end if
+         qb = 0.0_r8
+         do ii = 1, SED_LAYER+1, 1
+            if (ii==1) then
+               a = 0.5*(Kch4(icol,ii) + Kch4(icol,ii+1))
+               dC1 = (con(:,icol,ii+1) - con(:,icol,ii)) / (m_Zs(ii+1) - m_Zs(ii))
+               dcon(:,icol,ii) = (a*dC1 - qt(:,icol)) / m_dZs(ii) + rDYN(:,icol,ii)
+            else if (ii==SED_LAYER+1) then
+               b = 0.5*(Kch4(icol,ii-1) + Kch4(icol,ii))
+               dC2 = (con(:,icol,ii) - con(:,icol,ii-1)) / (m_Zs(ii) - m_Zs(ii-1))
+               dcon(:,icol,ii) = (qb - b*dC2) / m_dZs(ii) + rDYN(:,icol,ii)
+            else
+               a = 0.5*(Kch4(icol,ii) + Kch4(icol,ii+1))
+               b = 0.5*(Kch4(icol,ii-1) + Kch4(icol,ii))
+               dC1 = (con(:,icol,ii+1) - con(:,icol,ii)) / (m_Zs(ii+1) - m_Zs(ii))
+               dC2 = (con(:,icol,ii) - con(:,icol,ii-1)) / (m_Zs(ii) - m_Zs(ii-1))
+               dcon(:,icol,ii) = (a*dC1 - b*dC2) / m_dZs(ii) + rDYN(:,icol,ii)
+            end if
+         end do
       end do
       where(con<=0 .and. dcon<0) dcon = 0.0_r8
    end subroutine
@@ -180,89 +216,151 @@ contains
    !------------------------------------------------------------------------------
    subroutine CalcDiagenesisRates()
       implicit none
-      real(r8) :: Prtot, Prnet, Hch4, Hn2
-      real(r8) :: Hco2, Ho2, fn2, fo2, fch4
-      real(r8) :: Porosity, Re, Ps, Psat, pH
-      real(r8) :: pch4, pn2, temp, Do2, depth
-      real(r8) :: pool(NPOOL)
-      integer :: ii
+      real(r8) :: Prtot, Prnet, Ps, Psat
+      real(r8) :: Hco2, Ho2, Hch4, Hn2 
+      real(r8) :: Porosity, Re, Ae, pH, sal
+      real(r8) :: pch4, pn2, temp, depth
+      real(r8) :: Do2, eHL, carb(NPOOL)
+      integer :: ii, icol, indx
+      logical :: isCH4sat
 
       Re = sa_params(Param_Re)
-      Porosity = sa_params(Param_Por)
-      Ps = m_surfData%pressure
-      pH = LKpH(lake_info%itype) 
-      do ii = 1, NSLAYER+1, 1
-         if (m_sedIce(ii)>=Porosity) then
-            rPCH4(:,ii) = 0.0_r8
-            rPCO2(:,ii) = 0.0_r8
-            rnPCO2(:,ii) = 0.0_r8
-            Ebch4(:,ii) = 0.0_r8
-         else
-            ! carbon mineralization rates
-            temp = m_sedTemp(ii)
-            Do2 = m_sedSubCon(Wo2,ii)
-            pool = m_unfrzCarbPool(:,ii)
-            call Methanogenesis(pool, temp, Do2, rPCH4(:,ii), rnPCO2(:,ii)) 
-            call AerobicDegradation(pool, temp, Do2, rPCO2(:,ii))
-            ! ebullition rates (Eq. (A.1), Stepanenko et al.)
-            depth = m_Zs(ii) + lake_info%depth
-            Hch4 = CalcHenrySolubility(Wch4, temp, pH)
-            Hn2 = CalcHenrySolubility(Wn2, temp, pH)
-            !Ho2 = CalcHenrySolubility(Wo2, temp, pH)
-            !Hco2 = CalcHenrySolubility(Wco2, temp, pH)
-            pch4 = m_sedSubCon(Wch4,ii)/Hch4
-            pn2 = m_sedSubCon(Wn2,ii)/Hn2
-            !po2 = m_sedSubCon(Wo2,ii)/Ho2
-            !pco2 = m_sedSubcon(Wco2,ii)/Hco2
-            !Prtot = pn2 + po2 + pch4 + pco2
-            !Prnet = Prtot - Ae * Porosity * (Ps + Roul*G*depth)            
-            Prtot = pn2 + pch4
-            Psat = Ae * Porosity * (Ps + Roul*G*depth)
-            Prnet = max(Prtot-Psat, 0.0_r8)
-            fn2 = pn2 / (Prtot + inft)
-            !fo2 = po2 / (Prtot + inft)
-            fch4 = pch4 / (Prtot + inft)
-            Ebch4(Wn2,ii) = Re * fn2 * Prnet * Hn2
-            Ebch4(Wo2,ii) = 0.0_r8 !Re * fo2 * Prnet * Ho2
-            Ebch4(Wch4,ii) = Re * fch4 * Prnet * Hch4
-            Ebch4(Wco2,ii) = 0.0_r8 !Re * (1.0-fn2-fo2-fch4) * Prnet * Hco2
-            Ebch4(Wsrp,ii) = 0.0_r8
+      Ae = sa_params(Param_Ae)
+      Ps = m_surfData%pressure - Roul*G*m_surfData%dzsurf
+      pH = lake_info%pH
+      sal = lake_info%sal
+      isCH4sat = .False.
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            rPCH4(:,icol,:) = 0.0_r8
+            rPCO2(:,icol,:) = 0.0_r8
+            rnPCO2(:,icol,:) = 0.0_r8
+            Ebch4(:,icol,:) = 0.0_r8
+            cycle
+         end if
+         ! active sediment column
+         indx = COUNT(m_soilColInd<=icol)
+         do ii = 1, SED_LAYER+1, 1
+            Porosity = m_sedpor(icol,ii)
+            if (m_sedIce(icol,ii)>=Porosity) then
+               rPCH4(:,icol,ii) = 0.0_r8
+               rPCO2(:,icol,ii) = 0.0_r8
+               rnPCO2(:,icol,ii) = 0.0_r8
+               Ebch4(:,icol,ii) = 0.0_r8
+            else
+               ! carbon mineralization rates
+               temp = m_sedTemp(icol,ii)
+               Do2 = m_sedSubCon(Wo2,icol,ii)
+               eHL = m_sedEHL(icol,ii)
+               carb = m_unfrzCarbPool(:,icol,ii)
+               call Methanogenesis(carb, temp, sal, eHL, rPCH4(:,icol,ii), &
+                     rnPCO2(:,icol,ii)) 
+               call AerobicRespiration(carb, temp, Do2, rPCO2(:,icol,ii))
+               ! ebullition rates (Eq. (A.1), Stepanenko et al.)
+               depth = m_Zs(ii) + m_Zw(indx) 
+               Hch4 = CalcHenrySolubility(Wch4, temp, pH)
+               Hn2 = CalcHenrySolubility(Wn2, temp, pH)
+               pch4 = m_sedSubCon(Wch4,icol,ii)/Hch4
+               pn2 = m_sedSubCon(Wn2,icol,ii)/Hn2
+               Prtot = pn2 + pch4
+               Psat = Ae * Porosity * (Ps + Roul*G*depth)
+               Prnet = Prtot - Psat
+               if (icol==NSCOL .and. ii==1 .and. Prnet>e8) then
+                  isCH4sat = .True.
+               end if
+               if (Prnet>e8) then
+                  Ebch4(Wn2,icol,ii) = Re * (pn2/Prtot) * Prnet * Hn2
+                  Ebch4(Wo2,icol,ii) = 0.0_r8
+                  Ebch4(Wch4,icol,ii) = Re * (pch4/Prtot) * Prnet * Hch4
+                  Ebch4(Wco2,icol,ii) = 0.0_r8
+               else
+                  Ebch4(:,icol,ii) = 0.0_r8 
+               end if
+            end if
+         end do
+         ! update rDYN
+         rDYN(Wn2,icol,:) = -Ebch4(Wn2,icol,:)
+         rDYN(Wo2,icol,:) = -sum(rPCO2(:,icol,:),1) - Ebch4(Wo2,icol,:)
+         rDYN(Wco2,icol,:) = sum(rPCO2(:,icol,:),1) + sum(rnPCO2(:,icol,:),1) - &
+               Ebch4(Wco2,icol,:)
+         rDYN(Wch4,icol,:) = sum(rPCH4(:,icol,:),1) - Ebch4(Wch4,icol,:)
+         rDYN(Wsrp,icol,:) = 0._r8  ! fix mineral P
+         !rDYN(Wsrp,icol,:) = ( sum(rPCH4(:,icol,:),1) + sum(rPCO2(:,icol,:),1) + &
+         !      sum(rnPCO2(:,icol,:),1) ) / YC2P_POM
+         
+         if (icol==NSCOL .and. (.NOT. isCH4sat)) then
+            rDYN(Wch4,icol,1) = rDYN(Wch4,icol,1) + sum(Ebch4(Wch4,icol,:)* &
+               m_dZs)/m_dZs(1)
+            rDYN(Wn2,icol,1) = rDYN(Wn2,icol,1) + sum(Ebch4(Wn2,icol,:)* &
+               m_dZs)/m_dZs(1)
+            Ebch4(Wch4,icol,:) = 0._r8
+            Ebch4(Wn2,icol,:) = 0._r8
          end if
       end do
-      rDYN(Wn2,:) = 0.0_r8
-      rDYN(Wo2,:) = -sum(rPCO2,1)
-      rDYN(Wco2,:) = sum(rPCO2,1) + sum(rnPCO2,1)
-      rDYN(Wch4,:) = sum(rPCH4,1)
-      rDYN(Wsrp,:) = ( sum(rPCH4,1) + sum(rPCO2,1) + sum(rnPCO2,1) ) / YC2P_POM
    end subroutine
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: get top boundary flux.
+   ! Purpose: get sediment diffusive flux and P uptake.
    !
    !------------------------------------------------------------------------------
-   subroutine GetTopBoundaryFlux(con, topsflux)
+   subroutine CalcSurfaceExchange()
       implicit none
-      real(r8), intent(in) :: con(NSSUB)        ! units: umol/m3
-      real(r8), intent(out) :: topsflux(NSSUB)  ! units: umol/m2/s
+      real(r8) :: dflux_sed, sumAz, sumV
+      real(r8) :: conc_sed, conc_wat, conc_tmp
       real(r8) :: Porosity
-      integer :: ii, bottom
+      integer :: kk, ii, icol, top
+      integer :: indx, indx0
 
-      if (m_lakeWaterTopIndex>WATER_LAYER+1) then
-         topsflux = 0.0_r8
-      else
-         ! top dissolved substance fluxes
-         Porosity = sa_params(Param_Por)
-         bottom = WATER_LAYER + 1
-         topsflux = m_Kbm / DeltaD * ( con/Porosity - &
-            m_waterSubCon(Wn2:Wsrp,bottom) )
-         do ii = Wn2, Wo2, 1
-            topsflux(ii) = min(0.0, topsflux(ii))
+      qt = 0._r8
+      top = m_lakeWaterTopIndex
+      do icol = 1, NSCOL, 1
+         indx0 = COUNT(m_soilColInd<=icol-1) + 1
+         indx = COUNT(m_soilColInd<=icol)
+         ! inactive sediment column 
+         if (indx0>indx .or. indx<top) then
+            cycle
+         end if
+         sumAz = sum(m_dAz(indx0:indx))
+         sumV = sum(m_dZw(indx0:indx)*m_Az(indx0:indx))
+         Porosity = m_sedpor(icol,1)
+
+         do kk = 1, NSSUB, 1
+            if (icol<NSCOL) then
+               conc_wat = sum(m_waterSubCon(kk,indx0:indx)* &
+                  m_dZw(indx0:indx)*m_Az(indx0:indx)) / sumV 
+            else
+               conc_wat = m_waterSubCon(kk,indx)
+            end if
+            if (kk==Wsrp) then
+               conc_sed = m_sedSRPCon(icol)
+               !dflux_sed = m_Ktb(indx) * (conc_sed - conc_wat) / DeltaD + &
+               !  m_vegPUptake(ii)
+               dflux_sed = 0._r8   ! fix mineral P
+            else
+               conc_sed = m_sedSubCon(kk,icol,1) / Porosity
+               dflux_sed = m_Ktb(indx) * (conc_sed - conc_wat) * &
+                  Porosity / DeltaD
+            end if
+            if (kk==Wn2 .or. kk==Wo2) then
+               dflux_sed = min(0._r8, dflux_sed)
+            else if (kk==Wco2 .or. kk==Wch4) then
+               dflux_sed = max(0._r8, dflux_sed)
+            end if
+            do ii = indx0, indx, 1
+               conc_tmp = m_waterSubCon(kk,ii)
+               if (ii>=top) then
+                  if (dflux_sed>0._r8 .and. conc_sed>conc_tmp) then
+                     qt(kk,icol) = qt(kk,icol) + dflux_sed*m_dAz(ii)/sumAz
+                  else if (dflux_sed<0._r8 .and. conc_sed<conc_tmp) then
+                     qt(kk,icol) = qt(kk,icol) + dflux_sed*m_dAz(ii)/sumAz
+                  end if
+               end if
+            end do
          end do
-         do ii = Wco2, Wsrp, 1
-            topsflux(ii) = max(0.0, topsflux(ii))
-         end do
-      end if
+      end do
+      m_btmdflux = qt
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -272,15 +370,17 @@ contains
    !------------------------------------------------------------------------------
    subroutine UpdateBubbleFlux()
       implicit none
-      integer :: ii
+      integer :: gas, icol
 
-      if (m_lakeWaterTopIndex>WATER_LAYER+1) then
-         m_btmbflux = 0.0_r8
-      else
-         do ii = 1, NGAS, 1
-            m_btmbflux(ii) = sum(Ebch4(ii,:)*m_dZs)
-         end do
-      end if
+      do icol = 1, NSCOL, 1
+         if (COUNT(m_soilColInd==icol)==0) then
+            m_btmbflux(:,icol) = 0._r8
+         else
+            do gas = 1, NGAS, 1
+               m_btmbflux(gas,icol) = sum(Ebch4(gas,icol,:)*m_dZs)
+            end do
+         end if
+      end do
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -291,18 +391,24 @@ contains
    subroutine UpdateSubDiffusivity()
       implicit none
       real(r8) :: Porosity, diffst
-      integer :: ii
+      integer :: ii, icol
 
-      Porosity = sa_params(Param_Por)
-      do ii = 1, NSLAYER+1, 1
-         if (m_sedIce(ii)>=Porosity) then
-            diffst = CalcGasDiffusivityInIce(Wch4, m_sedTemp(ii))
-            Dch4(ii) = diffst*0.66*Porosity 
+      do icol = 1, NSCOL, 1
+         if (COUNT(m_soilColInd==icol)==0) then
+            Kch4(icol,:) = 0.528d-7
          else
-            ! Eq. (8) in Walter et al. (2000) gives Dch4 at the magnitude
-            ! of 1e-9 but Goto et al. (2017; Marine Geophysical Research) shows
-            ! this value at the magnitude of 1e-7
-            Dch4(ii) = 2.0d-7*0.66*Porosity   ! [Eq. (8) in Walter 2000]
+            do ii = 1, SED_LAYER+1, 1
+               Porosity = m_sedpor(icol,ii)
+               if (m_sedIce(icol,ii)>=Porosity) then
+                  diffst = CalcGasDiffusivityInIce(Wch4, m_sedTemp(icol,ii))
+                  Kch4(icol,ii) = diffst*0.66*Porosity 
+               else
+                  ! Eq. (8) in Walter et al. (2000) gives Kch4 at the magnitude
+                  ! of 1e-9 but Goto et al. (2017; Marine Geophysical Research) shows
+                  ! this value at the magnitude of 1e-7
+                  Kch4(icol,ii) = 2.0d-7*0.66*Porosity   ! [Eq. (8) in Walter 2000]
+               end if
+            end do
          end if
       end do
    end subroutine
@@ -314,91 +420,125 @@ contains
    !          Passive carbon pool: [Stepanenko et al., 2011]
    !  
    !------------------------------------------------------------------------------
-   subroutine ConstructActCarbonPool()
+   subroutine ConstructOldCarbonPool()
       implicit none
       real(r8) :: Ht, Zs, time, Ctotal
-      real(r8) :: Ct, Rco
-      integer  :: ii, itk
+      real(r8) :: Ct, Rco, Porosity, depth
+      integer :: ii, itk, icol, indx
+      logical :: margin 
+
+      if (lake_info%thrmkst==0) then
+         m_frzCarbPool(oldC,:,:) = 0.0_r8
+         m_unfrzCarbPool(oldC,:,:) = 0.0_r8
+         return
+      end if
       
-      if (lake_info%thrmkst/=2) then
-         ! non-yedoma region
-         m_frzCarbPool(actC,:) = 0.0_r8
-         m_unfrzCarbPool(actC,:) = 0.0_r8
-      else
+      Rco = sa_params(Param_Rcold)
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            m_frzCarbPool(oldC,icol,:) = 0.0_r8
+            m_unfrzCarbPool(oldC,icol,:) = 0.0_r8
+            cycle
+         end if
+
+         indx = COUNT(m_soilColInd<=icol)
+         margin = (icol==1)
          ! permafrost thawing rate (m/(yr^0.5))
-         if (lake_info%margin==1) then
+         if (margin) then
             Ct = 0.67_r8
          else
             Ct = 0.77_r8
          end if
-         Rco = 2.149145d-10 
-         do itk = NSLAYER+1, 1, -1
-            if (m_sedIce(itk)<=0) then
+         Ht = 0.0_r8
+         do ii = 1, SED_LAYER+1, 1
+            Porosity = m_sedpor(icol,ii)
+            if (m_sedIce(icol,ii)>=Porosity) then
                exit
             end if
+            Ht = Ht + m_dZs(ii)*(1.0 - m_sedIce(icol,ii)/Porosity)
+            itk = ii
          end do
-         if (itk==NSLAYER+1) then
-            m_frzCarbPool(actC,:) = 0.0_r8
-            m_unfrzCarbPool(actC,:) = 0.0_r8
+         if (abs(lake_info%hsed-Ht)<e8) then
+            m_frzCarbPool(oldC,icol,:) = 0.0_r8
+            m_unfrzCarbPool(oldC,icol,:) = 0.0_r8
          else
-            Ht = m_Zs(itk)
-            do ii = 1, NSLAYER+1, 1
+            if (lake_info%thrmkst==1) then
+               depth = 5.0
+            else if (lake_info%thrmkst==2) then
+               depth = 25.0
+            end if
+            do ii = 1, SED_LAYER+1, 1
                Zs = m_Zs(ii)
-               if (Zs+lake_info%depth>25) then
-                  m_frzCarbPool(actC,ii:NSLAYER+1) = 0.0_r8
-                  m_unfrzCarbPool(actC,ii:NSLAYER+1) = 0.0_r8
-                  exit
-               end if
-               if (ii<=itk) then
-                  ! time that talik has developed
-                  time = SECOND_OF_YEAR * (Ht**2 - Zs**2) / Ct**2
-                  Ctotal = oldcarb0 * exp(-Rco*time)
+               if (Zs+m_Zw(indx)>depth) then
+                  m_frzCarbPool(oldC,icol,ii) = 0.0_r8
+                  m_unfrzCarbPool(oldC,icol,ii) = 0.0_r8
                else
-                  Ctotal = oldcarb0
+                  ! mean labile carbon density (gC/m3)
+                  if (ii<=itk) then
+                     ! time that talik has developed
+                     time = SECOND_OF_YEAR * (Ht**2 - Zs**2) / Ct**2
+                     Ctotal = max(0.0_r8, oldcarb0*(1.0-Rco*time))
+                  else
+                     Ctotal = oldcarb0
+                  end if
+                  Ctotal = Ctotal * 1.0d3 / 3.0
+                  m_frzCarbPool(oldC,icol,ii) = Ctotal * lagged_ice(icol,ii)
+                  m_unfrzCarbPool(oldC,icol,ii) = Ctotal - m_frzCarbPool(oldC,icol,ii)
                end if
-               ! mean labile carbon density (umol/m3)
-               Ctotal = Ctotal / 3.0 / MasC * 1.0d+9
-               m_frzCarbPool(actC,ii) = Ctotal * lagged_ice(ii)
-               m_unfrzCarbPool(actC,ii) = Ctotal - m_frzCarbPool(actC,ii)
             end do
          end if
-      end if
+      end do
    end subroutine
 
    subroutine ConstructPasCarbonPool()
       implicit none
-      real(r8), parameter :: soc_ref = 21.98_r8    ! catchment SOC of Quebec
-      real(r8), parameter :: carb0 = 8.9386_r8     ! carbon constant
-      real(r8) :: fsoc, fshape, fersn
-      real(r8) :: labile, carbon, dampen 
-      character(cx) :: strmsg
+      real(r8) :: csed, carbon, dampen 
+      integer :: icol
 
-      ! surface soil organic carbon density
-      fshape = ( sqrt(1.0d-6*lake_info%Asurf) / lake_info%depth )**(-0.555)
-      fsoc = m_soc / soc_ref
-      if (lake_info%thrmkst==2 .and. lake_info%margin==1) then
-         fersn = 1.0d0 / 2.0d0
-         labile = 0.05
-      else if (lake_info%thrmkst==1 .and. lake_info%margin==1) then
-         fersn = 1.0d0 / 6.0d0
-         labile = 0.05
-      else
-         fersn = 0.0_r8
-         labile = 0.05
-      end if
-      carbon = (labile*carb0*fshape*fsoc + m_soc*fersn)*1d9/MasC
-      pas2actC = 4d-3*carb0*fshape*fsoc*1d9/MasC/SECOND_OF_YEAR
-      dampen = sa_params(Param_DMP)
-      if (dampen>0) then
-         carbon = carbon * dampen / (1.0 - exp(-dampen))
-         pas2actC = pas2actC * dampen / (1.0 - exp(-dampen))
-         m_frzCarbPool(pasC,:) = carbon * lagged_ice * exp(-dampen*m_Zs)
-         m_unfrzCarbPool(pasC,:) = carbon * (1.0 - lagged_ice) * &
-                              exp(-dampen*m_Zs)
-      else
-         m_frzCarbPool(pasC,:) = carbon * lagged_ice
-         m_unfrzCarbPool(pasC,:) = carbon * (1.0 - lagged_ice)
-      end if
+      csed = 1.0d3 * lake_info%csed ! gC/m3
+      dampen = sa_params(Param_csedDMP)
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            m_frzCarbPool(pasC,icol,:) = 0.0_r8
+            m_unfrzCarbPool(pasC,icol,:) = 0.0_r8
+         else 
+            carbon = csed * dampen / (1._r8 - exp(-dampen))
+            m_frzCarbPool(pasC,icol,:) = carbon * lagged_ice(icol,:) * &
+               exp(-dampen*m_Zs)
+            m_unfrzCarbPool(pasC,icol,:) = carbon * (1.0 - &
+               lagged_ice(icol,:)) * exp(-dampen*m_Zs)
+         end if
+      end do
+   end subroutine
+
+   subroutine ConstructActCarbonPool()
+      implicit none
+      real(r8) :: csed, Porosity
+      integer :: icol, ii
+
+      csed = 0.02_r8 * 1.0d3 * lake_info%csed ! gC/m3
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            m_frzCarbPool(actC,icol,:) = 0._r8
+            m_unfrzCarbPool(actC,icol,:) = 0._r8
+            cycle
+         end if
+         do ii = 1, SED_LAYER+1, 1
+            if (ii<=indx_act) then
+               Porosity = m_sedpor(icol,ii)
+               m_frzCarbPool(actC,icol,ii) = csed * m_sedIce(icol,ii) / &
+                     Porosity
+               m_unfrzCarbPool(actC,icol,ii) = csed * (1.0 - &
+                     m_sedIce(icol,ii) / Porosity)
+            else
+               m_frzCarbPool(actC,icol,ii) = 0._r8
+               m_unfrzCarbPool(actC,icol,ii) = 0._r8
+            end if
+         end do
+      end do
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -408,97 +548,189 @@ contains
    !          Passive carbon pool: [Stepanenko et al., 2011]
    !  
    !------------------------------------------------------------------------------
-   subroutine UpdateActCarbonPool(dt, rDOCer)
+   subroutine UpdateOldCarbonPool(dt)
       implicit none
       real(r8), intent(in) :: dt       ! time interval (sec)
-      real(r8), intent(in) :: rDOCer   ! DOC gain by erosion (umol/m3/s)
       real(r8) :: frice_lag, frice, ratio
-      real(r8) :: Porosity, Ctotal, decay
-      real(r8) :: cDOC
-      integer  :: ii
+      real(r8) :: Porosity, decay, Ctotal
+      integer  :: ii, icol
 
-      if (lake_info%thrmkst/=2) then
-         return   ! non-yedoma region
+      if (lake_info%thrmkst==0) then
+         m_frzCarbPool(oldC,:,:) = 0.0_r8
+         m_unfrzCarbPool(oldC,:,:) = 0.0_r8
+         return
       end if
-      ! Update C pool due to erosion and surface exchange
-      m_unfrzCarbPool(actC,1) = m_unfrzCarbPool(actC,1) + &
-         rDOCer*dt
-      ! Shrink C pool due to degradation
-      Porosity = sa_params(Param_Por)
-      do ii = 1, NSLAYER+1, 1
-         Ctotal = m_unfrzCarbPool(actC,ii) + m_frzCarbPool(actC,ii)
-         if (Ctotal>e8) then
-            decay = rPCH4(actC,ii) + rnPCO2(actC,ii) + rPCO2(actC,ii)
-            m_unfrzCarbPool(actC,ii) = m_unfrzCarbPool(actC,ii) - decay*dt
-            m_unfrzCarbPool(actC,ii) = max(0.0_r8, m_unfrzCarbPool(actC,ii))
-            ! redistribute frozen and unfrozen carbon pools
-            frice = m_sedIce(ii) / Porosity 
-            frice_lag = lagged_ice(ii)
-            if (frice>frice_lag) then
-               ! ice expand and freezing carbon
-               ratio = (frice - frice_lag) / (1.0 - frice_lag)
-               m_frzCarbPool(actC,ii) = m_frzCarbPool(actC,ii) + ratio * &
-                                    m_unfrzCarbPool(actC,ii)
-               m_unfrzCarbPool(actC,ii) = m_unfrzCarbPool(actC,ii) * &
-                                    (1.0 - ratio)
-            else if (frice<frice_lag) then
-               ! ice shrink and thawing carbon
-               ratio = (frice_lag - frice) / frice_lag
-               m_unfrzCarbPool(actC,ii) = m_unfrzCarbPool(actC,ii) + &
-                                       ratio * m_frzCarbPool(actC,ii)
-               m_frzCarbPool(actC,ii) = m_frzCarbPool(actC,ii) * &
-                                    (1.0 - ratio)
-            end if
-         else
-            m_frzCarbPool(actC,ii) = 0.0_r8
-            m_unfrzCarbPool(actC,ii) = 0.0_r8
+
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            m_frzCarbPool(oldC,icol,:) = 0.0_r8
+            m_unfrzCarbPool(oldC,icol,:) = 0.0_r8
+            cycle
          end if
+         do ii = 1, SED_LAYER+1, 1
+            ! Shrink C pool due to degradation
+            Porosity = m_sedpor(icol,ii)
+            if (m_unfrzCarbPool(oldC,icol,ii)>e8) then
+               decay = dt * (rPCH4(oldC,icol,ii) + rnPCO2(oldC,icol,ii) + &
+                  rPCO2(oldC,icol,ii)) * MasC
+               m_unfrzCarbPool(oldC,icol,ii) = max(0.0_r8, &
+                  m_unfrzCarbPool(oldC,icol,ii) - decay)
+            end if
+            ! redistribute frozen and unfrozen carbon pools
+            Ctotal = m_frzCarbPool(oldC,icol,ii) + m_unfrzCarbPool(oldC,icol,ii)
+            if (Ctotal>e8) then
+               frice = m_sedIce(icol,ii) / Porosity 
+               frice_lag = lagged_ice(icol,ii)
+               if (frice>frice_lag) then
+                  ! ice expand and freezing carbon
+                  ratio = (frice - frice_lag) / (1.0 - frice_lag)
+                  m_frzCarbPool(oldC,icol,ii) = m_frzCarbPool(oldC,icol,ii) + &
+                     ratio * m_unfrzCarbPool(oldC,icol,ii)
+                  m_unfrzCarbPool(oldC,icol,ii) = m_unfrzCarbPool(oldC,icol,ii) * &
+                     (1.0 - ratio)
+               else if (frice<frice_lag) then
+                  ! ice shrink and thawing carbon
+                  ratio = (frice_lag - frice) / frice_lag
+                  m_unfrzCarbPool(oldC,icol,ii) = m_unfrzCarbPool(oldC,icol,ii) + &
+                     ratio * m_frzCarbPool(oldC,icol,ii)
+                  m_frzCarbPool(oldC,icol,ii) = m_frzCarbPool(oldC,icol,ii) * &
+                     (1.0 - ratio)
+               end if
+            else
+               m_frzCarbPool(oldC,icol,ii) = 0.0_r8
+               m_unfrzCarbPool(oldC,icol,ii) = 0.0_r8
+            end if
+         end do
       end do
    end subroutine
 
-   subroutine UpdatePasCarbonPool(dt, rDOCer)
+   subroutine UpdatePasCarbonPool()
       implicit none
-      real(r8), intent(in) :: dt       ! time step (sec)
-      real(r8), intent(in) :: rDOCer   ! DOC gain by erosion (umol/m3/s)
-      real(r8) :: Ctotal, Porosity
-      real(r8) :: ratio, decay, dampen
-      real(r8) :: frice_lag, frice
-      integer :: ii
+      real(r8) :: Porosity, ratio
+      real(r8) :: frice_lag, frice, Ctotal
+      integer :: ii, icol
 
-      Porosity = sa_params(Param_Por)
-      dampen = sa_params(Param_DMP)
-      ! update C pool due to erosion
-      m_unfrzCarbPool(pasC,1) = m_unfrzCarbPool(pasC,1) + rDOCer*dt
-      ! aerobic and anaerobic mineralization and freeze/thaw
-      do ii = 1, NSLAYER+1, 1
-         Ctotal = m_unfrzCarbPool(pasC,ii) + m_frzCarbPool(pasC,ii)
-         if (Ctotal>e8) then
-            decay = rPCH4(pasC,ii) + rnPCO2(pasC,ii) + rPCO2(pasC,ii) 
-            m_unfrzCarbPool(pasC,ii) = m_unfrzCarbPool(pasC,ii) - &
-               decay*dt + pas2actC*exp(-dampen*m_Zs(ii))*dt
-            m_unfrzCarbPool(pasC,ii) = max(0.0_r8, m_unfrzCarbPool(pasC,ii))
-            ! redistribute frozen and unfrozen carbon pools
-            frice = m_sedIce(ii) / Porosity
-            frice_lag = lagged_ice(ii)
-            if (frice>frice_lag) then
-               ! ice expand and freezing carbon
-               ratio = (frice - frice_lag) / (1.0 - frice_lag)
-               m_frzCarbPool(pasC,ii) = m_frzCarbPool(pasC,ii) + ratio * &
-                                    m_unfrzCarbPool(pasC,ii)
-               m_unfrzCarbPool(pasC,ii) = m_unfrzCarbPool(pasC,ii) * &
-                                    (1.0 - ratio)
-            else if (frice<frice_lag) then     
-               ! ice shrink and thawing carbon
-               ratio = (frice_lag - frice) / frice_lag
-               m_unfrzCarbPool(pasC,ii) = m_unfrzCarbPool(pasC,ii) + &
-                                    ratio * m_frzCarbPool(pasC,ii)
-               m_frzCarbPool(pasC,ii) = m_frzCarbPool(pasC,ii) * &
-                                    (1.0 - ratio)
-            end if
-         else
-            m_frzCarbPool(pasC,ii) = 0.0_r8
-            m_unfrzCarbPool(pasC,ii) = 0.0_r8
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            cycle
          end if
+         ! freeze/thaw
+         do ii = 1, SED_LAYER+1, 1
+            Porosity = m_sedpor(icol,ii)
+            Ctotal = m_frzCarbPool(pasC,icol,ii) + m_unfrzCarbPool(pasC,icol,ii)
+            if (Ctotal>e8) then
+               ! redistribute frozen and unfrozen carbon pools
+               frice = m_sedIce(icol,ii) / Porosity
+               frice_lag = lagged_ice(icol,ii)
+               if (frice>frice_lag) then
+                  ! ice expand and freezing carbon
+                  ratio = (frice - frice_lag) / (1.0 - frice_lag)
+                  m_frzCarbPool(pasC,icol,ii) = m_frzCarbPool(pasC,icol,ii) + &
+                     ratio * m_unfrzCarbPool(pasC,icol,ii)
+                  m_unfrzCarbPool(pasC,icol,ii) = m_unfrzCarbPool(pasC,icol,ii) * &
+                     (1.0 - ratio)
+               else if (frice<frice_lag) then     
+                  ! ice shrink and thawing carbon
+                  ratio = (frice_lag - frice) / frice_lag
+                  m_unfrzCarbPool(pasC,icol,ii) = m_unfrzCarbPool(pasC,icol,ii) + &
+                     ratio * m_frzCarbPool(pasC,icol,ii)
+                  m_frzCarbPool(pasC,icol,ii) = m_frzCarbPool(pasC,icol,ii) * &
+                     (1.0 - ratio)
+               end if
+            else
+               m_frzCarbPool(pasC,icol,ii) = 0.0_r8
+               m_unfrzCarbPool(pasC,icol,ii) = 0.0_r8
+            end if
+         end do
+      end do
+   end subroutine
+
+   subroutine UpdateActCarbonPool(dt)
+      implicit none
+      real(r8), intent(in) :: dt ! time step (s)
+      real(r8) :: ctot_dep, ctot_decay
+      real(r8) :: ctot_act, cavg
+      integer :: icol, ii
+
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            cycle
+         end if
+         ! active C deposition
+         ctot_dep = (m_trDepAtCarb(icol) + m_aqDepAtCarb(icol) + &
+            m_vegDepAtCarb(icol)) * dt
+         ! carbon decay
+         ctot_decay = 0.0_r8
+         ctot_act = 0.0_r8
+         do ii = 1, SED_LAYER+1, 1
+            if (m_unfrzCarbPool(actC,icol,ii)>e8) then
+               ctot_decay = ctot_decay + dt * m_dZs(ii) * (rPCH4(actC,icol,ii) + &
+                  rnPCO2(actC,icol,ii) + rPCO2(actC,icol,ii)) * MasC
+               ctot_act = ctot_act + m_unfrzCarbPool(actC,icol,ii)*m_dZs(ii)
+            end if
+            ctot_act = ctot_act + m_frzCarbPool(actC,icol,ii)*m_dZs(ii)
+         end do
+         ! redistribution
+         cavg = max( (ctot_act + ctot_dep - ctot_decay)/ztot_act, 0.0_r8 )
+         do ii = 1, indx_act, 1
+            m_unfrzCarbPool(actC,icol,ii) = cavg * (1._r8 - m_sedIce(icol,ii) / &
+               m_sedpor(icol,ii))
+            m_frzCarbPool(actC,icol,ii) = cavg * m_sedIce(icol,ii) / &
+               m_sedpor(icol,ii)
+         end do
+         m_unfrzCarbPool(actC,icol,indx_act+1:SED_LAYER+1) = 0.0_r8
+         m_frzCarbPool(actC,icol,indx_act+1:SED_LAYER+1) = 0.0_r8
+      end do
+   end subroutine
+
+   subroutine UpdateSurfaceminP()
+      implicit none
+      real(r8) :: minP_avg
+      integer :: icol
+
+      do icol = 1, NSCOL, 1
+         ! inactive sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            cycle
+         end if
+         minP_avg = sum( m_sedSubCon(Wsrp,icol,1:indx_act) * &
+            m_dZs(1:indx_act) ) / ztot_act
+         m_sedSubCon(Wsrp,icol,1:indx_act) = minP_avg
+      end do
+   end subroutine
+
+   subroutine UpdateSediRedox(dt)
+      implicit none
+      real(r8), intent(in) :: dt
+      real(r8) :: cRx, Do2, Do2_crit 
+      integer :: icol, top, ii 
+      integer :: indx0, indx
+
+      top = m_lakeWaterTopIndex
+      cRx = sa_params(Param_cRx)
+      ! update sediment redox potential
+      do icol = 1, NSCOL, 1
+         indx0 = COUNT(m_soilColInd<=icol-1) + 1
+         indx = COUNT(m_soilColInd<=icol)
+         ! invalid sediment column
+         if (indx0>indx .or. indx<top) then
+            cycle
+         end if
+         do ii = 1, SED_LAYER+1, 1
+            Do2 = m_sedSubCon(Wo2,icol,ii)
+            if (Do2<=Do2_cr) then
+               m_sedEHL(icol,ii) = m_sedEHL(icol,ii) - cRx / 8.64d4 * dt
+            else
+               m_sedEHL(icol,ii) = m_sedEHL(icol,ii) + cRx / 8.64d4 * &
+                  min(1._r8, (Do2-Do2_cr)/0.45625) * dt
+            end if
+            ! Mobilian, C., & Craft, C. B (2022). Wetland Soils: Physical and 
+            ! Chemical Properties and Biogeochemical Processes. 157-168.
+            m_sedEHL(icol,ii) = max(min(m_sedEHL(icol,ii),1.d2),-3.d2)
+         end do
       end do
    end subroutine
 
@@ -507,17 +739,19 @@ contains
    ! Purpose: Calculate CH4/CO2 production rate.
    !
    !------------------------------------------------------------------------------
-   subroutine GetSedCLossRate(pco2o, pco2n, pch4o, pch4n)
+   subroutine GetSedCLossRate(pch4)
       implicit none
-      real(r8), intent(out) :: pco2o   ! units: umol/m2/s
-      real(r8), intent(out) :: pco2n   ! units: umol/m2/s
-      real(r8), intent(out) :: pch4o   ! units: umol/m2/s
-      real(r8), intent(out) :: pch4n   ! units: umol/m2/s
+      real(r8), intent(out) :: pch4(:)   ! units: mol/m2/s
+      integer :: icol, kk 
 
-      pco2n = sum( (rPCO2(pasC,:) + rnPCO2(pasC,:)) * m_dZs )
-      pco2o = sum( (rPCO2(actC,:) + rnPCO2(actC,:)) * m_dZs )
-      pch4n = sum( rPCH4(pasC,:) * m_dZs )
-      pch4o = sum( rPCH4(actC,:) * m_dZs )
+      pch4 = 0._r8
+      do icol = 1, NSCOL, 1
+         if (COUNT(m_soilColInd==icol)>0) then
+            do kk = 1, NPOC, 1
+               pch4(icol) = pch4(icol) + sum( rPCH4(kk,icol,:)*m_dZs )
+            end do
+         end if
+      end do
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -528,27 +762,40 @@ contains
    subroutine InitializeDiagenesisStateVariables()
       implicit none
       real(r8) :: ps, temp, Porosity, pH
-      integer :: ii
+      integer :: ii, icol
 
-      pH = LKpH(lake_info%itype) 
-      Porosity = sa_params(Param_Por)
-      do ii = 1, NSLAYER+1, 1
-         temp = m_sedTemp(ii)
-         ps = Xch4 * P0    ! CH4 
-         m_sedSubCon(Wch4,ii) = Porosity*CalcEQConc(Wch4,temp,pH,ps)
-         ps = 1.0d-6 * m_radPars%qCO2 * P0   ! CO2
-         m_sedSubCon(Wco2,ii) = Porosity*CalcEQConc(Wco2,temp,pH,ps)
+      pH = lake_info%pH
+      do icol = 1, NSCOL, 1
+         ! invalid sediment column
+         if (COUNT(m_soilColInd==icol)==0) then
+            m_sedSubCon(:,icol,:) = 0._r8
+            m_sedSRPCon(icol) = 0._r8
+            m_sedEHL(icol,:) = 0._r8
+            cycle
+         end if
+         do ii = 1, SED_LAYER+1, 1
+            temp = m_sedTemp(icol,ii)
+            Porosity = m_sedpor(icol,ii)
+            ps = Xch4 * P0    ! CH4 
+            m_sedSubCon(Wch4,icol,ii) = Porosity*CalcEQConc(Wch4,temp,pH,ps)
+            ps = Xco2 * P0   ! CO2
+            m_sedSubCon(Wco2,icol,ii) = Porosity*CalcEQConc(Wco2,temp,pH,ps)
+            m_sedSubCon(Wn2,icol,ii) = 0.0_r8   ! initially no n2
+            m_sedSubCon(Wo2,icol,ii) = 0.0_r8   ! initially no o2
+            m_sedEHL(icol,ii) = -200.0_r8       ! fully anoxic 
+         end do
+         m_sedSRPCon(icol) = lake_info%srp / MasP
+         m_sedSubCon(Wsrp,icol,:) = CalcSedMinPConc(lake_info%srp, &
+            lake_info%sedFe)
       end do
-      m_sedSubCon(Wsrp,:) = 1.0 / YC2P_POM * (m_sedSubCon(Wco2,:) + &
-                              m_sedSubCon(Wch4,:))
-      m_sedSubCon(Wn2,:) = 0.0_r8   ! initially no n2
-      m_sedSubCon(Wo2,:) = 0.0_r8   ! initially no o2
       m_btmbflux = 0.0_r8
+      m_btmdflux = 0.0_r8
 
-      ! initialize 14C-depleted and 14C-enrich carbon pool 
-      lagged_ice = m_sedIce / Porosity
+      ! initialize three carbon pools
+      lagged_ice = m_sedIce / m_sedpor
       call ConstructPasCarbonPool()
       call ConstructActCarbonPool()  
+      call ConstructOldCarbonPool()
    end subroutine
 
 end module diagenesis_mod
