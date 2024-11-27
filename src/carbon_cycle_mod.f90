@@ -420,8 +420,12 @@ contains
       do ii = top, WATER_LAYER+1, 1
          if (ii==top) then
             aa = 0.0_r8 
-            bb = 0.5 * ( con(:,ii+1)*Vsettl(:,ii+1) + &
-               con(:,ii)*Vsettl(:,ii) )
+            if (ii<WATER_LAYER+1) then
+               bb = 0.5 * ( con(:,ii+1)*Vsettl(:,ii+1) + &
+                  con(:,ii)*Vsettl(:,ii) )
+            else
+               bb = 0.0_r8
+            end if
          else if (ii==WATER_LAYER+1) then
             aa = 0.5 * ( con(:,ii-1)*Vsettl(:,ii-1) + &
                con(:,ii)*Vsettl(:,ii))
@@ -786,7 +790,7 @@ contains
       top = m_lakeWaterTopIndex
       ! adjustment due to adaptation
       if (isHourNode .and. mod(hindx-1,24)==12 .and. &
-            (m_Hsnow<e8 .and. m_Hgrayice<e8)) then
+            (m_Hsnow<e8 .and. m_Hgrayice<e8) .and. top<=WATER_LAYER+1) then
          temp = max(m_waterTemp(top), T0)
          SRP = m_waterSubCon(Wsrp,top)
          call CalcChl2CRatio(Ipar, m_waterIce, temp, SRP, rChl2C)          

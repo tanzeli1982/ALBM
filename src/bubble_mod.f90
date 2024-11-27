@@ -274,7 +274,7 @@ contains
          Atmp = Atmp + (pressure*rr + 2*gama) * wb
          con(:,rindx) = m_btmbflux * (pressure*rr + 2*gama)
       end do
-      con(:,rindx) = con(:,rindx) / Atmp
+      con = con / Atmp
    end subroutine
 
    ! Initialize the bubble radius field in water column without considering dissolution
