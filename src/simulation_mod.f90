@@ -11,7 +11,9 @@ module simulation_mod
    use shr_typedef_mod
    use sim_coupler_mod
    use read_data_mod
+#ifdef USE_INTEL_COMPILER
    use ifport
+#endif
    use mpi
 
    private
@@ -155,7 +157,9 @@ contains
       real(r8) :: OptParams(NPARAM)
       integer :: i4ret
 
+#ifdef USE_INTEL_COMPILER
       i4ret = SIGNALQQ(SIG$FPE, hand_fpe)
+#endif
       ! read lake information (i.e. depth, location ...)
       call ReadLakeName(lakeId)
       call ReadOptimumParameters(OptParams)
@@ -178,10 +182,13 @@ contains
    !------------------------------------------------------------------------------
    function hand_fpe(sigid, except)
       !DEC$ ATTRIBUTES C :: hand_fpe
+#ifdef USE_INTEL_COMPILER
       use ifport
+#endif
       INTEGER(4) :: hand_fpe
       INTEGER(2) :: sigid, except
 
+#ifdef USE_INTEL_COMPILER
       if (sigid/=SIG$FPE) then
          print "('The hand_fpe is not for signal ', I0)", sigid
          hand_fpe = 1
@@ -204,6 +211,7 @@ contains
             print *, ' Floating point exception: Non-IEEE type'
       end select
       !CALL TRACEBACKQQ(trim(header), USER_EXIT_CODE=-1)
+#endif
       print *, 'lake failed: ', lake_info 
       hand_fpe = 1
    end function

@@ -5,11 +5,11 @@
 ##------------
 ##
 
-module purge
+module purge 
 
-export NETCDF_HOME=/people/tanz151/packages/Pnetcdf_mvapich_2.3.1
+export NETCDF_HOME=/qfs/people/tanz151/packages/Pnetcdf-1.14.0_gnu
 export LD_LIBRARY_PATH=$NETCDF_HOME/lib:$LD_LIBRARY_PATH
-module load intel/19.0.3 mvapich2/2.3.1
+module load gcc/4.8.5 mvapich2/2.3.1
 
 arg=$( echo $1 | tr '[:upper:]' '[:lower:]' )
 if [ -z "$arg" ]; then

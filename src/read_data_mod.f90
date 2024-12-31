@@ -125,7 +125,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(fullname))
       end if
-      read(unit=fid, fmt="(A9,I)", iostat=error) tmpstr, nline
+      read(unit=fid, fmt="(A9,I10)", iostat=error) tmpstr, nline
       allocate(tmpZw(nline))
       allocate(tmpAz(nline))
       read(fid, "(A512)", iostat=error) tmpstr
@@ -742,7 +742,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(fullname))
       end if
-      read(unit=fid, fmt='(A7, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A7, I10)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       do ii = 1, nline, 1
@@ -793,7 +793,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(filename))
       end if
-      read(unit=fid, fmt='(A14, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A14, I10)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       fcost = 0.0_r8
@@ -808,7 +808,11 @@ contains
          if (date<timeHist(1) .or. date>timeHist(nt)) then
             cycle 
          end if
+#ifdef USE_INTEL_COMPILER
          idx = BSEARCHQQ(LOC(date),LOC(timeHist),INT8(nt),SRT$INTEGER4)
+#else
+         idx = 0
+#endif
          fsim = 0.0_r8
          nrec = 0
          do jj = max(1,idx-24*ntday), min(nt,idx+24*ntday), 1
@@ -853,7 +857,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(filename))
       end if
-      read(unit=fid, fmt='(A14, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A14, I10)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       fcost = 0.0_r8
@@ -868,7 +872,11 @@ contains
          if (date<timeHist(1) .or. date>timeHist(nt)) then
             cycle
          end if
+#ifdef USE_INTEL_COMPILER
          idx = BSEARCHQQ(LOC(date),LOC(timeHist),INT8(nt),SRT$INTEGER4)
+#else
+         idx = 0
+#endif
          if (depth<=depthHist(1,idx)) then
             iz1 = 1
             iz2 = 1
@@ -923,7 +931,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(filename))
       end if
-      read(unit=fid, fmt='(A14, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A14, I10)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       fcost = 0.0_r8
@@ -938,7 +946,11 @@ contains
          if (date<timeHist(1) .or. date>timeHist(nt)) then
             cycle
          end if
+#ifdef USE_INTEL_COMPILER
          idx = BSEARCHQQ(LOC(date),LOC(timeHist),INT8(nt),SRT$INTEGER4)
+#else
+         idx = 0
+#endif
          fsim = varHist(idx) 
          ferr = max( 0.01*fobs_std*fobs, std )
          fcost = fcost + ((fobs-fsim) / ferr)**2
@@ -976,7 +988,7 @@ contains
          close(unit=fid)
          call Endrun('Cannot open file ' // trim(filename))
       end if
-      read(unit=fid, fmt='(A14, I)', iostat=error) tmpstr, nline
+      read(unit=fid, fmt='(A14, I10)', iostat=error) tmpstr, nline
       read(fid, "(A512)", iostat=error) tmpstr
       read(fid, "(A512)", iostat=error) tmpstr
       fcost = 0.0_r8
@@ -993,7 +1005,11 @@ contains
             cycle
          end if
          depth = 2.0 * secchi
+#ifdef USE_INTEL_COMPILER
          idx = BSEARCHQQ(LOC(date),LOC(timeHist),INT8(nt),SRT$INTEGER4)
+#else
+         idx = 0
+#endif
          if (depth>=depthHist(nz,idx)) then
             iz2 = nz
          else

@@ -6,13 +6,17 @@ modules = $(wildcard *.mod)
 outputs := $(wildcard bLakeJob.sub.*)
 
 ifeq ($(DEBUG), 1)
-FFLAGS = -traceback -CB -fpe0 -g
+FFLAGS = -CB -g
 else
-FFLAGS = -O3 -traceback -fpe0
+FFLAGS = -O3
 endif
-ifeq ($(OPT), 1)
-FFLAGS += -fast
+
+ifeq ($(FC), ifort)
+FFLAGS += -traceback -fpe0 -fpp -D USE_INTEL_COMPILER
+else
+FFLAGS += -cpp
 endif
+
 FFLAGS += -I$(NETCDF_HOME)/include -I/usr/include
 #FFLAGS += -I$(NETCDF_HOME)/include $(LAPACK_INCLUDE_F95) -I/usr/include
 LDFLAGS =

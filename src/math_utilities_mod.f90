@@ -9,7 +9,9 @@ module math_utilities_mod
    use shr_ctrl_mod,       only : inft => INFINITESIMAL_E8, inf => INFINITE_E8, &
                                   TOL_E8
    use shr_typedef_mod,    only : RungeKuttaCache1D, RungeKuttaCache2D
+#ifdef USE_INTEL_COMPILER
    use ifport
+#endif
 
    implicit none
    integer, parameter :: adaptive_mode = 101, fixed_mode = 102
