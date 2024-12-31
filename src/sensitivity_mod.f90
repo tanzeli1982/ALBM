@@ -248,16 +248,14 @@ contains
    ! Purpose: some utilities for exceptions: SIG$FPE, SIG$ABORT, SIG$SEGV
    !
    !------------------------------------------------------------------------------
+#ifdef USE_INTEL_COMPILER
    function hand_fpe(sigid, except)
       !DEC$ ATTRIBUTES C :: hand_fpe
-#ifdef USE_INTEL_COMPILER
       use ifport
       !use ifcore
-#endif
       INTEGER(4) :: hand_fpe
       INTEGER(2) :: sigid, except
 
-#ifdef USE_INTEL_COMPILER
       if (sigid/=SIG$FPE) then
          hand_fpe = 1
          return
@@ -279,9 +277,9 @@ contains
             print *, ' Floating point exception: Non-IEEE type'
       end select
       !CALL TRACEBACKQQ(trim(header), USER_EXIT_CODE=-1)
-#endif
       print *, 'failed sample ', cur_sample, sa_params 
       hand_fpe = 1
    end function
+#endif
 
 end module sensitivity_mod

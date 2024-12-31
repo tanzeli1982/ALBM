@@ -180,15 +180,13 @@ contains
    ! Purpose: some utilities for exceptions
    !
    !------------------------------------------------------------------------------
+#ifdef USE_INTEL_COMPILER
    function hand_fpe(sigid, except)
       !DEC$ ATTRIBUTES C :: hand_fpe
-#ifdef USE_INTEL_COMPILER
       use ifport
-#endif
       INTEGER(4) :: hand_fpe
       INTEGER(2) :: sigid, except
 
-#ifdef USE_INTEL_COMPILER
       if (sigid/=SIG$FPE) then
          print "('The hand_fpe is not for signal ', I0)", sigid
          hand_fpe = 1
@@ -211,9 +209,9 @@ contains
             print *, ' Floating point exception: Non-IEEE type'
       end select
       !CALL TRACEBACKQQ(trim(header), USER_EXIT_CODE=-1)
-#endif
       print *, 'lake failed: ', lake_info 
       hand_fpe = 1
    end function
+#endif
 
 end module
