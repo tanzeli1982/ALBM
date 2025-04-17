@@ -11,6 +11,6 @@ module shr_kind_mod
 #ifdef USE_INTEL_COMPILER
    real(r8), parameter :: NaN = O'0777610000000000000000'
 #else
-   real(r8), parameter :: NaN = transfer(Z'7FF8000000000000', 0.0_r8)
+   real(r8), parameter :: NaN = transfer(int(Z'7FF8000000000000', kind=8), 0.0_r8)
 #endif
 end module shr_kind_mod
