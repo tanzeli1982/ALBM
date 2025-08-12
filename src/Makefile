@@ -5,16 +5,24 @@ objects = $(sources:%.f90=%.o)
 modules = $(wildcard *.mod)
 outputs := $(wildcard bLakeJob.sub.*)
 
+ifeq ($(FC), ifort)
+
 ifeq ($(DEBUG), 1)
 FFLAGS = -CB -g
 else
 FFLAGS = -O3
 endif
-
-ifeq ($(FC), ifort)
 FFLAGS += -traceback -fpe0 -fpp -D USE_INTEL_COMPILER
+
 else
+
+ifeq ($(DEBUG), 1)
+FFLAGS = -g
+else
+FFLAGS = -O3
+endif
 FFLAGS += -cpp
+
 endif
 
 FFLAGS += -I$(NETCDF_HOME)/include -I/usr/include

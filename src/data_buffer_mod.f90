@@ -294,32 +294,42 @@ contains
          call Read2DTSData(rsds_file, time, loc180, 'rsds', m_airSWRad)
          call Read2DTSData(rlds_file, time, loc180, 'rlds', m_airLWRad)
       else
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tas',  m_airTemp)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmax', m_airTempMax)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'tasmin',  m_airTempMin)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'hurs',  m_airRH)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'pr',  m_airPr)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'prsn',  m_airPrsn)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'ps',  m_airPs)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'sfcWind',  m_airWind)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'rsds',  m_airSWRad)
-         call ReadSiteTSData(lake_info, time, forcing_tstep, 'rlds',  m_airLWRad)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'tas',  m_airTemp)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'tasmax', m_airTempMax)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'tasmin',  m_airTempMin)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'hurs',  m_airRH)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'pr',  m_airPr)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'prsn',  m_airPrsn)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'ps',  m_airPs)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'sfcWind',  m_airWind)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'rsds',  m_airSWRad)
+         call ReadSiteTSData(lake_info, forcing_dir, time, forcing_tstep, 'rlds',  m_airLWRad)
       end if
       ! initialize long-term forcing data
       call ReadGlobalTSData(co2_file, time, 'co2_rcp26', m_aCO2) 
       call Read2DTSData(o3_file, time, loc180, 'tro3', m_aO3)
       call Read2DTSData(aod_file, time, loc180, 'AOD_550', m_aAOD)
       ! no hydrology and chemistry input data
-      m_Qsi = 0.0_r8
       m_tQsi = T0 + 4.0
       m_dQsi = 1d3
       m_DOQsi = 0.0_r8
-      m_DICQsi = 0.0_r8
-      m_DOCQsi = 0.0_r8
-      m_POCQsi = 0.0_r8
-      m_SRPQsi = 0.0_r8
-      m_Qso = 0.0_r8
-      m_Qgw = 0.0_r8
+      if (len_trim(forcing_dir)==0) then
+         m_Qsi = 0.0_r8
+         m_DICQsi = 0.0_r8
+         m_DOCQsi = 0.0_r8
+         m_POCQsi = 0.0_r8
+         m_SRPQsi = 0.0_r8
+         m_Qso = 0.0_r8
+         m_Qgw = 0.0_r8
+      else
+         call ReadSiteTSData(lake_info, hydro_dir, time, 'day', 'Qsi', m_Qsi)
+         call ReadSiteTSData(lake_info, hydro_dir, time, 'day', 'DICQsi', m_DICQsi)
+         call ReadSiteTSData(lake_info, hydro_dir, time, 'day', 'DOCQsi', m_DOCQsi)
+         call ReadSiteTSData(lake_info, hydro_dir, time, 'day', 'POCQsi', m_POCQsi)
+         call ReadSiteTSData(lake_info, hydro_dir, time, 'day', 'SRPQsi', m_SRPQsi)
+         call ReadSiteTSData(lake_info, hydro_dir, time, 'day', 'Qso', m_Qso)
+         call ReadSiteTSData(lake_info, hydro_dir, time, 'day', 'Qgw', m_Qgw)
+      end if
       ! rescale tree cover and wetland fraction
       call RescaleTreeCoverFraction(m_ftree)
       call RescaleWetlandFraction(m_fwlnd)

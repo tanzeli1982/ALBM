@@ -1153,9 +1153,10 @@ contains
       end if
    end subroutine
 
-   subroutine ReadSiteTSData(info, time, tstep, varname, odata)
+   subroutine ReadSiteTSData(info, rdir, time, tstep, varname, odata)
       implicit none
       type(LakeInfo), intent(in) :: info
+      character(len=*), intent(in) :: rdir
       type(SimTime), intent(in) :: time
       character(len=*), intent(in) :: tstep
       character(len=*), intent(in) :: varname
@@ -1171,9 +1172,9 @@ contains
 
       ! inquire data info
       if (len_trim(lakeid_file)==0) then
-         write(filename, "(A,I0,A)") trim(forcing_dir), info%id, '.nc'
+         write(filename, "(A,I0,A)") trim(rdir), info%id, '.nc'
       else
-         filename = trim(forcing_dir) // trim(info%name) // '.nc'
+         filename = trim(rdir) // trim(info%name) // '.nc'
       end if
       call GetFullFileName(filename, fullname)
       if (trim(run_mode)=='regular') then
