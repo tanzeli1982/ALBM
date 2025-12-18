@@ -313,7 +313,7 @@ contains
       m_tQsi = T0 + 4.0
       m_dQsi = 1d3
       m_DOQsi = 0.0_r8
-      if (len_trim(forcing_dir)==0) then
+      if (len_trim(hydro_dir)==0) then
          m_Qsi = 0.0_r8
          m_DICQsi = 0.0_r8
          m_DOCQsi = 0.0_r8
