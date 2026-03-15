@@ -10,7 +10,9 @@ module math_utilities_mod
                                   TOL_E8
    use shr_typedef_mod,    only : RungeKuttaCache1D, RungeKuttaCache2D, &
                                   RungeKuttaCache3D
+#ifdef USE_INTEL_COMPILER
    use ifport
+#endif
 
    implicit none
    integer, parameter :: adaptive_mode = 101, fixed_mode = 102

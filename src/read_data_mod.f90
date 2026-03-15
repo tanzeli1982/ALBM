@@ -601,7 +601,7 @@ contains
          call Endrun(fname, 'reading ' // trim(fullname))
       end if
       do ii = 1, NPARAM, 1
-         read(unit=fid, fmt='(I2, A2, F)', iostat=error) &
+         read(unit=fid, fmt='(I2, A2, E14.6)', iostat=error) &
             indx, delimstr, OptParams(ii)
          if (error/=0) then
             close(unit=fid)
@@ -825,7 +825,7 @@ contains
 
       ! read data set
       t0 = max(JDN0 - JDNb + 1, 1)
-      t1 = min(max(JDN1 - JDNb, 1), INT4(ntottime))
+      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
       nstart = (/info%id, 24 / forcing_nhour * (t0-1) + 1/)
       ncount = (/1, 24 / forcing_nhour * (t1-t0+1)/)
       allocate(tmpArr(1, ncount(2)))
@@ -907,7 +907,7 @@ contains
 
       ! read data set
       t0 = max(JDN0 - JDNb + 1, 1)
-      t1 = min(max(JDN1 - JDNb, 1), INT4(ntottime))
+      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
       nstart = (/info%id, t0/)
       ncount = (/1, t1-t0+1/)
       allocate(tmpArr(1, ncount(2)))

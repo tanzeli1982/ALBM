@@ -9,7 +9,9 @@ module sensitivity_mod
    use sim_coupler_mod
    use read_data_mod
    use io_utilities_mod
-   use ifport 
+#ifdef USE_INTEL_COMPILER
+   use ifport
+#endif
    use mpi
 
    implicit none
@@ -103,7 +105,9 @@ contains
       type(SimTime) :: time, spinup, otime
       integer :: i4ret, lakeId
 
+#ifdef USE_INTEL_COMPILER
       i4ret = SIGNALQQ(SIG$FPE, hand_fpe)
+#endif
       ! read lake information (i.e. depth, location ...)
       lakeId = lake_range(1)
       call ReadLakeInfo(lakeId, sampleId)
@@ -199,6 +203,7 @@ contains
    ! Purpose: some utilities for exceptions: SIG$FPE, SIG$ABORT, SIG$SEGV
    !
    !------------------------------------------------------------------------------
+#ifdef USE_INTEL_COMPILER
    function hand_fpe(sigid, except)
       !DEC$ ATTRIBUTES C :: hand_fpe
       use ifport
@@ -230,5 +235,6 @@ contains
       print *, 'failed sample ', cur_sample, sa_params 
       hand_fpe = 1
    end function
+#endif
 
 end module sensitivity_mod

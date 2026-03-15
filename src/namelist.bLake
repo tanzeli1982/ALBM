@@ -1,7 +1,7 @@
 &general
  run_mode = 'regular'
  lake_file = './Lakes_E3SM.nc'
- lake_range = 1, 106 
+ lake_range = 1, 1 
  bathy_file = './Lakes_E3SM_bathymetry.nc'
  opt_file = ''
 /

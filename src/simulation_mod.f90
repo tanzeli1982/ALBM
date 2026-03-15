@@ -11,7 +11,9 @@ module simulation_mod
    use shr_typedef_mod
    use sim_coupler_mod
    use read_data_mod
+#ifdef USE_INTEL_COMPILER
    use ifport
+#endif
    use mpi
 
    private
@@ -203,7 +205,9 @@ contains
       real(r8) :: OptParams(NPARAM)
       integer :: i4ret
 
+#ifdef USE_INTEL_COMPILER
       i4ret = SIGNALQQ(SIG$FPE, hand_fpe)
+#endif
       ! read lake information (i.e. depth, location ...)
       call ReadLakeInfo(lakeId, -9999)
       call ReadOptimumParameters(OptParams)
@@ -225,6 +229,7 @@ contains
    ! Purpose: some utilities for exceptions
    !
    !------------------------------------------------------------------------------
+#ifdef USE_INTEL_COMPILER
    function hand_fpe(sigid, except)
       !DEC$ ATTRIBUTES C :: hand_fpe
       use ifport
@@ -256,5 +261,6 @@ contains
       print *, 'lake failed: ', lake_info 
       hand_fpe = 1
    end function
+#endif
 
 end module

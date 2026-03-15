@@ -46,12 +46,15 @@ contains
       end if
 
       ntot = size(m_airTemp)
-      if (hindx<=0 .and. nday<=1) then
-         nt = int(mod(hindx+23,24)/forcing_nhour) + 1
-      else if (hindx>ntot) then
-         nt = 24/forcing_nhour*(nday-2) + int(mod(hindx-1,24)/forcing_nhour) + 1
+      if (hindx>0) then
+         nt = int(24/forcing_nhour)*(nday-1) + int(mod(hindx-1,24)/forcing_nhour) + 1
       else
-         nt = 24/forcing_nhour*(nday-1) + int(mod(hindx-1,24)/forcing_nhour) + 1
+         nt = int(24/forcing_nhour)*(nday-1) + int((mod(hindx-1,24)+24)/forcing_nhour) + 1
+      end if
+      if (nt<=0) then
+         nt = nt + int(24/forcing_nhour)
+      else if (nt>ntot) then
+         nt = nt - int(24/forcing_nhour)
       end if
 
       nytot = size(m_aCO2)

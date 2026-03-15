@@ -360,7 +360,7 @@ contains
       if (Tw>e8) then
          CalcWaterHeatDiffusivity = (0.558 + 2.223d-3*Tw - 1.797d-5*(Tw**2)) / 4.2d6
       else if (Tw<e8 .and. Tw>-5._r8) then
-         param = Tw / -5._r8 
+         param = Tw / (-5._r8)
          CalcWaterHeatDiffusivity = Ktw_ref*(1.0 - param) + Kti_ref*param 
       else
          CalcWaterHeatDiffusivity = 1.16 * (1.91 - 8.66d-3*Tw + &
