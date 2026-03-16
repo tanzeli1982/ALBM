@@ -33,3 +33,4 @@
 
 *.sub
 *.swp
+.DS_Store
