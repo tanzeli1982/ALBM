@@ -1,0 +1,24 @@
+#!/bin/bash -l
+
+#SBATCH -J albm_da
+#SBATCH -N 1 
+#SBATCH -n 1
+#SBATCH -t 03:00:00
+#SBATCH -A  rsvtmp 
+##SBATCH  --exclusive
+##SBATCH -p slurm
+#SBATCH -p short
+#SBATCH --mail-type=END
+#SBATCH --mail-user=zeli.tan@pnnl.gov
+#SBATCH -o slurm.out
+#SBATCH -e slurm.out
+
+module purge
+
+export NETCDF_HOME=/people/tanz151/packages/Pnetcdf_mvapich_2.3.7
+export LD_LIBRARY_PATH=$NETCDF_HOME/lib:$LD_LIBRARY_PATH
+module load intel/2022.1.0 mvapich2/2.3.7
+
+export MV2_USE_SHMEM_COLL=0
+
+mpirun -np 1 ./ALBM.exe namelist.bLake
