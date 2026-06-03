@@ -1,0 +1,161 @@
+{
+  "base_dir": "..",
+  "runs": [
+    {
+      "conditions": [
+        {
+          "color": "#999999",
+          "linestyle": "--",
+          "model": "static",
+          "name": "Initial guess",
+          "optimize": false,
+          "target_names": [
+            "dissolved_summer",
+            "dissolved_winter",
+            "emissions_summer",
+            "emissions_winter"
+          ]
+        },
+        {
+          "color": "#E69F00",
+          "linestyle": "-",
+          "model": "static",
+          "name": "All Observations",
+          "optimize": true,
+          "target_names": [
+            "dissolved_summer",
+            "dissolved_winter",
+            "emissions_summer",
+            "emissions_winter"
+          ]
+        },
+        {
+          "color": "#009E73",
+          "linestyle": "-",
+          "model": "static",
+          "name": "No Winter Obs.",
+          "optimize": true,
+          "target_names": [
+            "dissolved_summer",
+            "emissions_summer"
+          ]
+        },
+        {
+          "color": "#0072B2",
+          "linestyle": "-",
+          "model": "static",
+          "name": "No Winter Emission Obs.",
+          "optimize": true,
+          "target_names": [
+            "dissolved_summer",
+            "dissolved_winter",
+            "emissions_summer"
+          ]
+        },
+        {
+          "color": "#D55E00",
+          "linestyle": "-.",
+          "model": "temperature",
+          "name": "Temperature-Based",
+          "optimize": true,
+          "target_names": [
+            "dissolved_summer",
+            "dissolved_winter",
+            "emissions_summer",
+            "emissions_winter"
+          ]
+        }
+      ],
+      "data": {
+        "cache_path": "data/processed_albm_data.pkl",
+        "date_range": "20210101_20250101",
+        "eddy_flux_file": "data/2026_05_08_EC_CH4.xlsx",
+        "lake_area": 40000.0,
+        "results_dir": "ALBM data",
+        "save_cache": false,
+        "use_cache": true
+      },
+      "description": "Big Trail Lake isoALBM manuscript reproduction run.",
+      "flux_observations": {
+        "enabled": true,
+        "format": "auto",
+        "path": "data/2026_05_08_EC_CH4.xlsx",
+        "required": false
+      },
+      "id": "big_trail_lake_paper",
+      "isotope_targets": [
+        {
+          "component": "dissolved",
+          "mean": -39.08,
+          "name": "dissolved_summer",
+          "season": "summer",
+          "source": "summary",
+          "std": 10.8
+        },
+        {
+          "component": "dissolved",
+          "mean": -63.56,
+          "name": "dissolved_winter",
+          "season": "winter",
+          "source": "summary",
+          "std": 0.0738
+        },
+        {
+          "component": "emission",
+          "diffusion_fraction": 0.13,
+          "dissolved_mean": -39.08,
+          "dissolved_std": 10.8,
+          "ebullition_mean": -56.93,
+          "ebullition_std": 0.223,
+          "mean": -54.6095,
+          "name": "emissions_summer",
+          "season": "summer",
+          "source": "summary",
+          "std": 1.417341130462247
+        },
+        {
+          "component": "emission",
+          "diffusion_fraction": 0.24,
+          "dissolved_mean": -63.56,
+          "dissolved_std": 0.0738,
+          "ebullition_mean": -64.28,
+          "ebullition_std": 6.19,
+          "mean": -64.1072,
+          "name": "emissions_winter",
+          "season": "winter",
+          "source": "summary",
+          "std": 4.704433342597597
+        }
+      ],
+      "optimizer": {
+        "backend": "legacy_when_possible",
+        "maxiter": 200,
+        "normalize_by_std": false,
+        "polish": true,
+        "popsize": 15,
+        "seed": 42,
+        "tol": 0.01,
+        "verbose": false,
+        "workers": -1
+      },
+      "output_dir": "outputs/big_trail_lake_paper",
+      "plots": {
+        "ch4_budget": true,
+        "dissolved_pool_timeseries": true,
+        "eddy_comparison": true,
+        "enabled": true,
+        "flux_components": true,
+        "flux_components_linear": true,
+        "optimization_comparison": true,
+        "overlap_violins": true,
+        "oxic_and_exchange_heatmaps": false,
+        "pool_sources_sinks": true,
+        "sediment_temperature": true,
+        "show": false,
+        "water_column_doy_climatology_heatmaps": false,
+        "water_column_heatmaps": false
+      }
+    }
+  ],
+  "version": 1
+}

@@ -1,0 +1,131 @@
+version = 1
+base_dir = ".."
+
+[[runs]]
+id = "big_trail_lake_paper"
+description = "Big Trail Lake isoALBM manuscript reproduction run."
+output_dir = "outputs/big_trail_lake_paper"
+
+[runs.data]
+cache_path = "data/processed_albm_data.pkl"
+results_dir = "ALBM data"
+date_range = "20210101_20250101"
+eddy_flux_file = "data/2026_05_08_EC_CH4.xlsx"
+use_cache = true
+save_cache = false
+lake_area = 40000.0
+
+[runs.flux_observations]
+enabled = true
+required = false
+format = "auto"
+path = "data/2026_05_08_EC_CH4.xlsx"
+
+[runs.optimizer]
+backend = "legacy_when_possible"
+maxiter = 200
+tol = 0.01
+popsize = 15
+workers = -1
+seed = 42
+normalize_by_std = false
+polish = true
+verbose = false
+
+[runs.plots]
+enabled = true
+show = false
+water_column_heatmaps = false
+water_column_doy_climatology_heatmaps = false
+oxic_and_exchange_heatmaps = false
+eddy_comparison = true
+flux_components = true
+flux_components_linear = true
+ch4_budget = true
+pool_sources_sinks = true
+sediment_temperature = true
+optimization_comparison = true
+dissolved_pool_timeseries = true
+overlap_violins = true
+
+[[runs.isotope_targets]]
+name = "dissolved_summer"
+source = "summary"
+component = "dissolved"
+season = "summer"
+mean = -39.08
+std = 10.80
+
+[[runs.isotope_targets]]
+name = "dissolved_winter"
+source = "summary"
+component = "dissolved"
+season = "winter"
+mean = -63.56
+std = 0.0738
+
+[[runs.isotope_targets]]
+name = "emissions_summer"
+source = "summary"
+component = "emission"
+season = "summer"
+mean = -54.6095
+std = 1.417341130462247
+dissolved_mean = -39.08
+dissolved_std = 10.80
+ebullition_mean = -56.93
+ebullition_std = 0.223
+diffusion_fraction = 0.13
+
+[[runs.isotope_targets]]
+name = "emissions_winter"
+source = "summary"
+component = "emission"
+season = "winter"
+mean = -64.1072
+std = 4.704433342597597
+dissolved_mean = -63.56
+dissolved_std = 0.0738
+ebullition_mean = -64.28
+ebullition_std = 6.19
+diffusion_fraction = 0.24
+
+[[runs.conditions]]
+name = "Initial guess"
+model = "static"
+optimize = false
+target_names = ["dissolved_summer", "dissolved_winter", "emissions_summer", "emissions_winter"]
+color = "#999999"
+linestyle = "--"
+
+[[runs.conditions]]
+name = "All Observations"
+model = "static"
+optimize = true
+target_names = ["dissolved_summer", "dissolved_winter", "emissions_summer", "emissions_winter"]
+color = "#E69F00"
+linestyle = "-"
+
+[[runs.conditions]]
+name = "No Winter Obs."
+model = "static"
+optimize = true
+target_names = ["dissolved_summer", "emissions_summer"]
+color = "#009E73"
+linestyle = "-"
+
+[[runs.conditions]]
+name = "No Winter Emission Obs."
+model = "static"
+optimize = true
+target_names = ["dissolved_summer", "dissolved_winter", "emissions_summer"]
+color = "#0072B2"
+linestyle = "-"
+
+[[runs.conditions]]
+name = "Temperature-Based"
+model = "temperature"
+optimize = true
+target_names = ["dissolved_summer", "dissolved_winter", "emissions_summer", "emissions_winter"]
+color = "#D55E00"
+linestyle = "-."

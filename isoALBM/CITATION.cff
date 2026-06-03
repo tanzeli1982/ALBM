@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the associated isoALBM paper"
+title: "isoALBM Big Trail Lake reproducibility code"
+version: "0.1.0"
+date-released: "2026-05-26"
+license: "BSD-3-Clause"
+authors:
+  - family-names: "Rozmiarek"
+    given-names: "Kevin"
+abstract: "Compact reproducibility repository for the isoALBM Big Trail Lake analysis from precomputed ALBM outputs."

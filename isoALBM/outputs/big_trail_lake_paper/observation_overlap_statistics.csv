@@ -1,0 +1,18 @@
+target,component,season,start_date,end_date,model_mean,model_std,observed_mean,observed_std,raw_error,weighted_error,weight,n_observations,source,source_file,condition
+dissolved_summer,dissolved,summer,,,,,-39.08,10.8,,,1.0,,summary,,Initial guess
+dissolved_winter,dissolved,winter,,,-54.88167707995471,3.50725203968384,-63.56,0.0738,75.3132887045834,75.3132887045834,1.0,,summary,,Initial guess
+emissions_summer,emission,summer,,,-58.173242699796866,3.484114020975087e-13,-54.6095,1.417341130462247,12.700262030355475,12.700262030355475,1.0,,summary,,Initial guess
+emissions_winter,emission,winter,,,-58.16572907361812,0.057976102741629974,-64.1072,4.704433342597597,35.301076769041266,35.301076769041266,1.0,,summary,,Initial guess
+dissolved_summer,dissolved,summer,,,,,-39.08,10.8,,,1.0,,summary,,All Observations
+dissolved_winter,dissolved,winter,,,-58.595762184910114,3.4704554188316896,-63.56,0.0738,24.643657084768424,24.643657084768424,1.0,,summary,,All Observations
+emissions_summer,emission,summer,,,-61.85281703983238,4.3538945087067036e-13,-54.6095,1.417341130462247,52.46564173952617,52.46564173952617,1.0,,summary,,All Observations
+emissions_winter,emission,winter,,,-61.84538160377065,0.05737277735017917,-64.1072,4.704433342597597,5.115822457521547,5.115822457521547,1.0,,summary,,All Observations
+dissolved_summer,dissolved,summer,,,,,-39.08,10.8,,,1.0,,summary,,No Winter Obs.
+emissions_summer,emission,summer,,,-54.60950104212008,4.742711045656769e-13,-54.6095,1.417341130462247,1.086014266709717e-12,1.086014266709717e-12,1.0,,summary,,No Winter Obs.
+dissolved_summer,dissolved,summer,,,,,-39.08,10.8,,,1.0,,summary,,No Winter Emission Obs.
+dissolved_winter,dissolved,winter,,,-57.46484430264868,3.474624510276696,-63.56,0.0738,37.1509229749543,37.1509229749543,1.0,,summary,,No Winter Emission Obs.
+emissions_summer,emission,summer,,,-60.725811888892494,1.5286415017210397e-13,-54.6095,1.417341130462247,37.409271122207706,37.409271122207706,1.0,,summary,,No Winter Emission Obs.
+dissolved_summer,dissolved,summer,,,,,-39.08,10.8,,,1.0,,summary,,Temperature-Based
+dissolved_winter,dissolved,winter,,,-61.937623042649065,4.535873603220463,-63.56,0.0738,2.6321069917432847,2.6321069917432847,1.0,,summary,,Temperature-Based
+emissions_summer,emission,summer,,,-54.68168705998411,1.933632585623221,-54.6095,1.417341130462247,0.005210971629149449,0.005210971629149449,1.0,,summary,,Temperature-Based
+emissions_winter,emission,winter,,,-65.66299057149745,1.6166386698406692,-64.1072,4.704433342597597,2.4204843023603297,2.4204843023603297,1.0,,summary,,Temperature-Based
