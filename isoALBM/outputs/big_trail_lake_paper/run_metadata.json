@@ -1,0 +1,24 @@
+{
+  "albm_end_date": "2024-12-31",
+  "albm_start_date": "2021-01-01",
+  "cache_path": "C:\\Users\\Kevin\\Documents\\Permafrost-isotopes-pub\\data\\processed_albm_data.pkl",
+  "conditions": [
+    "Initial guess",
+    "All Observations",
+    "No Winter Obs.",
+    "No Winter Emission Obs.",
+    "Temperature-Based"
+  ],
+  "created_at": "2026-06-03T11:45:05",
+  "date_range": "20210101_20250101",
+  "flux_observations_loaded": false,
+  "n_timesteps": 1461,
+  "platform": "Windows-10-10.0.26200-SP0",
+  "python": "3.11.14",
+  "results_dir": "C:\\Users\\Kevin\\Documents\\Permafrost-isotopes-pub\\ALBM data",
+  "run_id": "big_trail_lake_paper",
+  "sediment_temp_shape": [
+    1461,
+    41
+  ]
+}

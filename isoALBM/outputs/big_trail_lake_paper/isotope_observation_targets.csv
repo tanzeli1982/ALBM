@@ -1,0 +1,5 @@
+name,component,season,start_date,end_date,mean,std,weight,enabled,source,source_file,n_observations,legacy_compatible,dissolved_mean,dissolved_std,ebullition_mean,ebullition_std,diffusion_fraction
+dissolved_summer,dissolved,summer,,,-39.08,10.8,1.0,True,summary,,,True,,,,,
+dissolved_winter,dissolved,winter,,,-63.56,0.0738,1.0,True,summary,,,True,,,,,
+emissions_summer,emission,summer,,,-54.6095,1.417341130462247,1.0,True,summary,,,True,-39.08,10.8,-56.93,0.223,0.13
+emissions_winter,emission,winter,,,-64.1072,4.704433342597597,1.0,True,summary,,,True,-63.56,0.0738,-64.28,6.19,0.24
