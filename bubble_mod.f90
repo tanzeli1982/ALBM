@@ -36,7 +36,7 @@ module bubble_mod
    real(r8), allocatable :: schmidt(:,:)
    ! bubble amount
    real(r8), allocatable :: bNumb(:,:)
-   ! water layer boundaries (m)
+   ! water layer boundaries relative to water surface (m)
    real(r8), allocatable :: topZw(:)
    real(r8), allocatable :: btmZw(:)
    ! time step (s)
@@ -318,14 +318,14 @@ contains
       ! initialize intermediate variables
       do ii = 1, WATER_LAYER+1, 1
          if (ii==1) then
-            topZw(ii) = m_Zw(ii)
-            btmZw(ii) = m_Zw(ii) + m_dZw(ii)
+            topZw(ii) = m_Zw(ii) - m_Zw(1)
+            btmZw(ii) = m_Zw(ii) + m_dZw(ii) - m_Zw(1)
          else if (ii==WATER_LAYER+1) then
-            topZw(ii) = m_Zw(ii) - m_dZw(ii)
-            btmZw(ii) = m_Zw(ii)
+            topZw(ii) = m_Zw(ii) - m_dZw(ii) - m_Zw(1)
+            btmZw(ii) = m_Zw(ii) - m_Zw(1)
          else
-            topZw(ii) = m_Zw(ii) - 0.5*m_dZw(ii)
-            btmZw(ii) = m_Zw(ii) + 0.5*m_dZw(ii)
+            topZw(ii) = m_Zw(ii) - 0.5*m_dZw(ii) - m_Zw(1)
+            btmZw(ii) = m_Zw(ii) + 0.5*m_dZw(ii) - m_Zw(1)
          end if
       end do
    end subroutine

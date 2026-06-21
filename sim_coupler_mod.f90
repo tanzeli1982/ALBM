@@ -222,8 +222,6 @@ contains
             if (ncount>100) then
                error = 1
                print "(A, I0, A, I0)", 'Run ', rid, ': diverges at step ', hindx
-               print *, "m_waterTemp ", m_waterTemp
-               print *, "m_sedTemp ", m_sedTemp
             end if
             nextstep = 50.0_r8
          else if (curstep>=0.1) then

@@ -491,10 +491,9 @@ contains
       namelist /general/ run_mode, lake_file, lake_range, bathy_file, &
                          restart_file, opt_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
-                            Carbon_Module, Hydro_Module, Start_Year, &
-                            Start_Month, Start_Day, End_Year, End_Month, &
-                            End_Day, Spinup_Month, Spinup_Day, nSpinup, &
-                            Use_Leap
+                            Carbon_Module, Start_Year, Start_Month, Start_Day, &
+                            End_Year, End_Month, End_Day, Spinup_Month, &
+                            Spinup_Day, nSpinup, Use_Leap
       namelist /resolution/ NWLAYER, NSLAYER, NRLAYER, NSCOL
       namelist /bayesian/ NMAXSAMPLE, sample_range, mc_file, SA_Start_Year, &
                           SA_Start_Month, SA_Start_Day, SA_End_Year, &

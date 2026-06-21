@@ -258,7 +258,7 @@ contains
                      rnPCO2(:,icol,ii)) 
                call AerobicRespiration(carb, temp, Do2, rPCO2(:,icol,ii))
                ! ebullition rates (Eq. (A.1), Stepanenko et al.)
-               depth = m_Zs(ii) + m_Zw(indx) 
+               depth = m_Zs(ii) + m_Zw(indx) - m_Zw(1) 
                Hch4 = CalcHenrySolubility(Wch4, temp, pH)
                Hn2 = CalcHenrySolubility(Wn2, temp, pH)
                pch4 = m_sedSubCon(Wch4,icol,ii)/Hch4
@@ -470,7 +470,7 @@ contains
             end if
             do ii = 1, SED_LAYER+1, 1
                Zs = m_Zs(ii)
-               if (Zs+m_Zw(indx)>depth) then
+               if (Zs+m_Zw(indx)-m_Zw(1)>depth) then
                   m_frzCarbPool(oldC,icol,ii) = 0.0_r8
                   m_unfrzCarbPool(oldC,icol,ii) = 0.0_r8
                else
