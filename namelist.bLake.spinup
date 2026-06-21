@@ -3,7 +3,7 @@
  lake_file = './Lakes_GrandCoulee.nc'
  lake_range = 1, 1
  bathy_file = './Lakes_GrandCoulee_bathymetry.nc'
- restart_file = './bLake.r.19900101.nc'
+ restart_file = ''
  opt_file = './optpar.dat'
 /
 
@@ -12,12 +12,12 @@
  Bubble_Module = .False.
  Diagenesis_Module = .False.
  Carbon_Module = .False.
- Start_Year = 1990
+ Start_Year = 1985
  Start_Month = 1
  Start_Day = 1
- End_Year = 2018
- End_Month = 8
- End_Day = 23
+ End_Year = 1990
+ End_Month = 1
+ End_Day = 1
  Spinup_Month = 7
  Spinup_Day = 1
  nSpinup = 5

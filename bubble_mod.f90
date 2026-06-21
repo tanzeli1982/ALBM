@@ -234,8 +234,7 @@ contains
                temp = m_waterTemp(locIndx) 
                wb = CalcBuoyantVelocity(rr, dVsc(locIndx))
                gama = bGama(locIndx) 
-               pressure = m_surfData%pressure + 2.0*gama/rr - &
-                  Roul*G*(pos+m_surfData%dzsurf)
+               pressure = m_surfData%pressure + 2.0*gama/rr - Roul*G*pos
                ! gas exchange rate
                peclet = rr * wb / bDiff(:,locindx)
                reynold = peclet / schmidt(:,locindx)
@@ -252,8 +251,7 @@ contains
                Vbg = Vbg + bNumb(rIndx,icol) * ndm * tdelta
                where (Vbg<0._r8) Vbg = 0._r8    ! remove small negatives
                ! new radius
-               pr_tmp = 3.0*m_surfData%pressure - 3.0*Roul*G*(pos+ &
-                  m_surfData%dzsurf) + 4.0*gama/rr
+               pr_tmp = 3.0*m_surfData%pressure - 3.0*Roul*G*pos + 4.0*gama/rr
                dr_tmp1 = 0.75d-3*R*temp/(Pi*rr**2.0)/pr_tmp
                dr_tmp2 = rr*Roul*G*wb/pr_tmp
                rr = rr + (dr_tmp1*sum(ndm)+dr_tmp2)*tdelta
@@ -353,8 +351,7 @@ contains
             cycle
          end if
 
-         pressure = m_surfData%pressure + Roul*G*(btmZw(indx)- &
-            m_surfData%dzsurf)
+         pressure = m_surfData%pressure + Roul*G*btmZw(indx)
          tmp1 = 0.0_r8
          do rIndx = 1, NRLAYER+1, 1
             rr = m_Rb0(rIndx)
@@ -369,8 +366,8 @@ contains
          temp = m_waterTemp(indx)
          do rIndx = 1, NRLAYER+1, 1
             rr = m_Rb0(rIndx)
-            pressure = m_surfData%pressure + Roul*G*(btmZw(indx)- &
-               m_surfData%dzsurf) + 2.0*bGama(indx)/rr
+            pressure = m_surfData%pressure + Roul*G*btmZw(indx) + &
+               2.0*bGama(indx)/rr
             bNumb(rIndx,icol) = 0.75d-3*R*temp/(Pi*pressure*rr**3.0)* &
                sum(Vbg0(:,rIndx,icol))
          end do

@@ -12,6 +12,7 @@ module sim_coupler_mod
    use data_buffer_mod
    use boundary_mod
    use radiation_mod
+   use hydro_mod
    use thermal_mod
    use soil_thermal_mod
    use bubble_mod
@@ -33,7 +34,11 @@ contains
       integer, intent(out) :: error
 
       ! run spinup at first
-      call ModuleCoupler(rid, spinup, otime, .True., error)
+      if (len_trim(restart_file)==0) then
+         call ModuleCoupler(rid, spinup, otime, .True., error)
+      else
+         call ExtractRestartStates(rid, error)
+      end if
 
       ! Run simulation during the interested period
       if (error==0) then
@@ -43,7 +48,7 @@ contains
       end if
 
       if (error==1) then
-         call SetNullModelOutputs()
+         call InitializeModelOutputs()
       end if
    end subroutine
 
@@ -62,7 +67,7 @@ contains
       real(r8) :: curstep3, nextstep3
       real(r8) :: curstep4, nextstep4
       real(r8) :: t, t_old, tf
-      integer(i8) :: simhour, hindx, hindx_utc
+      integer(i8) :: simhour, hindx
       integer(i8) :: ohindx0, ohindx1
       integer :: simday, ncount, ndayout
       integer :: year, month, day
@@ -99,8 +104,6 @@ contains
       isSubHourNode = .True.        ! sub-hourly node flag
 
       STtol_col = STtol
-      hindx_utc = GetUTCHourIndex(hindx, lake_info%longitude)
-
       do while(t<tf .and. error==0)
          if(t>=3.6d+3*DBLE(hindx) .and. hindx<simhour) then
             if (DEBUG) then
@@ -114,7 +117,6 @@ contains
             end if
             isHourNode = .True.
             hindx = hindx + 1
-            hindx_utc = GetUTCHourIndex(hindx, lake_info%longitude)
          end if
 
          if (t-t_old>=TSTEP_SUB .or. isHourNode) then
@@ -123,14 +125,16 @@ contains
          end if
 
          if (isHourNode) then
-            if (trim(forcing_time)=='UTC') then
-               call GetBoundaryConditions(time, hindx_utc, isspinup)
-            else
-               call GetBoundaryConditions(time, hindx, isspinup)
-            end if
+            call GetAtmoConditions(time, hindx, isspinup)
+            call GetHydroConditions(time, hindx, isspinup)
             call GetSolarConditions(hindx)
          end if
 
+         if (Hydro_Module) then
+            if (isHourNode .and. (.NOT. isspinup)) then
+               call UpdateLakeStatesForHydroFluxes(3.6d3)
+            end if
+         end if
          if (Thermal_Module) then
             curstep1 = curstep
             curstep4 = curstep
@@ -218,6 +222,8 @@ contains
             if (ncount>100) then
                error = 1
                print "(A, I0, A, I0)", 'Run ', rid, ': diverges at step ', hindx
+               print *, "m_waterTemp ", m_waterTemp
+               print *, "m_sedTemp ", m_sedTemp
             end if
             nextstep = 50.0_r8
          else if (curstep>=0.1) then
@@ -241,6 +247,7 @@ contains
       call InitializeSmartsModule()
       call InitializeThermalModule()
       call InitializeSedThermalModule()
+      call InitializeHydroModule()
       call InitializeDiagenesisModule()
       call InitializeCarbonModule()
       call InitializeBubbleModule()
@@ -250,47 +257,8 @@ contains
    subroutine InitializeModelOutputs()
       implicit none
 
-      m_tempwHist = 0.0_r4
-      m_tempsHist = 0.0_r4
-      m_snowHist = 0.0_r4
-      m_iceHist = 0.0_r4
-      m_shHist = 0.0_r4
-      m_lhHist = 0.0_r4
-      m_fmmHist = 0.0_r4
-      m_lwHist = 0.0_r4
-      m_hnetHist = 0.0_r4
-      m_fsedHist = 0.0_r4
-      m_swdwHist = 0.0_r4
-      m_swupHist = 0.0_r4
-      m_fturbHist = 0.0_r4
-      m_dfch4airHist = 0.0_r4
-      m_ebch4airHist = 0.0_r4
-      m_dfch4sedHist = 0.0_r4
-      m_ebch4sedHist = 0.0_r4
-      m_totGPPHist = 0.0_r4
-      m_totNPPHist = 0.0_r4
-      m_totpch4sedHist = 0.0_r4
-      m_pch4watHist = 0.0_r4
-      m_och4watHist = 0.0_r4
-      m_depAtCHist = 0.0_r4
-      m_ch4concHist = 0.0_r4
-      m_o2concHist = 0.0_r4
-      m_n2concHist = 0.0_r4
-      m_co2concHist = 0.0_r4
-      m_srpconcHist = 0.0_r4
-      m_icebch4Hist = 0.0_r4
-      m_bvegHist = 0.0_r4
-      m_biomassHist = 0.0_r4
-      m_chlaHist = 0.0_r4
-      m_pascarbHist = 0.0_r4
-      m_actcarbHist = 0.0_r4
-      m_oldcarbHist = 0.0_r4
-      m_sedEHLHist = 0.0_r4
-   end subroutine
-
-   subroutine SetNullModelOutputs()
-      implicit none
-
+      m_ZwHist = -9999.0_r4
+      m_AzHist = -9999.0_r4
       m_tempwHist = -9999.0_r4
       m_tempsHist = -9999.0_r4
       m_snowHist = -9999.0_r4
@@ -304,6 +272,11 @@ contains
       m_swdwHist = -9999.0_r4 
       m_swupHist = -9999.0_r4
       m_fturbHist = -9999.0_r4
+      m_QwtHist = -9999.0_r4
+      m_Qch4Hist = -9999.0_r4
+      m_Qco2Hist = -9999.0_r4
+      m_Qo2Hist = -9999.0_r4
+      m_QsrpHist = -9999.0_r4
       m_dfch4airHist = -9999.0_r4
       m_ebch4airHist = -9999.0_r4
       m_dfch4sedHist = -9999.0_r4
@@ -341,7 +314,10 @@ contains
       real(r8) :: fsed, turbdiff(NWLAYER+1)
       real(r8) :: gpp, npp, pch4(NWLAYER+1)
       real(r8) :: och4(NWLAYER+1), sedpch4(NSCOL)
+      real(r8) :: Qwt, Qo2, Qco2, Qch4, Qsrp
 
+      m_ZwHist(:,hindx) = m_Zw
+      m_AzHist(:,hindx) = m_Az
       if (Thermal_Module) then
          call GetBoundaryOutputs(sh, lh, fmm, lw, hnet, fsed, turbdiff)
          m_tempwHist(:,hindx) = REAL(m_waterTemp)
@@ -357,6 +333,14 @@ contains
          m_swdwHist(hindx) = REAL(m_surfData%sw_sim)
          m_swupHist(hindx) = REAL(m_surfData%sw_sim - m_surfData%srd)
          m_fturbHist(:,hindx) = REAL(turbdiff)
+      end if
+      if (Hydro_Module) then
+         call GetOutflowFluxes(Qwt, Qo2, Qco2, Qch4, Qsrp)
+         m_QwtHist(hindx) = REAL(Qwt)
+         m_Qo2Hist(hindx) = REAL(Qo2) 
+         m_Qco2Hist(hindx) = REAL(Qco2)
+         m_Qch4Hist(hindx) = REAL(Qch4)
+         m_QsrpHist(hindx) = REAL(Qsrp)
       end if
       if (Carbon_Module) then
          call GetProductionRates(gpp, npp)
@@ -403,9 +387,9 @@ contains
       integer, intent(in) :: lakeId
       type(SimTime), intent(in) :: time
 
-      call WriteData(lakeId, time, 'zw', archive_tstep, m_Zw)
+      call WriteData(lakeId, time, 'zw', archive_tstep, m_ZwHist)
       call WriteData(lakeId, time, 'zs', archive_tstep, m_Zs)
-      call WriteData(lakeId, time, 'Az', archive_tstep, m_Az)
+      call WriteData(lakeId, time, 'Az', archive_tstep, m_AzHist)
       call WriteData(lakeId, time, 'colindx', archive_tstep, m_soilColInd)
       if (Thermal_Module) then
          call WriteData(lakeId, time, 'watertemp', archive_tstep, m_tempwHist)
@@ -421,6 +405,13 @@ contains
          call WriteData(lakeId, time, 'swup', archive_tstep, m_swupHist)
          !call WriteData(lakeId, time, 'swdw', archive_tstep, m_swdwHist)
          !call WriteData(lakeId, time, 'turbdiffheat', archive_tstep, m_fturbHist)
+      end if
+      if (Hydro_Module) then
+         call WriteData(lakeId, time, 'Qwt', archive_tstep, m_QwtHist)
+         call WriteData(lakeId, time, 'Qch4', archive_tstep, m_Qch4Hist)
+         call WriteData(lakeId, time, 'Qco2', archive_tstep, m_Qco2Hist)
+         call WriteData(lakeId, time, 'Qo2', archive_tstep, m_Qo2Hist)
+         call WriteData(lakeId, time, 'Qsrp', archive_tstep, m_QsrpHist)
       end if
       if (Carbon_Module) then
          call WriteData(lakeId, time, 'ch4df', archive_tstep, m_dfch4airHist)
@@ -493,11 +484,63 @@ contains
       end if
    end subroutine
 
+   subroutine ArchiveRestartStates(lakeId, time)
+      implicit none
+      integer, intent(in) :: lakeId
+      type(SimTime), intent(in) :: time
+
+      call WriteRestartData(lakeId, time, 'zw', m_Zw)
+      call WriteRestartData(lakeId, time, 'zs', m_Zs)
+      call WriteRestartData(lakeId, time, 'dzw', m_dZw)
+      call WriteRestartData(lakeId, time, 'dzs', m_dZs)
+      call WriteRestartData(lakeId, time, 'az', m_Az)
+      call WriteRestartData(lakeId, time, 'daz', m_dAz)
+      call WriteRestartData(lakeId, time, 'sal', m_SAL)
+      call WriteRestartData(lakeId, time, 'soilcolz', m_soilColZ)
+      call WriteRestartData(lakeId, time, 'soilcolind', m_soilColInd)
+      if (Thermal_Module) then
+         call WriteRestartData(lakeId, time, 'Hice', m_Hice)
+         call WriteRestartData(lakeId, time, 'Hsnow', m_Hsnow)
+         call WriteRestartData(lakeId, time, 'Hgrayice', m_Hgrayice)
+         call WriteRestartData(lakeId, time, 'watertemp', m_waterTemp)
+         call WriteRestartData(lakeId, time, 'waterice', m_waterIce)
+         call WriteRestartData(lakeId, time, 'sedtemp', m_sedTemp)
+         call WriteRestartData(lakeId, time, 'sedice', m_sedIce)
+      end if
+   end subroutine
+
+   subroutine ExtractRestartStates(lakeId, error)
+      implicit none
+      integer, intent(in) :: lakeId
+      integer, intent(out) :: error
+
+      call ReadRestartData(lakeId, 'zw', m_Zw)
+      call ReadRestartData(lakeId, 'zs', m_Zs)
+      call ReadRestartData(lakeId, 'dzw', m_dZw)
+      call ReadRestartData(lakeId, 'dzs', m_dZs)
+      call ReadRestartData(lakeId, 'az', m_Az)
+      call ReadRestartData(lakeId, 'daz', m_dAz)
+      call ReadRestartData(lakeId, 'sal', m_SAL)
+      call ReadRestartData(lakeId, 'soilcolz', m_soilColZ)
+      call ReadRestartData(lakeId, 'soilcolind', m_soilColInd)
+      if (Thermal_Module) then
+         call ReadRestartData(lakeId, 'Hice', m_Hice)
+         call ReadRestartData(lakeId, 'Hsnow', m_Hsnow)
+         call ReadRestartData(lakeId, 'Hgrayice', m_Hgrayice)
+         call ReadRestartData(lakeId, 'watertemp', m_waterTemp)
+         call ReadRestartData(lakeId, 'waterice', m_waterIce)
+         call ReadRestartData(lakeId, 'sedtemp', m_sedTemp)
+         call ReadRestartData(lakeId, 'sedice', m_sedIce)
+      end if
+      error = 0
+   end subroutine
+
    subroutine FinalizeSimulation()
       implicit none
 
       call DestructThermalModule()
       call DestructSedThermalModule()
+      call DestructHydroModule()
       call DestructDiagenesisModule()
       call DestructCarbonModule()
       call DestructBubbleModule()

@@ -353,12 +353,13 @@ contains
    subroutine AdjustIceTemp()
       implicit none
       real(r8) :: tmp1, tmp2, dH1, dH2
-      real(r8) :: dv1, dv2
+      real(r8) :: dv1, dv2, maxdepth
       integer :: ii, jj
 
       ! Water Freezing
+      maxdepth = sum(m_dZw)
       do ii = 1, WATER_LAYER+1, 1
-         if (m_Hice+e8>lake_info%maxdepth) then
+         if (m_Hice+e8>maxdepth) then
             exit  ! no liquid
          end if
          if (ii<m_lakeWaterTopIndex) then
@@ -588,7 +589,7 @@ contains
       end if
 
       m_HbLayer(1) = sum( m_dZw(1:m_mixTopIndex) ) 
-      m_HbLayer(2) = lake_info%maxdepth - sum( m_dZw(m_mixBotIndex:bottom) )
+      m_HbLayer(2) = sum(m_dZw) - sum( m_dZw(m_mixBotIndex:bottom) )
    end subroutine
 
    !------------------------------------------------------------------------------

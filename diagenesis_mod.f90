@@ -226,7 +226,7 @@ contains
 
       Re = sa_params(Param_Re)
       Ae = sa_params(Param_Ae)
-      Ps = m_surfData%pressure - Roul*G*m_surfData%dzsurf
+      Ps = m_surfData%pressure
       pH = lake_info%pH
       sal = lake_info%sal
       isCH4sat = .False.
@@ -443,7 +443,7 @@ contains
          end if
 
          indx = COUNT(m_soilColInd<=icol)
-         margin = (icol==1)
+         margin = (icol==1) .and. (NSCOL>1)
          ! permafrost thawing rate (m/(yr^0.5))
          if (margin) then
             Ct = 0.67_r8

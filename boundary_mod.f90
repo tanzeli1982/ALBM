@@ -8,8 +8,9 @@ module boundary_mod
    use radiation_mod
 
    private
-   public :: GetBoundaryConditions, GetSolarConditions 
-   public :: UpdateCatchmentThermalRegime
+   public :: GetAtmoConditions
+   public :: GetHydroConditions 
+   public :: GetSolarConditions 
 
 contains
    !------------------------------------------------------------------------------
@@ -17,17 +18,23 @@ contains
    ! Purpose: get lake model boundary conditions
    !
    !------------------------------------------------------------------------------
-   subroutine GetBoundaryConditions(time, hindx, isspinup)
+   subroutine GetAtmoConditions(time, hindx_raw, isspinup)
       implicit none
       type(SimTime), intent(in) :: time
-      integer(i8), intent(in) :: hindx
+      integer(i8), intent(in) :: hindx_raw
       logical, intent(in) :: isspinup
-      integer :: nyr, nmon, nday
+      integer :: hindx, nyr, nmon, nday
       integer :: year, month, day
       integer :: nt, ntot, nt_day
-      integer :: nytot, nmtot, ndtot
+      integer :: nytot, nmtot
       integer :: JDN0, JDN1, doy
       real(r8) :: Roun
+
+      if (trim(forcing_time)=='UTC') then
+         hindx = GetUTCHourIndex(hindx_raw, lake_info%longitude)
+      else
+         hindx = hindx_raw
+      end if
 
       ! Get the model running date
       if (.NOT. isspinup) then
@@ -46,11 +53,17 @@ contains
       end if
 
       ntot = size(m_airTemp)
-      nt = 24/forcing_nhour*(nday-1) + int(mod(hindx-1,24)/forcing_nhour) + 1
+      if (hindx>0) then
+         nt = int(24/forcing_nhour)*(nday-1) + &
+            int(mod(hindx-1,24)/forcing_nhour) + 1
+      else
+         nt = int(24/forcing_nhour)*(nday-1) + &
+            int((mod(hindx-1,24)+24)/forcing_nhour) + 1
+      end if
       if (nt<=0) then
-         nt = nt + 24/forcing_nhour
+         nt = nt + int(24/forcing_nhour)
       else if (nt>ntot) then
-         nt = nt - 24/forcing_nhour
+         nt = nt - int(24/forcing_nhour)
       end if
 
       nytot = size(m_aCO2)
@@ -77,21 +90,11 @@ contains
       m_radPars%AbO3 = m_aO3(nmon)
       m_radPars%tau550 = m_aAOD(nmon)
 
-      ! hydrology conditions
-      ndtot = size(m_dzsurf)
-      nday = max(min(nday, ndtot), 1)
-      m_surfData%dzsurf = m_dzsurf(nday)
-      if (m_srp(nday)>e8) then
-         m_surfData%srp = m_srp(nday) 
-      else
-         m_surfData%srp = lake_info%srp
-      end if
-
+      ! radiation parameters
       call Date2JDN(2001, 1, 1, JDN0)
       call Date2JDN(2001, month, day, JDN1)
       doy = JDN1 - JDN0 + 1
 
-      ! radiation parameters
       m_radPars%spr = 1.0d-2 * m_surfData%pressure
       m_radPars%tair = m_surfData%temp
       m_radPars%RH = m_surfData%RH
@@ -113,6 +116,40 @@ contains
          else
             m_radPars%season = 1
          end if
+      end if
+   end subroutine
+
+   subroutine GetHydroConditions(time, hindx, isspinup)
+      implicit none
+      type(SimTime), intent(in) :: time
+      integer(i8), intent(in) :: hindx
+      logical, intent(in) :: isspinup
+      integer :: nday, ndtot, idx, JDN0, JDN1
+
+      if (.NOT. Hydro_Module) then
+         return
+      end if
+
+      if (.NOT. isspinup) then
+         nday = GetDay(3.6d3*(hindx-1)) + 1
+         ndtot = size(m_Qwi)
+         idx = max(min(nday, ndtot), 1)
+         m_hydroData%Qwi = m_Qwi(idx) / SECOND_OF_DAY
+         m_hydroData%Qwo = m_Qwo(:,idx) / SECOND_OF_DAY
+         m_hydroData%WTi = m_Qwti(idx)
+         m_hydroData%o2i = m_Qo2i(idx)
+         m_hydroData%co2i = m_Qco2i(idx)
+         m_hydroData%ch4i = m_Qch4i(idx)
+         m_hydroData%srpi = m_Qsrpi(idx)
+      else
+         ! keep water level constant during spin-up
+         m_hydroData%Qwi = 0._r8
+         m_hydroData%Qwo = 0._r8
+         m_hydroData%WTi = T0 + 4._r8
+         m_hydroData%o2i = 0._r8
+         m_hydroData%co2i = 0._r8
+         m_hydroData%ch4i = 0._r8
+         m_hydroData%srpi = 0._r8
       end if
    end subroutine
 

@@ -4,11 +4,11 @@ module bg_utilities_mod
 ! Purpose: this module contains utilities related to aquatic biogeosciences. 
 !
 !---------------------------------------------------------------------------------
-   use shr_ctrl_mod,    only: e8 => SHR_CTRL_E8
+   use shr_ctrl_mod,    only : e8 => SHR_CTRL_E8
    use bg_const_mod
    use phy_const_mod
    use shr_param_mod
-   use math_utilities_mod, only: SolveQuadraticEquation
+   use math_utilities_mod, only : SolveQuadraticEquation
 
 contains
    !------------------------------------------------------------------------------

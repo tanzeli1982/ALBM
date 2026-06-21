@@ -13,6 +13,9 @@ module data_buffer_mod
 
    implicit none
    public
+   ! simulated hourly lake hypsography
+   real(r4), allocatable :: m_ZwHist(:,:)
+   real(r4), allocatable :: m_AzHist(:,:)
    ! simulated hourly water and sediment temperature profiles (K)
    real(r4), allocatable :: m_tempwHist(:,:)
    real(r4), allocatable :: m_tempsHist(:,:,:)
@@ -50,6 +53,12 @@ module data_buffer_mod
    real(r4), allocatable :: m_actcarbHist(:,:,:)
    real(r4), allocatable :: m_oldcarbHist(:,:,:)
    real(r4), allocatable :: m_sedEHLHist(:,:,:)
+   ! simulated hourly outflow temperature and chemicals
+   real(r4), allocatable :: m_QwtHist(:)
+   real(r4), allocatable :: m_Qch4Hist(:)
+   real(r4), allocatable :: m_Qco2Hist(:)
+   real(r4), allocatable :: m_Qo2Hist(:)
+   real(r4), allocatable :: m_QsrpHist(:)
    ! incumbent water and sediment temperature profile (K)
    real(r8), allocatable :: m_waterTemp(:), m_sedTemp(:,:)
    ! temporary water and sediment temperature profile (K) 
@@ -112,9 +121,14 @@ module data_buffer_mod
    real(r8), allocatable :: m_airPs(:)
    real(r8), allocatable :: m_airSWRad(:)
    real(r8), allocatable :: m_airLWRad(:)
-   ! hydrological conditions
-   real(r8), allocatable :: m_dzsurf(:)
-   real(r8), allocatable :: m_srp(:)
+   ! hydrological flux inputs
+   real(r8), allocatable :: m_Qwi(:)
+   real(r8), allocatable :: m_Qwo(:,:)
+   real(r8), allocatable :: m_Qwti(:)
+   real(r8), allocatable :: m_Qo2i(:)
+   real(r8), allocatable :: m_Qco2i(:)
+   real(r8), allocatable :: m_Qch4i(:)
+   real(r8), allocatable :: m_Qsrpi(:)
    ! radiation-related conditions
    real(r8), allocatable :: m_aCO2(:)
    real(r8), allocatable :: m_aO3(:)
@@ -142,17 +156,17 @@ module data_buffer_mod
    ! sediment free water top and bottom index
    integer, allocatable :: m_sedWaterTopIndex(:)
    integer, allocatable :: m_sedWaterBtmIndex(:)
-   ! sediment column index
+   ! sediment column index and its lowest elevation above lake bottom
    integer, allocatable :: m_soilColInd(:)
-   !integer, allocatable :: m_soilColBub(:)
+   real(r8), allocatable :: m_soilColZ(:)
+   ! hypsometric curve 
+   type(HypsometricCurve) :: m_hypsocurve
    ! lake ice, gray ice and snow thickness (m)
    real(r8) :: m_Hice, m_Hsnow, m_Hgrayice 
    ! areal forest fraction
    real(r8) :: m_ftree, m_fwlnd
    ! SOC density (kg/m2)
    real(r8) :: m_soc
-   ! initial DOC (mol/m3), SRP (mmol/m3) and algae (mg/m3)
-   real(r8) :: m_chla0, m_DOC0, m_DOC1, m_SRP0
    ! mixing layer thickness (m)
    real(r8) :: m_Hmix(2)
    ! surface and bottom boundary layer thickness (m)
@@ -163,6 +177,8 @@ module data_buffer_mod
    real(r8) :: m_Ekin
    ! user-defined surface forcing data
    type(SurfaceData) :: m_surfData
+   ! user-defined hydrologic flux data
+   type(HydroFluxData) :: m_hydroData
    ! user-defined radiation parameter set
    type(RadParaData) :: m_radPars
    ! lake free water top index
@@ -184,6 +200,7 @@ contains
       integer :: o3Indx(2), aodIndx(2)
       integer :: co2Indx(2), timeIndx(2)
       real(r8) :: loc180(2)
+      real(r8) :: vol, Asurf, zmax
 
       loc180 = (/lake_info%longitude, lake_info%latitude/)
 
@@ -215,7 +232,14 @@ contains
       o3Indx = (/12*(time%year0-1978)+time%month0, simmon/)
       aodIndx = (/12*(time%year0-1978)+time%month0, simmon/)
 
+      ! Read the number of water withdraw gates
+      if (Hydro_Module) then
+         call ReadLakeDimension(hydro_file, 'zwd', NZWD)
+      end if
+
       ! allocate memory for the archive variables
+      allocate(m_ZwHist(WATER_LAYER+1,ntout))
+      allocate(m_AzHist(WATER_LAYER+1,ntout))
       allocate(m_tempwHist(WATER_LAYER+1,ntout))
       allocate(m_tempsHist(NSCOL,SED_LAYER+1,ntout))
       allocate(m_snowHist(ntout))
@@ -252,6 +276,11 @@ contains
       allocate(m_actcarbHist(NSCOL,SED_LAYER+1,ntout))
       allocate(m_oldcarbHist(NSCOL,SED_LAYER+1,ntout))
       allocate(m_sedEHLHist(NSCOL,SED_LAYER+1,ntout))
+      allocate(m_QwtHist(ntout))
+      allocate(m_Qch4Hist(ntout))
+      allocate(m_Qco2Hist(ntout))
+      allocate(m_Qo2Hist(ntout))
+      allocate(m_QsrpHist(ntout))
       ! allocate memory for the state variables
       allocate(m_waterTemp(WATER_LAYER+1))
       allocate(m_sedTemp(NSCOL,SED_LAYER+1))
@@ -294,8 +323,17 @@ contains
       allocate(m_airSWRad(ntin))
       allocate(m_airLWRad(ntin))
       ! allocate memory for hydrology data
-      allocate(m_dzsurf(simday))
-      allocate(m_srp(simday))
+      if (Hydro_Module) then
+         allocate(m_Qwi(simday))
+         allocate(m_Qwo(NZWD,simday))
+         allocate(m_Qwti(simday))
+         allocate(m_Qo2i(simday))
+         allocate(m_Qco2i(simday))
+         allocate(m_Qch4i(simday))
+         allocate(m_Qsrpi(simday))
+         allocate(m_hydroData%Qwo(NZWD))
+         allocate(m_hydroData%zWD(NZWD))
+      end if
       ! allocate memory for irradiation data
       allocate(m_aCO2(simyr))
       allocate(m_aO3(simmon))
@@ -313,6 +351,7 @@ contains
       allocate(m_dAz(WATER_LAYER+1))
       allocate(m_SAL(WATER_LAYER+1))
       allocate(m_soilColInd(WATER_LAYER+1))
+      allocate(m_soilColZ(NSCOL))
       allocate(m_Rb0(NRLAYER+1))
       ! allocate intermediate vector
       allocate(m_Ktb(WATER_LAYER+1))
@@ -324,11 +363,21 @@ contains
       allocate(m_sedWaterBtmIndex(NSCOL))
 
       ! initialize depth vectors
-      call ConstructDepthVector(lake_info, m_Zw, m_dZw, m_Zs, m_dZs)
-      call ReadLakeBathymetry(lake_info, m_Zw, m_dZw, m_Az, m_dAz, &
-               m_SAL, m_soilColInd)
-      !call ReadSoilColBubFlag(m_soilColBub)
+      call ReadLakeHypsography(lake_info, m_hypsocurve)
+      if (Hydro_Module) then
+         call ReadLakeInitGeometry(hydro_file, lake_info, time, &
+                  vol, Asurf, zmax)
+         call BuildDepthVector(zmax, lake_info%hsed, m_Zw, m_dZw, m_Zs, m_dZs)
+         m_Zw = m_Zw - zmax + lake_info%maxdepth
+      else
+         call BuildDepthVector(lake_info%maxdepth, lake_info%hsed, &
+                  m_Zw, m_dZw, m_Zs, m_dZs)
+         vol = lake_info%depth * lake_info%Asurf 
+      end if
+      call BuildLakeStructure(lake_info, m_hypsocurve, vol, m_Zw, m_dZw, &
+               m_Az, m_dAz, m_SAL, m_soilColZ, m_soilColInd)
       call SetSedPorosity(m_Zs, m_dZs, m_sedpor)
+      ! read inputs
       call ReadStaticData(veg_file, 'ftree', 'longitude', 'latitude', &
                loc180, m_ftree)
       call ReadStaticData(wlnd_file, 'glwd', 'longitude', 'latitude', &
@@ -338,21 +387,36 @@ contains
       call ReadStaticData(tref_file, "t2m", 'longitude', 'latitude', &
                loc180, (/5.d-1,5.d-1/), Ncorigin, m_radPars%tref)
       ! initialize formal air forcing data
-      call ReadSiteTSData(tas_file, 'tas', lake_info, time, m_airTemp)
-      call ReadSiteTSData(hurs_file, 'hurs', lake_info, time, m_airRH)
-      call ReadSiteTSData(pr_file, 'pr', lake_info, time, m_airPr)
-      call ReadSiteTSData(ps_file, 'ps', lake_info, time, m_airPs)
-      call ReadSiteTSData(wind_file, 'sfcwind', lake_info, time, m_airWind)
-      call ReadSiteTSData(rsds_file, 'rsds', lake_info, time, m_airSWRad)
-      call ReadSiteTSData(rlds_file, 'rlds', lake_info, time, m_airLWRad)
+      call ReadSiteTSData(tas_file, 'tas', lake_info, time, &
+               forcing_nhour, m_airTemp)
+      call ReadSiteTSData(hurs_file, 'hurs', lake_info, time, &
+               forcing_nhour, m_airRH)
+      call ReadSiteTSData(pr_file, 'pr', lake_info, time, &
+               forcing_nhour, m_airPr)
+      call ReadSiteTSData(ps_file, 'ps', lake_info, time, &
+               forcing_nhour, m_airPs)
+      call ReadSiteTSData(wind_file, 'sfcwind', lake_info, time, &
+               forcing_nhour, m_airWind)
+      call ReadSiteTSData(rsds_file, 'rsds', lake_info, time, &
+               forcing_nhour, m_airSWRad)
+      call ReadSiteTSData(rlds_file, 'rlds', lake_info, time, &
+               forcing_nhour, m_airLWRad)
      
       call ReadGlobalTSData(co2_file, 'co2_rcp26', co2Indx, m_aCO2) 
       call Read2DTSData(o3_file, 'tro3', 'lon', 'lat', loc180, o3Indx, m_aO3)
       call Read2DTSData(aod_file, 'AOD_550', 'lon', 'lat', loc180, aodIndx, &
                m_aAOD)
       ! hydrology and chemistry input data
-      call ReadSiteHydroTSData(hydro_file, 'dzsurf', lake_info, time, m_dzsurf)
-      call ReadSiteHydroTSData(hydro_file, 'SRP', lake_info, time, m_srp)
+      if (Hydro_Module) then
+         call ReadSiteStaticData(hydro_file, 'zWD', lake_info, m_hydroData%zWD)
+         call ReadSiteTSData(hydro_file, 'Qwi', lake_info, time, 24, m_Qwi)
+         call ReadSite2DTSData(hydro_file, 'Qwo', lake_info, time, 24, m_Qwo)
+         call ReadSiteTSData(hydro_file, 'WT', lake_info, time, 24, m_Qwti)
+         call ReadSiteTSData(hydro_file, 'O2', lake_info, time, 24, m_Qo2i)
+         call ReadSiteTSData(hydro_file, 'CO2', lake_info, time, 24, m_Qco2i)
+         call ReadSiteTSData(hydro_file, 'CH4', lake_info, time, 24, m_Qch4i)
+         call ReadSiteTSData(hydro_file, 'SRP', lake_info, time, 24, m_Qsrpi)
+      end if
       ! rescale tree cover and wetland fraction
       call RescaleTreeCoverFraction(m_ftree)
       call RescaleWetlandFraction(m_fwlnd)
@@ -365,6 +429,8 @@ contains
       implicit none
 
       ! destroy the memory for the archive variables
+      deallocate(m_ZwHist)
+      deallocate(m_AzHist)
       deallocate(m_tempwHist)
       deallocate(m_tempsHist)
       deallocate(m_snowHist)
@@ -401,6 +467,11 @@ contains
       deallocate(m_actcarbHist)
       deallocate(m_oldcarbHist)
       deallocate(m_sedEHLHist)
+      deallocate(m_QwtHist)
+      deallocate(m_Qch4Hist)
+      deallocate(m_Qco2Hist)
+      deallocate(m_Qo2Hist)
+      deallocate(m_QsrpHist)
       ! destroy the memory for the state variables
       deallocate(m_waterTemp)
       deallocate(m_sedTemp)
@@ -443,8 +514,17 @@ contains
       deallocate(m_airSWRad)
       deallocate(m_airLWRad)
       ! destroy memory for hydrology data
-      deallocate(m_dzsurf)
-      deallocate(m_srp)
+      if (Hydro_Module) then
+         deallocate(m_Qwi)
+         deallocate(m_Qwo)
+         deallocate(m_Qwti)
+         deallocate(m_Qo2i)
+         deallocate(m_Qco2i)
+         deallocate(m_Qch4i)
+         deallocate(m_Qsrpi)
+         deallocate(m_hydroData%Qwo)
+         deallocate(m_hydroData%zWD)
+      end if
       ! destroy memory for irradiation data
       deallocate(m_aCO2)
       deallocate(m_aO3)
@@ -463,6 +543,7 @@ contains
       deallocate(m_dAz)
       deallocate(m_SAL)
       deallocate(m_soilColInd)
+      deallocate(m_soilColZ)
       deallocate(m_Rb0)
       ! destroy memory for intermediate variables
       deallocate(m_Ktb)
@@ -472,6 +553,10 @@ contains
       deallocate(m_topdflux)
       deallocate(m_sedWaterTopIndex)
       deallocate(m_sedWaterBtmIndex)
+      ! destroy memory for hypsometric curve
+      deallocate(m_hypsocurve%h)
+      deallocate(m_hypsocurve%A)
+      deallocate(m_hypsocurve%S)
    end subroutine
     
 end module data_buffer_mod

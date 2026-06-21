@@ -275,13 +275,14 @@ contains
    subroutine InitializeSoilStateVariables()
       implicit none
       real(r8) :: MAGT, talik, talik_theory
-      real(r8) :: dist, hMAGT
+      real(r8) :: dist, hMAGT, z0
       real(r8) :: Tbot, Ttop, Ttk, Tfz
       real(r8) :: Ks_tk, Ks_fz, dTtk, dTfz
       real(r8) :: satLW_tk, satLW_fz
       integer  :: ii, icol, indx
       logical  :: margin
 
+      z0 = m_Zw(1)
       do icol = 1, NSCOL, 1
          ! inactive sediment column
          if (COUNT(m_soilColInd==icol)==0) then
@@ -292,11 +293,11 @@ contains
 
          indx = COUNT(m_soilColInd<=icol)
          ! calculate sediment bottom temperature
-         margin = (icol==1)
+         margin = (icol==1) .and. (NSCOL>1)
          call CalcSedBottomTemp(lake_info, m_radPars%tref, margin, MAGT)
          ! calculate talik depth
          if (lake_info%thrmkst>0) then
-            talik = m_Zw(indx) / lake_info%excice
+            talik = (m_Zw(indx) - z0) / lake_info%excice
          else
             talik = lake_info%hsed
          end if
@@ -308,7 +309,7 @@ contains
             Ttop = T0 + 4.0
          else
             Tbot = min(MAGT,T0-1.0)
-            if (m_Zw(indx)>=2.0) then
+            if (m_Zw(indx)-z0>=2.0) then
                Ttop = T0 + 4.0
             else
                Ttop = min(max(m_radPars%tref,T0+0.5),T0+4.0)

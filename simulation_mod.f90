@@ -97,10 +97,15 @@ contains
       time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
                      End_Month, End_Day)
       if (minid==1 .and. masterproc) then
-         call CreateOutputFile(time, NWLAYER+1, 'zw', 'water layer depth', 'm') 
+         ! create restart file
+         call CreateRestartFile(time)
+
+         ! create output files
+         call CreateOutputFile(time, NWLAYER+1, 'zw', 'Z', 'water layer depth', &
+                              'm', -9999.0_r4) 
          call CreateOutputFile(time, NSLAYER+1, 'zs', 'sediment layer depth', 'm')
-         call CreateOutputFile(time, NWLAYER+1, 'Az', 'water layer ' // & 
-                              'cross-section area', 'm^2');
+         call CreateOutputFile(time, NWLAYER+1, 'Az', 'Z', 'water layer ' // & 
+                              'cross-section area', 'm^2', -9999.0_r4);
          call CreateOutputFile(time, NWLAYER+1, 'colindx', 'water layer ' // &
                               'connected sediment column index', 'index')
          if (Thermal_Module) then
@@ -138,6 +143,18 @@ contains
             !                     -9999.0_r4)
             call CreateOutputFile(time, NSCOL, NSLAYER+1, 'sedtemp', 'COL', 'Z', &
                                  'Temperature of Lake Sediment', 'K', -9999.0_r4)
+         end if
+         if (Hydro_Module) then
+            call CreateOutputFile(time, 'Qwt', 'Outflow water temperature', &
+                                 'm', -9999.0_r4)
+            call CreateOutputFile(time, 'Qch4', 'Outflow CH4 concentration', &
+                                 'mol m-3', -9999.0_r4)
+            call CreateOutputFile(time, 'Qco2', 'Outflow CO2 concentration', &
+                                 'mol m-3', -9999.0_r4)
+            call CreateOutputFile(time, 'Qo2', 'Outflow O2 concentration', &
+                                 'mol m-3', -9999.0_r4)
+            call CreateOutputFile(time, 'Qsrp', 'Outflow SRP concentration', &
+                                 'mol m-3', -9999.0_r4)
          end if
          if (Carbon_Module) then
             call CreateOutputFile(time, 'ch4df', 'surface methane diffusion flux', &
@@ -221,6 +238,7 @@ contains
       call InitializeSimulation()
       call ModelRun(lakeId, time, spinup, otime, error)
       call ArchiveModelOutput(lakeId, otime)
+      call ArchiveRestartStates(lakeId, otime)
       call FinalizeSimulation()
    end subroutine
 

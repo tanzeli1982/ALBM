@@ -6,8 +6,8 @@ module read_data_mod
 ! ECMWF data reanalysis: http://stommel.tamu.edu/~baum/ecmwf.html
 !
 !---------------------------------------------------------------------------------
-   use shr_kind_mod,       only : cs => SHR_KIND_CS, cx => SHR_KIND_CX, &
-                                  r8, r4, i8, i4, i1
+   use shr_kind_mod,       only : cs => SHR_KIND_CS, cx => SHR_KIND_CX
+   use shr_kind_mod,       only : r8, r4, i8, i4, i1
    use shr_typedef_mod,    only : LakeInfo, SimTime
    use shr_ctrl_mod
    use shr_param_mod
@@ -58,6 +58,7 @@ contains
       call ReadLakeInfoData(lake_file, 'depth', lakeId, lake_info%depth)   ! m
       call ReadLakeInfoData(lake_file, 'maxdepth', lakeId, lake_info%maxdepth) ! m
       call ReadLakeInfoData(lake_file, 'Asurf', lakeId, area)  ! km^2
+      call ReadLakeInfoData(lake_file, 'Abasin', lakeId, lake_info%Abasin)  ! km^2
       call ReadLakeInfoData(lake_file, 'alt', lakeId, elev)    ! m
       call ReadLakeInfoData(lake_file, 'wrt', lakeId, lake_info%wrt)    ! day
       call ReadLakeInfoData(lake_file, 'pH', lakeId, lake_info%pH)      !
@@ -68,7 +69,6 @@ contains
       call ReadLakeInfoData(lake_file, 'cdep', lakeId, lake_info%cdep)  ! gC/m^2/yr
       call ReadLakeInfoData(lake_file, 'ice', lakeId, lake_info%excice) ! fraction
       call ReadLakeInfoData(lake_file, 'hsed', lakeId, lake_info%hsed)  ! m
-      call ReadLakeInfoData(lake_file, 'bfdep', lakeId, lake_info%bfdep)  ! m
       call ReadLakeInfoData(lake_file, 'thrmkst', lakeId, lake_info%thrmkst)
       call ReadLakeInfoData(lake_file, 'eta', lakeId, eta) ! m^-1
       call ReadLakeInfoData(lake_file, 'refPOC', lakeId, lake_info%refPOC) ! gC/m3
@@ -77,7 +77,7 @@ contains
       lake_info%Asurf = 1.d6 * area  ! m^2
       lake_info%zalt = 1.d-3 * elev  ! km
       lake_info%kext = eta
-      lake_info%bfdep = max(0.1_r8, lake_info%bfdep)
+      lake_info%bfdep = max(0.1_r8, 0.1_r8*(lake_info%Abasin)**0.4_r8)
       if (lake_info%maxdepth<=0.1*NWLAYER) then
          WATER_LAYER = INT(10 * lake_info%maxdepth)
       else
@@ -128,46 +128,95 @@ contains
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Read soil column active flags for ebullition
+   ! Purpose: Read lake dimension size. 
    !
    !------------------------------------------------------------------------------
-   !subroutine ReadSoilColBubFlag(soilColBub)
-   !   implicit none
-   !   integer, intent(out) :: soilColBub(:)
-   !   integer :: nflag
-   !   integer :: pos2, pos1
-   !
-   !   soilColBub = 1 ! default values
-   !   nflag = 0
-   !   pos1 = 1
-   !   do while (.True.)
-   !      pos2 = index(Bubble_Cols(pos1:), ",")
-   !      nflag = nflag + 1
-   !      if (pos2==0) then
-   !         exit
-   !      end if
-   !      pos1 = pos2 + pos1
-   !   end do
-   !   if (nflag>NSCOL) then
-   !      call Endrun("The size of Bubble_Cols cannot exceed NSCOL")
-   !   end if
-   !   read(Bubble_Cols,fmt=*) soilColBub(1:nflag)
-   !end subroutine
+   subroutine ReadLakeDimension(filename, dimname, ndim)
+      implicit none
+      character(len=*), intent(in) :: filename
+      character(len=*), intent(in) :: dimname
+      integer, intent(out) :: ndim
+      character(cx) :: fullname
+      integer :: ncid, dimid
+      integer(kind=MPI_OFFSET_KIND) :: nlevel
+
+      call GetFullFileName(filename, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      call check( nf90mpi_inq_dimid(ncid, dimname, dimid) )
+      call check( nf90mpi_inquire_dimension(ncid, dimid, len = nlevel) )
+      call check( nf90mpi_close(ncid) )
+      ndim = INT(nlevel, i4)
+      if (DEBUG .and. masterproc) then
+         print *, "Read " // trim(dimname) // " from " // trim(fullname)
+      end if
+   end subroutine
+
+   subroutine ReadLakeInitGeometry(filename, info, time, vol, Asurf, zmax)
+      implicit none
+      character(len=*), intent(in) :: filename
+      type(LakeInfo), intent(in) :: info
+      type(SimTime), intent(in) :: time
+      real(r8), intent(out) :: vol
+      real(r8), intent(out) :: Asurf
+      real(r8), intent(out) :: zmax
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2)
+      integer(kind=MPI_OFFSET_KIND) :: ncount(2)
+      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
+      integer :: ncid, date_varid
+      integer :: vol_varid, Asurf_varid, zmax_varid
+      integer :: JDN0, JDNb, t0, date(1)
+      integer :: year, month, day
+      real(r8) :: tmpV(1,1), tmpA(1,1), tmpZ(1,1) 
+
+      call GetFullFileName(filename, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
+      call check( nf90mpi_inq_varid(ncid, "Vol", vol_varid) )
+      call check( nf90mpi_inq_varid(ncid, "Asurf", Asurf_varid) )
+      call check( nf90mpi_inq_varid(ncid, "zMax", zmax_varid) )
+      
+      ! read data start and end date
+      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
+                  (/1_i8/), (/1_i8/)) )
+      call YYMMDD2Date(date(1), year, month, day)
+      call Date2JDN(year, month, day, JDNb)
+      if (Use_Leap) then
+         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
+      else
+         JDN0 = JDNb + 365*(time%year0-year-1) + sum(ndays(month:12)) + &
+            sum(ndays(1:time%month0-1)) - day + time%day0
+      end if
+
+      ! read data set
+      t0 = max(JDN0 - JDNb + 1, 1)
+      nstart = (/info%id, t0/)
+      ncount = (/1, 1/)
+      call check( nf90mpi_get_var_all(ncid, vol_varid, tmpV, nstart, ncount) )
+      call check( nf90mpi_get_var_all(ncid, Asurf_varid, tmpA, nstart, ncount) )
+      call check( nf90mpi_get_var_all(ncid, zmax_varid, tmpZ, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+
+      vol = tmpV(1,1)
+      Asurf = tmpA(1,1)
+      zmax = tmpZ(1,1)
+
+      if (DEBUG .and. masterproc) then
+         print *, "Read lake initial geometry from " // trim(fullname)
+      end if
+   end subroutine
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Read lake bathymetry 
+   ! Purpose: Read lake hypsometric curve. 
    !
    !------------------------------------------------------------------------------
-   subroutine ReadLakeBathymetry(info, Zw, dZw, Az, dAz, SAL, soilColInd)
+   subroutine ReadLakeHypsography(info, hypsocurve)
       implicit none
       type(LakeInfo), intent(inout) :: info
-      real(r8), intent(in) :: Zw(:)
-      real(r8), intent(in) :: dZw(:)
-      real(r8), intent(out) :: Az(:)
-      real(r8), intent(out) :: dAz(:)
-      real(r8), intent(out) :: SAL(:)
-      integer, intent(out) :: soilColInd(:)
+      type(HypsometricCurve), intent(out) :: hypsocurve
       character(len=32) :: fname = "ReadLakeBathymetry"
       character(cx) :: fullname
       integer(kind=MPI_OFFSET_KIND) :: nstart(2)
@@ -175,18 +224,13 @@ contains
       integer(kind=MPI_OFFSET_KIND) :: nlevel
       integer :: ncid, dimid
       integer :: h_varid, A_varid, S_varid
-      integer :: ii, nz, indx, nLvalid
+      integer :: ii, nLvalid
+      real(r8) :: rA, h1, h2
       real(r8), allocatable :: tmph(:,:)
       real(r8), allocatable :: tmpA(:,:)
       real(r8), allocatable :: tmpS(:,:)
-      real(r8), allocatable :: tmph_corr(:)
-      real(r8), allocatable :: tmpA_corr(:)
-      real(r8), allocatable :: tmpS_corr(:)
-      real(r8), allocatable :: tmpZw(:)
-      real(r8), allocatable :: tmpAz(:)
-      real(r8), allocatable :: tmpSAL(:)
 
-      call GetFullFileName(bathy_file, fullname) 
+      call GetFullFileName(bathy_file, fullname)
       call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
                   NF90_NOWRITE, MPI_INFO_NULL, ncid) )
       call check( fname, nf90mpi_inq_dimid(ncid, 'level', dimid) )
@@ -205,58 +249,36 @@ contains
       call check( nf90mpi_close(ncid) )
 
       ! remove all zero area above the maximum depth
-      allocate(tmph_corr(nlevel))
-      allocate(tmpA_corr(nlevel))
-      allocate(tmpS_corr(nlevel))
       nLvalid = 0
       do ii = 1, nlevel, 1
          if (tmpA(ii,1)>e8 .or. abs(tmph(ii,1)-info%maxdepth)<e8) then
             nLvalid = nLvalid + 1
-            tmph_corr(nLvalid) = tmph(ii,1)
-            tmpA_corr(nLvalid) = tmpA(ii,1)
-            tmpS_corr(nLvalid) = tmpS(ii,1)
+         end if
+      end do
+      allocate(hypsocurve%h(nLvalid+1))
+      allocate(hypsocurve%A(nLvalid+1))
+      allocate(hypsocurve%S(nLvalid+1))
+
+      nLvalid = 1
+      do ii = 1, nlevel, 1
+         if (tmpA(ii,1)>e8 .or. abs(tmph(ii,1)-info%maxdepth)<e8) then
+            nLvalid = nLvalid + 1
+            hypsocurve%h(nLvalid) = tmph(ii,1)
+            hypsocurve%A(nLvalid) = tmpA(ii,1)
+            hypsocurve%S(nLvalid) = tmpS(ii,1)
          end if
       end do
 
-      ! interpolate and link soil column
-      nz = size(Zw)
-      allocate(tmpZw(nz+1))
-      allocate(tmpAz(nz+1))
-      allocate(tmpSAL(nz+1))
-      do ii = 1, nz+1, 1
-         if (ii==1) then
-            tmpZw(ii) = Zw(ii)
-         else if (ii==nz) then
-            tmpZw(ii) = Zw(ii) - dZw(ii)
-         else if (ii==nz+1) then
-            tmpZw(ii) = Zw(ii-1)
-         else
-            tmpZw(ii) = Zw(ii) - 0.5*dZw(ii)
-         end if
-      end do
-
-      call Interp1d(tmph_corr(1:nLvalid), sqrt(tmpA_corr(1:nLvalid)), &
-               tmpZw, tmpAz)
-      call Interp1d(tmph_corr(1:nLvalid), tmpS_corr(1:nLvalid), tmpZw, tmpSAL)
-      tmpAz = 1.d6 * tmpAz**2 ! km^2 > m^2
-      Az = tmpAz(1:nz)
-      SAL = tmpSAL(1:nz)
-      do ii = 1, nz, 1
-         if (ii<nz) then
-            dAz(ii) = max( Az(ii)-Az(ii+1), 0._r8 )
-         else
-            dAz(ii) = max( Az(ii), 0._r8 )
-         end if
-         indx = NSCOL - INT(NSCOL*Az(ii)/Az(1))
-         indx = max(min(indx,NSCOL),1)
-         soilColInd(ii) = indx
-      end do
+      h2 = hypsocurve%h(3) - hypsocurve%h(2)
+      h1 = 100._r8
+      rA = (sqrt(hypsocurve%A(2))*(h1+h2) - sqrt(hypsocurve%A(3))*h1) / h2
+      hypsocurve%h(1) = hypsocurve%h(2) - h1
+      hypsocurve%A(1) = rA**2
+      hypsocurve%S(1) = hypsocurve%S(2)
 
       deallocate(tmph, tmpA, tmpS)
-      deallocate(tmph_corr, tmpA_corr, tmpS_corr)
-      deallocate(tmpZw, tmpAz, tmpSAL)
       if (DEBUG .and. masterproc) then
-         print *, "Read bathymetry from " // trim(fullname)
+         print *, "Read hypsography from " // trim(fullname)
       end if
    end subroutine
 
@@ -270,11 +292,12 @@ contains
       character(len=*), intent(in) :: filename
       character(cx) :: fullname
       integer :: error
-      namelist /general/ run_mode, lake_file, lake_range, bathy_file, opt_file
+      namelist /general/ run_mode, lake_file, lake_range, bathy_file, &
+                         restart_file, opt_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
-                            Carbon_Module, Start_Year, Start_Month,  &
-                            Start_Day, End_Year, End_Month, End_Day, &
-                            Spinup_Month, Spinup_Day, nSpinup, Use_Leap
+                            Carbon_Module, Start_Year, Start_Month, Start_Day, &
+                            End_Year, End_Month, End_Day, Spinup_Month, &
+                            Spinup_Day, nSpinup, Use_Leap
       namelist /resolution/ NWLAYER, NSLAYER, NRLAYER, NSCOL 
       namelist /bayesian/ NMAXSAMPLE, sample_range, mc_file, SA_Start_Year, &
                           SA_Start_Month, SA_Start_Day, SA_End_Year, &
@@ -340,6 +363,12 @@ contains
       call To_lower(run_mode, run_mode)
       call To_upper(forcing_time, forcing_time)
       call To_lower(archive_tstep, archive_tstep)
+
+      if (len_trim(hydro_file)>0) then
+         Hydro_Module = .True.
+      else
+         Hydro_Module = .False.
+      end if
    end subroutine
 
    subroutine BcastSimulationSettings()
@@ -355,6 +384,8 @@ contains
                      MPI_COMM_WORLD, err)
       call MPI_BCAST(bathy_file, len(bathy_file), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
+      call MPI_BCAST(restart_file, len(restart_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
       call MPI_BCAST(lake_range, size(lake_range), MPI_INTEGER, 0, &
                      MPI_COMM_WORLD, err)
       ! simulation group
@@ -362,6 +393,7 @@ contains
       call MPI_BCAST(Bubble_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Diagenesis_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Carbon_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
+      call MPI_BCAST(Hydro_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Start_Year, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Start_Month, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Start_Day, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
@@ -456,12 +488,14 @@ contains
       character(len=*), intent(in) :: filename
       character(cx) :: fullname
       integer :: error
-      namelist /general/ run_mode, lake_file, lake_range, opt_file
+      namelist /general/ run_mode, lake_file, lake_range, bathy_file, &
+                         restart_file, opt_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
-                            Carbon_Module, Start_Year, Start_Month,  &
-                            Start_Day, End_Year, End_Month, End_Day, &
-                            Spinup_Month, Spinup_Day, nSpinup, Use_Leap
-      namelist /resolution/ NWLAYER, NSLAYER, NRLAYER, NSCOL 
+                            Carbon_Module, Hydro_Module, Start_Year, &
+                            Start_Month, Start_Day, End_Year, End_Month, &
+                            End_Day, Spinup_Month, Spinup_Day, nSpinup, &
+                            Use_Leap
+      namelist /resolution/ NWLAYER, NSLAYER, NRLAYER, NSCOL
       namelist /bayesian/ NMAXSAMPLE, sample_range, mc_file, SA_Start_Year, &
                           SA_Start_Month, SA_Start_Day, SA_End_Year, &
                           SA_End_Month, SA_End_Day
@@ -543,7 +577,7 @@ contains
       call check( nf90mpi_inq_dimid(ncid, "lake", dimid) )
       call check( nf90mpi_inquire_dimension(ncid, dimid, len=ncohort) )
       call check( nf90mpi_close(ncid) )
-      nlake = INT(ncohort)
+      nlake = INT(ncohort, i4)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -673,6 +707,217 @@ contains
 
    !------------------------------------------------------------------------------
    !
+   ! Purpose: Read site-level input data. 
+   !
+   !------------------------------------------------------------------------------
+   subroutine ReadSiteStaticData(filename, varname, info, odata)
+      implicit none
+      character(len=*), intent(in) :: filename
+      character(len=*), intent(in) :: varname
+      type(LakeInfo), intent(in) :: info
+      real(r8), intent(out) :: odata(:)
+      character(cx) :: fullname
+      integer :: ncid, varid
+      integer(i8) :: nsize
+      real(r8), allocatable :: tmpArr(:,:)
+      
+      nsize = size(odata)
+      allocate(tmpArr(1, nsize))
+      ! inquire data info
+      call GetFullFileName(filename, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, &
+                  (/1_i8, INT(info%id,i8)/), (/nsize, 1_i8/)) )
+      call check( nf90mpi_close(ncid) )
+
+      odata = tmpArr(1,:)
+      deallocate(tmpArr)
+
+      if (DEBUG .and. masterproc) then
+         print *, "Read " // trim(varname) // " from " // trim(fullname)
+      end if
+   end subroutine
+
+   subroutine ReadSiteTSData(filename, varname, info, time, nstep, odata)
+      implicit none
+      character(len=*), intent(in) :: filename
+      character(len=*), intent(in) :: varname
+      type(LakeInfo), intent(in) :: info 
+      type(SimTime), intent(in) :: time
+      integer, intent(in) :: nstep
+      real(r8), intent(out) :: odata(:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2)
+      integer(kind=MPI_OFFSET_KIND) :: ncount(2)
+      integer(kind=MPI_OFFSET_KIND) :: ntottime
+      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
+      integer :: ncid, varid, date_varid
+      integer :: time_dimid, t0, t1, indx
+      integer :: h0, h1, hindx0, hindx1
+      integer :: JDN0, JDN1, JDNb, date(1)
+      integer :: year, month, day, ii
+      integer :: noutval
+      real(r8), allocatable :: tmpArr(:,:)
+      real(r8) :: filled_value
+
+      ! Units: air temperature (K), relative humidity (%),
+      ! wind (m/s), air pressure (Pa), solar radiation (W/m2)
+      ! precipitation (kg/m2/s),
+      ! atmospheric radiation (W/m2)
+
+      ! inquire data info
+      call GetFullFileName(filename, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      call check( nf90mpi_inq_dimid(ncid, "time", time_dimid) )
+      call check( nf90mpi_inquire_dimension(ncid, time_dimid, len = ntottime) )
+      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
+
+      ! read data start and end date
+      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
+                  (/1_i8/), (/1_i8/)) )
+      call YYMMDD2Date(date(1), year, month, day)
+      call Date2JDN(year, month, day, JDNb)
+      if (Use_Leap) then
+         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
+         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
+      else
+         JDN0 = JDNb + 365*(time%year0-year-1) + sum(ndays(month:12)) + &
+            sum(ndays(1:time%month0-1)) - day + time%day0
+         JDN1 = JDNb + 365*(time%year1-year-1) + sum(ndays(month:12)) + &  
+            sum(ndays(1:time%month1-1)) - day + time%day1
+      end if
+
+      ! read data set
+      t0 = max(JDN0 - JDNb + 1, 1)
+      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
+      nstart = (/info%id, 24 / nstep * (t0-1) + 1/)
+      ncount = (/1, 24 / nstep * (t1-t0+1)/)
+      allocate(tmpArr(1, ncount(2)))
+      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      noutval = 0
+      do ii = 1, JDN1-JDN0, 1
+         indx = JDN0 + ii - JDNb
+         h0 = 24 / nstep * (ii-1) + 1
+         h1 = 24 / nstep * ii
+         if (indx>=1 .and. indx<=ntottime) then
+            if (JDN0>=JDNb) then
+               hindx0 = 24 / nstep * (ii-1) + 1
+               hindx1 = 24 / nstep * ii
+            else
+               hindx0 = 24 / nstep * (indx-1) + 1
+               hindx1 = 24 / nstep * indx
+            end if
+            odata(h0:h1) = tmpArr(1,hindx0:hindx1)
+         else
+            odata(h0:h1) = filled_value
+            noutval = noutval + 1
+         end if
+      end do
+      deallocate(tmpArr)
+
+      if (noutval>0) then
+         call Endrun("Out of valid time period " // trim(varname))
+      end if
+
+      if (DEBUG .and. masterproc) then
+         print *, "Read " // trim(varname) // " from " // trim(fullname)
+      end if
+   end subroutine
+
+   subroutine ReadSite2DTSData(filename, varname, info, time, nstep, odata)
+      implicit none
+      character(len=*), intent(in) :: filename
+      character(len=*), intent(in) :: varname
+      type(LakeInfo), intent(in) :: info
+      type(SimTime), intent(in) :: time
+      integer, intent(in) :: nstep
+      real(r8), intent(out) :: odata(:,:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(3)
+      integer(kind=MPI_OFFSET_KIND) :: ncount(3)
+      integer(kind=MPI_OFFSET_KIND) :: ntottime
+      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
+      integer :: ncid, varid, date_varid
+      integer :: time_dimid, t0, t1, indx
+      integer :: h0, h1, hindx0, hindx1
+      integer :: JDN0, JDN1, JDNb, date(1)
+      integer :: year, month, day, ii
+      integer :: noutval, nz
+      real(r8), allocatable :: tmpArr(:,:,:)
+      real(r8) :: filled_value
+
+      ! inquire data info
+      call GetFullFileName(filename, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      call check( nf90mpi_inq_dimid(ncid, "time", time_dimid) )
+      call check( nf90mpi_inquire_dimension(ncid, time_dimid, len = ntottime) )
+      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
+
+      ! read data start and end date
+      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
+                  (/1_i8/), (/1_i8/)) )
+      call YYMMDD2Date(date(1), year, month, day)
+      call Date2JDN(year, month, day, JDNb)
+      if (Use_Leap) then
+         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
+         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
+      else
+         JDN0 = JDNb + 365*(time%year0-year-1) + sum(ndays(month:12)) + &
+            sum(ndays(1:time%month0-1)) - day + time%day0
+         JDN1 = JDNb + 365*(time%year1-year-1) + sum(ndays(month:12)) + &
+            sum(ndays(1:time%month1-1)) - day + time%day1
+      end if
+
+      ! read data set
+      nz = size(odata,1)
+      t0 = max(JDN0 - JDNb + 1, 1)
+      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
+      nstart = (/1, info%id, 24 / nstep * (t0-1) + 1/)
+      ncount = (/nz, 1, 24 / nstep * (t1-t0+1)/)
+      allocate(tmpArr(nz, 1, ncount(3)))
+      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      noutval = 0
+      do ii = 1, JDN1-JDN0, 1
+         indx = JDN0 + ii - JDNb
+         h0 = 24 / nstep * (ii-1) + 1
+         h1 = 24 / nstep * ii
+         if (indx>=1 .and. indx<=ntottime) then
+            if (JDN0>=JDNb) then
+               hindx0 = 24 / nstep * (ii-1) + 1
+               hindx1 = 24 / nstep * ii
+            else
+               hindx0 = 24 / nstep * (indx-1) + 1
+               hindx1 = 24 / nstep * indx
+            end if
+            odata(:,h0:h1) = tmpArr(:,1,hindx0:hindx1)
+         else
+            odata(:,h0:h1) = filled_value
+            noutval = noutval + 1
+         end if
+      end do
+      deallocate(tmpArr)
+
+      if (noutval>0) then
+         call Endrun("Out of valid time period " // trim(varname))
+      end if
+
+      if (DEBUG .and. masterproc) then
+         print *, "Read " // trim(varname) // " from " // trim(fullname)
+      end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
    ! Purpose: Read air forcing data for a specific lake during given time
    !        Grid: 0.75*0.75, time: 1984~2009 (two data points per day)
    !        LON: 0 : 0.75 : 359.25; LAT: 90 : -0.75 : -90
@@ -770,166 +1015,6 @@ contains
          b3count = (/nrange, nrange + latindx - nreslat/)
          b4start = (/lonindx + 1, 2*nreslat - nrange - latindx + 1/)
          b4count = (/nrange, nrange + latindx - nreslat/)
-      end if
-   end subroutine
-
-   subroutine ReadSiteTSData(filename, varname, info, time, odata)
-      implicit none
-      character(len=*), intent(in) :: filename
-      character(len=*), intent(in) :: varname
-      type(LakeInfo), intent(in) :: info 
-      type(SimTime), intent(in) :: time
-      real(r8), intent(out) :: odata(:)
-      character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(2)
-      integer(kind=MPI_OFFSET_KIND) :: ncount(2)
-      integer(kind=MPI_OFFSET_KIND) :: ntottime
-      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
-      integer :: ncid, varid, date_varid
-      integer :: time_dimid, t0, t1, indx
-      integer :: h0, h1, hindx0, hindx1
-      integer :: JDN0, JDN1, JDNb, date(1)
-      integer :: year, month, day, ii
-      integer :: noutval
-      real(r8), allocatable :: tmpArr(:,:)
-      real(r8) :: filled_value
-
-      ! Units: air temperature (K), relative humidity (%),
-      ! wind (m/s), air pressure (Pa), solar radiation (W/m2)
-      ! precipitation (kg/m2/s),
-      ! atmospheric radiation (W/m2)
-
-      ! inquire data info
-      call GetFullFileName(filename, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
-                  MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_inq_dimid(ncid, "time", time_dimid) )
-      call check( nf90mpi_inquire_dimension(ncid, time_dimid, len = ntottime) )
-      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
-      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
-
-      ! read data start and end date
-      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
-                  (/1_i8/), (/1_i8/)) )
-      call YYMMDD2Date(date(1), year, month, day)
-      call Date2JDN(year, month, day, JDNb)
-      if (Use_Leap) then
-         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
-         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
-      else
-         JDN0 = JDNb + 365*(time%year0-year-1) + sum(ndays(month:12)) + &
-            sum(ndays(1:time%month0-1)) - day + time%day0
-         JDN1 = JDNb + 365*(time%year1-year-1) + sum(ndays(month:12)) + &  
-            sum(ndays(1:time%month1-1)) - day + time%day1
-      end if
-
-      ! read data set
-      t0 = max(JDN0 - JDNb + 1, 1)
-      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
-      nstart = (/info%id, 24 / forcing_nhour * (t0-1) + 1/)
-      ncount = (/1, 24 / forcing_nhour * (t1-t0+1)/)
-      allocate(tmpArr(1, ncount(2)))
-      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
-      call check( nf90mpi_close(ncid) )
-      noutval = 0
-      do ii = 1, JDN1-JDN0, 1
-         indx = JDN0 + ii - JDNb
-         h0 = 24 / forcing_nhour * (ii-1) + 1
-         h1 = 24 / forcing_nhour * ii
-         if (indx>=1 .and. indx<=ntottime) then
-            if (JDN0>=JDNb) then
-               hindx0 = 24 / forcing_nhour * (ii-1) + 1
-               hindx1 = 24 / forcing_nhour * ii
-            else
-               hindx0 = 24 / forcing_nhour * (indx-1) + 1
-               hindx1 = 24 / forcing_nhour * indx
-            end if
-            odata(h0:h1) = tmpArr(1,hindx0:hindx1)
-         else
-            odata(h0:h1) = filled_value
-            noutval = noutval + 1
-         end if
-      end do
-      deallocate(tmpArr)
-
-      if (noutval>0) then
-         call Endrun("Out of valid time period " // trim(varname))
-      end if
-
-      if (DEBUG .and. masterproc) then
-         print *, "Read " // trim(varname) // " from " // trim(fullname)
-      end if
-   end subroutine
-
-   subroutine ReadSiteHydroTSData(filename, varname, info, time, odata)
-      implicit none
-      character(len=*), intent(in) :: filename
-      character(len=*), intent(in) :: varname
-      type(LakeInfo), intent(in) :: info
-      type(SimTime), intent(in) :: time
-      real(r8), intent(out) :: odata(:)
-      character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(2)
-      integer(kind=MPI_OFFSET_KIND) :: ncount(2)
-      integer(kind=MPI_OFFSET_KIND) :: ntottime
-      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
-      integer :: ncid, varid, date_varid
-      integer :: time_dimid, t0, t1, indx
-      integer :: JDN0, JDN1, JDNb, date(1)
-      integer :: year, month, day, ii
-      real(r8), allocatable :: tmpArr(:,:)
-      real(r8) :: filled_value
-
-      ! inquire data info
-      call GetFullFileName(filename, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
-                  MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_inq_dimid(ncid, "time", time_dimid) )
-      call check( nf90mpi_inquire_dimension(ncid, time_dimid, len = ntottime) )
-      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
-      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
-
-      ! read data start and end date
-      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
-                  (/1_i8/), (/1_i8/)) )
-      call YYMMDD2Date(date(1), year, month, day)
-      call Date2JDN(year, month, day, JDNb)
-      if (Use_Leap) then
-         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
-         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
-      else
-         JDN0 = JDNb + 365*(time%year0-year-1) + sum(ndays(month:12)) + &
-            sum(ndays(1:time%month0-1)) - day + time%day0
-         JDN1 = JDNb + 365*(time%year1-year-1) + sum(ndays(month:12)) + &
-            sum(ndays(1:time%month1-1)) - day + time%day1
-      end if
-
-      ! read data set
-      t0 = max(JDN0 - JDNb + 1, 1)
-      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
-      nstart = (/info%id, t0/)
-      ncount = (/1, t1-t0+1/)
-      allocate(tmpArr(1, ncount(2)))
-      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
-      call check( nf90mpi_close(ncid) )
-      do ii = 1, JDN1-JDN0, 1
-         indx = JDN0 + ii - JDNb 
-         if (indx>=1 .and. indx<=ntottime) then
-            if (JDN0>=JDNb) then
-               odata(ii) = tmpArr(1,ii)
-            else
-               odata(ii) = tmpArr(1,indx)
-            end if
-         else
-            odata(ii) = filled_value
-         end if
-      end do
-
-      deallocate(tmpArr)
-      if (DEBUG .and. masterproc) then
-         print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
 
@@ -1271,7 +1356,7 @@ contains
          write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
                gmtime(3)
          write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"
          histstr = trim(str1) // trim(str2)
       end if
       !call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
@@ -1330,7 +1415,7 @@ contains
          write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
                gmtime(3)
          write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"         
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"         
          histstr = trim(str1) // trim(str2)
       end if
       !call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
@@ -1403,7 +1488,7 @@ contains
          write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
                gmtime(3)
          write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"
          histstr = trim(str1) // trim(str2)
       end if
       !call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
@@ -1480,7 +1565,7 @@ contains
          write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
                gmtime(3)
          write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"
          histstr = trim(str1) // trim(str2)
       end if
       !call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
@@ -1530,6 +1615,108 @@ contains
 
       if (masterproc) then
          print *, 'Create ouput file ' // trim(fullname)
+      end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Create a netcdf file for model restart.
+   !
+   !------------------------------------------------------------------------------
+   subroutine CreateRestartFile(time)
+      implicit none
+      Type(SimTime), intent(in)  :: time
+      character(cx) :: fullname, histstr, timestr
+      character(cx) :: str1, str2
+      integer :: ncid, cmode, varid
+      integer :: zw_dimid, zs_dimid, lake_dimid
+      integer :: col_dimid
+      integer :: gmtime(6), err
+
+      call GetRestartFullname(time, fullname)
+      if (masterproc) then
+         call GetGMTime(Use_Leap, gmtime)
+         write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
+               gmtime(3)
+         write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"
+         histstr = trim(str1) // trim(str2)
+      end if
+
+      write(str1,"('Archive restart states at ', I4, '-', I2.2, '-', I2.2)") &
+            time%year1, time%month1, time%day1
+      timestr = trim(str1) // " 00:00:00 GMT"
+
+      ! Create the file.
+      cmode = IOR(NF90_CLOBBER, NF90_64BIT_OFFSET)
+      call check( nf90mpi_create(MPI_COMM_SELF, trim(fullname), &
+                  cmode, MPI_INFO_NULL, ncid) )
+
+      ! Define the dimensions
+      call check( nf90mpi_def_dim(ncid, 'Zw', INT8(NWLAYER+1), zw_dimid) )
+      call check( nf90mpi_def_dim(ncid, 'Zs', INT8(NSLAYER+1), zs_dimid) )
+      call check( nf90mpi_def_dim(ncid, 'COL', INT8(NSCOL), col_dimid) )
+      call check( nf90mpi_def_dim(ncid, 'Lake', NFMPI_UNLIMITED, lake_dimid) )
+
+      ! Define the coordinate variables
+      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "history", &
+                  trim(histstr)) )
+      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "description", &
+                  trim(timestr)) )
+
+      ! ! Define the netCDF variables and assign attributes for state variables. 
+      call DefNcVariable(ncid, (/zw_dimid, lake_dimid/), "zw", "water layer depth", &
+                         "m", -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/zs_dimid, lake_dimid/), "zs", "sediment layer depth", &
+                         "m", -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/zw_dimid, lake_dimid/), "dzw", "water layer thickness", &
+                         "m", -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/zs_dimid, lake_dimid/), "dzs", "sediment layer thickness", &
+                         "m", -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/zw_dimid, lake_dimid/), "az", "water layer cross section", &
+                         "m^2", -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/zw_dimid, lake_dimid/), "daz", "water layer cross " // &
+                         "section difference", "m^2", -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/zw_dimid, lake_dimid/), "sal", "water salinity", &
+                         "g/kg", -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/zw_dimid, lake_dimid/), "soilcolind", "water layer " // &
+                         "connected sediment column index", "index", -9999, -9999, varid)
+      call DefNcVariable(ncid, (/col_dimid, lake_dimid/), "soilcolz", "sediment column " // &
+                         "top lowest depth", "m", -9999._r8, -9999._r8, varid)
+
+      if (Thermal_Module) then
+         call DefNcVariable(ncid, (/zw_dimid, lake_dimid/), "watertemp", &
+                           "Temperature of Lake Water", "K", -9999._r8, &
+                           -9999._r8, varid)
+         call DefNcVariable(ncid, (/zw_dimid, lake_dimid/), "waterice", &
+                           "Ice fraction of Lake Water", "fraction", -9999._r8, &
+                           -9999._r8, varid)
+         call DefNcVariable(ncid, (/col_dimid, zs_dimid, lake_dimid/), "sedtemp", &
+                           "Temperature of Lake Sediment", "K", -9999._r8, &
+                           -9999._r8, varid)
+         call DefNcVariable(ncid, (/col_dimid, zs_dimid, lake_dimid/), "sedice", &
+                           "Ice fraction of Lake Sediment", "fraction", -9999._r8, &
+                           -9999._r8, varid)
+         call DefNcVariable(ncid, (/lake_dimid/), "Hice", "clear ice thickness", &
+                            "m", -9999._r8, -9999._r8, varid)
+         call DefNcVariable(ncid, (/lake_dimid/), "Hsnow", "snow thickness", &
+                            "m", -9999._r8, -9999._r8, varid)
+         call DefNcVariable(ncid, (/lake_dimid/), "Hgrayice", "gray ice thickness", &
+                            "m", -9999._r8, -9999._r8, varid)
+      end if
+
+      ! End define mode.
+      call check( nf90mpi_enddef(ncid) )
+
+      ! Write the coordinate variable data. This will put our data grid 
+      ! into the netCDF file.
+
+      ! Close the file. This causes netCDF to flush all buffers and make
+      ! sure your data are really written to disk.
+      call check( nf90mpi_close(ncid) )
+
+      if (masterproc) then
+         print *, 'Create restart file ' // trim(fullname)
       end if
    end subroutine
 

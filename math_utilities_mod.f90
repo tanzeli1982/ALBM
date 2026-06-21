@@ -6,10 +6,10 @@ module math_utilities_mod
 !
 !---------------------------------------------------------------------------------
    use shr_kind_mod,       only : r8, r4, i8, NaN
-   use shr_ctrl_mod,       only : inft => INFINITESIMAL_E8, inf => INFINITE_E8, &
-                                  TOL_E8
-   use shr_typedef_mod,    only : RungeKuttaCache1D, RungeKuttaCache2D, &
-                                  RungeKuttaCache3D
+   use shr_ctrl_mod,       only : inft => INFINITESIMAL_E8, inf => INFINITE_E8
+   use shr_ctrl_mod,       only : TOL_E8
+   use shr_typedef_mod,    only : RungeKuttaCache1D, RungeKuttaCache2D
+   use shr_typedef_mod,    only : RungeKuttaCache3D
 #ifdef USE_INTEL_COMPILER
    use ifport
 #endif

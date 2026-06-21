@@ -7,8 +7,8 @@ module carbon_cycle_mod
 !
 !---------------------------------------------------------------------------------
    use shr_kind_mod,          only : r8
-   use shr_ctrl_mod,          only : WATER_LAYER, NGAS, NWSUB, lake_info, &
-                                     e8 => SHR_CTRL_E8
+   use shr_ctrl_mod,          only : WATER_LAYER, NGAS, NWSUB
+   use shr_ctrl_mod,          only : lake_info, e8 => SHR_CTRL_E8
    use shr_typedef_mod,       only : RungeKuttaCache2D
    use shr_param_mod
    use phy_utilities_mod 
@@ -236,8 +236,8 @@ contains
       !   m_waterSubCon(Wn2,top:bottom) = EQConc(Wn2) 
       !end if
       ! fix surface SRP
-      if (m_Hice<e8) then
-         m_waterSubCon(Wsrp,top) = m_surfData%srp / MasP 
+      if (m_Hice<e8 .and. lake_info%srp>e8) then
+         m_waterSubCon(Wsrp,top) = lake_info%srp / MasP 
       end if
       ! No dissolved chemicals in ice
       m_waterSubCon(:,1:top-1) = 0._r8
@@ -704,9 +704,13 @@ contains
             qt(gas) = Kg(gas) * (m_waterSubCon(gas,1) - EQConc(gas))
          end do
          m_topdflux = qt(1:NGAS)
-         Ceq_srp = m_surfData%srp / MasP
-         Kg_srp = lake_info%depth / lake_info%wrt / 8.64d4    ! m/s
-         qt(Wsrp) = Kg_srp * (m_waterSubCon(Wsrp,1) - Ceq_srp) 
+         if (lake_info%srp>e8) then
+            Ceq_srp = lake_info%srp / MasP
+            Kg_srp = lake_info%depth / lake_info%wrt / 8.64d4    ! m/s
+            qt(Wsrp) = Kg_srp * (m_waterSubCon(Wsrp,1) - Ceq_srp)
+         else
+            qt(Wsrp) = 0._r8
+         end if
       end if
    end subroutine
 

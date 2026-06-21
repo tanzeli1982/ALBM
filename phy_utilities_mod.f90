@@ -5,11 +5,12 @@ module phy_utilities_mod
 ! This module serves for the implementation of some basic physical utilities
 !
 !---------------------------------------------------------------------------------
-   use shr_kind_mod,          only: r8, i8
-   use shr_ctrl_mod,          only: e8 => SHR_CTRL_E8, inf => INFINITE_E8, &
-                                    inft => INFINITESIMAL_E8
+   use shr_kind_mod,          only : r8, i8
+   use shr_ctrl_mod,          only : e8 => SHR_CTRL_E8, inf => INFINITE_E8
+   use shr_ctrl_mod,          only : inft => INFINITESIMAL_E8
    use phy_const_mod
-   use shr_typedef_mod,       only: SimTime, LakeInfo
+   use shr_typedef_mod,       only : SimTime, LakeInfo, HypsometricCurve
+   use math_utilities_mod
 
    interface CalcPistonVelocity
       module procedure CalcPistonVelocitySR
@@ -743,7 +744,8 @@ contains
       real(r8), intent(out) :: keddy(:)      ! units: m2/s
       real(r8) :: uts, ubs, ekman, rlat
       real(r8) :: tmp, tmp1, Ri, w10
-      real(r8) :: zhs, Nsqrt, maxdepth 
+      real(r8) :: zhs, Nsqrt
+      real(r8) :: maxdepth, z0
       integer :: ii, nn
 
       if (wind<0.1_r8) then
@@ -752,7 +754,8 @@ contains
          return
       end if
       nn = size(depth)
-      maxdepth = depth(nn)
+      z0 = depth(1) 
+      maxdepth = depth(nn) - z0
       ! surface and bottom friction velocity
       w10 = ConvertWindSpeed10(wind, 2.0d0)
       uts = 1.2d-3 * wind
@@ -762,12 +765,12 @@ contains
       ekman = 6.6*sqrt(sin(abs(rlat)))*(wind**(-1.84))
       do ii = 1, nn, 1
          Nsqrt = max(7.5d-5, freq(ii))
-         tmp = uts * exp(-ekman*depth(ii))
-         tmp1 = (40*Nsqrt*(Karman*depth(ii))**2) / (tmp**2+inft)
+         tmp = uts * exp(-ekman*(depth(ii)-z0))
+         tmp1 = (40*Nsqrt*(Karman*(depth(ii)-z0))**2) / (tmp**2+inft)
          Ri = 0.05 * (-1 + sqrt(1.0+tmp1))
-         keddy(ii) = (Karman*depth(ii)*tmp/Prandtl)/(1+37*Ri**2)
+         keddy(ii) = (Karman*(depth(ii)-z0)*tmp/Prandtl)/(1+37*Ri**2)
          if (maxdepth>5._r8) then
-            zhs = maxdepth - depth(ii) + DeltaD
+            zhs = maxdepth - depth(ii) + z0 + DeltaD
             tmp = ubs * exp(-ekman*zhs)
             tmp1 = (40*Nsqrt*(Karman*zhs)**2) / (tmp**2+inft)
             Ri = 0.05 * (-1 + sqrt(1.0+tmp1))
@@ -1408,12 +1411,13 @@ contains
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Construct depth and area grids
+   ! Purpose: Build the depth grids for water and sediment columns. 
    !
    !------------------------------------------------------------------------------
-   subroutine ConstructDepthVector(info, Zw, dZw, Zs, dZs)
+   subroutine BuildDepthVector(maxdepth, hsed, Zw, dZw, Zs, dZs)
       implicit none
-      type(LakeInfo), intent(in) :: info     ! lake information object
+      real(r8), intent(in)  :: maxdepth      ! maximum depth (m)
+      real(r8), intent(in)  :: hsed          ! sediment column thickness (m)
       real(r8), intent(out) :: Zw(:)         ! water layer depth vector
       real(r8), intent(out) :: dZw(:)        ! water layer thickness
       real(r8), intent(out) :: Zs(:)         ! sediment layer depth vector
@@ -1427,24 +1431,24 @@ contains
 
       ! for water column
       nw = size(Zw) - 1
-      if (info%maxdepth<=5.0) then
-         denom = info%maxdepth / dble(nw)
+      if (maxdepth<=5.0) then
+         denom = maxdepth / dble(nw)
          do ii = 1, nw+1, 1
             Zw(ii) = (ii-1) * denom
          end do
       else
-         if (info%maxdepth<=20) then
-            K1 = -1.572d-4*info%maxdepth**2 + 6.861d-3*info%maxdepth - 2.686d-2
-         else if (info%maxdepth<=50) then
-            K1 = -1.372d-5*info%maxdepth**2 + 1.794d-3*info%maxdepth + 1.757d-2
-         else if (info%maxdepth<1000) then
-            idx = INT(info%maxdepth/50.0)
-            pp = (info%maxdepth - 50*idx) / 50.0
+         if (maxdepth<=20) then
+            K1 = -1.572d-4*maxdepth**2 + 6.861d-3*maxdepth - 2.686d-2
+         else if (maxdepth<=50) then
+            K1 = -1.372d-5*maxdepth**2 + 1.794d-3*maxdepth + 1.757d-2
+         else if (maxdepth<1000) then
+            idx = INT(maxdepth/50.0)
+            pp = (maxdepth - 50*idx) / 50.0
             K1 = (1.0-pp)*KArr(idx) + pp*KArr(idx+1)
          else
-            K1 = KArr(20) + (info%maxdepth - 1000) / 50.0 * 1.0d-3
+            K1 = KArr(20) + (maxdepth - 1000) / 50.0 * 1.0d-3
          end if
-         denom = info%maxdepth / (exp(K1*nw) - 1)
+         denom = maxdepth / (exp(K1*nw) - 1)
          do ii = 1, nw+1, 1
             Zw(ii) = (exp(K1*(ii-1)) - 1) * denom
          end do
@@ -1461,7 +1465,7 @@ contains
       ! for sediment column
       ns = size(Zs) - 1
       K2 = 0.05_r8
-      denom = info%hsed / (exp(K2*ns) - 1)
+      denom = hsed / (exp(K2*ns) - 1)
       do ii = 1, ns+1, 1
          Zs(ii) = (exp(K2*(ii-1)) - 1) * denom
       end do
@@ -1474,6 +1478,110 @@ contains
             dZs(ii) = 0.5 * (Zs(ii+1) - Zs(ii-1))
          end if
       end do
+   end subroutine
+
+   subroutine GetLayerThickness(Z, dZ)
+      implicit none
+      real(r8), intent(in) :: Z(:)        ! layer depth vector
+      real(r8), intent(out) :: dZ(:)      ! layer thickness vector
+      integer :: nz, ii
+
+      nz = size(Z)
+      do ii = 1, nz, 1
+         if (ii==1) then
+            dZ(ii) = 0.5 * (Z(ii+1) - Z(ii))
+         else if (ii==nz) then
+            dZ(ii) = 0.5 * (Z(ii) - Z(ii-1))
+         else
+            dZ(ii) = 0.5 * (Z(ii+1) - Z(ii-1))
+         end if
+      end do
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Build the lake structure (e.g., shape).
+   !
+   !------------------------------------------------------------------------------
+   subroutine BuildLakeStructure(info, hypsocurve, VLake, Zw, dZw, Az, dAz, &
+                                 SAL, soilColZ, soilColInd)
+      implicit none
+      type(LakeInfo), intent(in) :: info
+      type(HypsometricCurve), intent(in) :: hypsocurve
+      real(r8), intent(in) :: VLake       ! lake volume to conserve (m^3)
+      real(r8), intent(in) :: Zw(:)
+      real(r8), intent(in) :: dZw(:)
+      real(r8), intent(out) :: Az(:)
+      real(r8), intent(out) :: dAz(:)
+      real(r8), intent(out) :: SAL(:)
+      real(r8), intent(out) :: soilColZ(:)
+      integer, intent(out) :: soilColInd(:)
+      integer :: nz, ii, nscol
+      integer :: icol, indx, indx0
+      real(r8) :: Vsum, ratioV
+      real(r8), allocatable :: tmpZw(:)
+      real(r8), allocatable :: tmpAz(:)
+      real(r8), allocatable :: tmpSAL(:)
+
+      ! interpolate and link soil column
+      nz = size(Zw)
+      allocate(tmpZw(nz+1))
+      allocate(tmpAz(nz+1))
+      allocate(tmpSAL(nz+1))
+      do ii = 1, nz+1, 1
+         if (ii==1) then
+            tmpZw(ii) = Zw(ii)
+         else if (ii==nz) then
+            tmpZw(ii) = Zw(ii) - dZw(ii)
+         else if (ii==nz+1) then
+            tmpZw(ii) = Zw(ii-1)
+         else
+            tmpZw(ii) = Zw(ii) - 0.5*dZw(ii)
+         end if
+      end do
+
+      call Interp1d(hypsocurve%h, sqrt(hypsocurve%A), tmpZw, tmpAz)
+      call Interp1d(hypsocurve%h, hypsocurve%S, tmpZw, tmpSAL)
+      tmpAz = 1.d6 * tmpAz**2 ! km^2 > m^2
+      Az = tmpAz(1:nz)
+      SAL = tmpSAL(1:nz)
+
+      ! rescale Az to conserve lake volume
+      Vsum = sum(dZw*Az) 
+      ratioV = VLake / Vsum
+      Az = ratioV * Az
+
+      ! calculate dAz and the contacted sediment column of each layer 
+      nscol = size(soilColZ)
+      do ii = 1, nz, 1
+         if (ii<nz) then
+            dAz(ii) = max( Az(ii)-Az(ii+1), 0._r8 )
+         else
+            dAz(ii) = max( Az(ii), 0._r8 )
+         end if
+         indx = nscol - INT(nscol*Az(ii)/Az(1))
+         indx = max(min(indx,nscol),1)
+         soilColInd(ii) = indx
+      end do
+
+      ! calculate the lowest depth that each sediment column contacts
+      do icol = 1, nscol, 1
+         indx = COUNT(soilColInd<=icol)
+         indx0 = COUNT(soilColInd<=icol-1) + 1
+         if (indx0<=indx) then
+            if (indx==1) then
+               soilColZ(icol) = Zw(indx) + dZw(indx)
+            else if (indx==nz) then
+               soilColZ(icol) = Zw(indx)
+            else
+               soilColZ(icol) = Zw(indx) + 0.5*dZw(indx)
+            end if
+         else
+            soilColZ(icol) = 0._r8
+         end if
+      end do
+
+      deallocate(tmpZw, tmpAz, tmpSAL)
    end subroutine
 
    !------------------------------------------------------------------------------

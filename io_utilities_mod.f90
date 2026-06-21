@@ -7,7 +7,8 @@ module io_utilities_mod
 !---------------------------------------------------------------------------------
    use shr_kind_mod,       only : cs => SHR_KIND_CS, cx => SHR_KIND_CX, r8, r4
    use shr_typedef_mod,    only : SimTime
-   use shr_ctrl_mod,       only : archive_dir, masterproc, DEBUG
+   use shr_ctrl_mod,       only : archive_dir, restart_file
+   use shr_ctrl_mod,       only : masterproc, DEBUG
    use math_utilities_mod, only : Mean
    use pnetcdf
    use mpi
@@ -36,9 +37,24 @@ module io_utilities_mod
       module procedure WriteStaticInt4Data1D
    end interface
 
+   interface ReadRestartData
+      module procedure ReadRestartRealData0D
+      module procedure ReadRestartRealData1D
+      module procedure ReadRestartIntData1D
+      module procedure ReadRestartRealData2D
+   end interface
+
+   interface WriteRestartData
+      module procedure WriteRestartRealData0D      
+      module procedure WriteRestartRealData1D
+      module procedure WriteRestartIntData1D
+      module procedure WriteRestartRealData2D
+   end interface
+
    interface DefNcVariable
       module procedure DefNcVariable4R
       module procedure DefNcVariable8R
+      module procedure DefNcVariable4I
    end interface
  
 contains
@@ -93,6 +109,22 @@ contains
       else
          fullname = trim(dirname) // trim(filename)
       end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: generate full file name for restart file
+   !
+   !------------------------------------------------------------------------------
+   subroutine GetRestartFullname(time, fullname)
+      implicit none
+      Type(SimTime), intent(in) :: time
+      character(len=*), intent(out) :: fullname
+      character(cx) :: filename
+
+      write(filename,"(A, I4, I2.2, I2.2, A)") './bLake.r.', time%year1, &
+            time%month1, time%day1, '.nc'
+      call GetFullFileName(filename, fullname)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -298,6 +330,29 @@ contains
       call check( nf90mpi_put_att(ncid, varid, "missing_value", mval) )
    end subroutine
 
+   subroutine DefNcVariable4I(ncid, dimids, varname, longname, units, &
+                              fillvalue, missvalue, varid)
+      implicit none
+      integer, intent(in) :: ncid
+      integer, dimension(:), intent(in) :: dimids
+      character(len=*), intent(in) :: varname
+      character(len=*), intent(in) :: longname
+      character(len=*), intent(in) :: units
+      integer, intent(in) :: fillvalue
+      integer, intent(in) :: missvalue
+      integer, intent(out) :: varid
+      integer :: fval, mval
+
+      fval = fillvalue
+      mval = missvalue
+      call check( nf90mpi_def_var(ncid, trim(varname), NF90_INT, &
+                  dimids, varid) )
+      call check( nf90mpi_put_att(ncid, varid, "long_name", trim(longname)) )
+      call check( nf90mpi_put_att(ncid, varid, "units", trim(units)) )
+      call check( nf90mpi_put_att(ncid, varid, "_FillValue", fval) )
+      call check( nf90mpi_put_att(ncid, varid, "missing_value", mval) )
+   end subroutine
+
    !------------------------------------------------------------------------------
    !
    ! Purpose: write data in collective mode
@@ -487,4 +542,220 @@ contains
          print *, "Write Real4 3-D variable " // trim(varname)
       end if
    end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: read restart data in collective mode
+   !
+   !------------------------------------------------------------------------------
+   subroutine ReadRestartRealData0D(lakeid, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      character(len=*), intent(in) :: varname
+      real(r8), intent(out) :: odata
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(1), ncount(1)
+      integer :: ncid, varid
+      real(r8) :: tmpArr(1)
+
+      call GetFullFileName(restart_file, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      nstart = (/lakeid/)
+      ncount = (/1/)
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      odata = tmpArr(1)
+      if (masterproc .and. DEBUG) then
+         print *, "Read restart 0-D variable " // trim(varname)
+      end if
+   end subroutine
+
+   subroutine ReadRestartRealData1D(lakeid, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      character(len=*), intent(in) :: varname
+      real(r8), intent(out) :: odata(:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: ncid, varid, ndim
+      real(r8), allocatable :: tmpArr(:,:)
+
+      call GetFullFileName(restart_file, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      ndim = size(odata)
+      nstart = (/1, lakeid/)
+      ncount = (/ndim, 1/)
+      allocate(tmpArr(ndim,1))
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      odata = tmpArr(:,1)
+      deallocate(tmpArr)
+      if (masterproc .and. DEBUG) then
+         print *, "Read restart 1-D variable " // trim(varname)
+      end if
+   end subroutine
+
+   subroutine ReadRestartIntData1D(lakeid, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      character(len=*), intent(in) :: varname
+      integer, intent(out) :: odata(:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: ncid, varid, ndim
+      integer, allocatable :: tmpArr(:,:)
+
+      call GetFullFileName(restart_file, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      ndim = size(odata)
+      nstart = (/1, lakeid/)
+      ncount = (/ndim, 1/)
+      allocate(tmpArr(ndim,1))
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      odata = tmpArr(:,1)
+      deallocate(tmpArr)
+      if (masterproc .and. DEBUG) then
+         print *, "Read restart 1-D integer variable " // trim(varname)
+      end if
+   end subroutine
+
+   subroutine ReadRestartRealData2D(lakeid, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      character(len=*), intent(in) :: varname
+      real(r8), intent(inout) :: odata(:,:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(3), ncount(3)
+      integer :: ncid, varid
+      integer :: ndim1, ndim2
+      real(r8), allocatable :: tmpArr(:,:,:)
+
+      call GetFullFileName(restart_file, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      ndim1 = size(odata, 1)
+      ndim2 = size(odata, 2)
+      nstart = (/1, 1, lakeid/)
+      ncount = (/ndim1, ndim2, 1/)
+      allocate(tmpArr(ndim1,ndim2,1))
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      odata = tmpArr(:,:,1)
+      deallocate(tmpArr)
+      if (masterproc .and. DEBUG) then
+         print *, "Read restart 2-D variable " // trim(varname)
+      end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: write restart data in collective mode
+   !
+   !------------------------------------------------------------------------------
+   subroutine WriteRestartRealData0D(lakeid, time, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      type(SimTime), intent(in) :: time
+      character(len=*), intent(in) :: varname
+      real(r8), intent(inout) :: odata
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(1), ncount(1)
+      integer :: ncid, varid, nlayer
+      real(r8) :: tmpArr(1)
+
+      call GetRestartFullname(time, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_WRITE, &
+                  MPI_INFO_NULL, ncid) )
+      nstart = (/lakeid/)
+      ncount = (/1/)
+      tmpArr = odata
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_put_var_all(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      if (masterproc .and. DEBUG) then
+         print *, "Write restart 0-D variable " // trim(varname)
+      end if
+   end subroutine
+
+   subroutine WriteRestartRealData1D(lakeid, time, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      type(SimTime), intent(in) :: time
+      character(len=*), intent(in) :: varname
+      real(r8), intent(inout) :: odata(:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: ncid, varid, nlayer
+
+      call GetRestartFullname(time, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_WRITE, &
+                  MPI_INFO_NULL, ncid) )
+      nlayer = size(odata)
+      nstart = (/1, lakeid/)
+      ncount = (/nlayer, 1/)
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_put_var_all(ncid, varid, odata, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      if (masterproc .and. DEBUG) then
+         print *, "Write restart 1-D variable " // trim(varname)
+      end if
+   end subroutine
+
+   subroutine WriteRestartIntData1D(lakeid, time, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      type(SimTime), intent(in) :: time
+      character(len=*), intent(in) :: varname
+      integer, intent(inout) :: odata(:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: ncid, varid, nlayer
+
+      call GetRestartFullname(time, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_WRITE, &
+                  MPI_INFO_NULL, ncid) )
+      nlayer = size(odata)
+      nstart = (/1, lakeid/)
+      ncount = (/nlayer, 1/)
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_put_var_all(ncid, varid, odata, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      if (masterproc .and. DEBUG) then
+         print *, "Write restart 1-D integer variable " // trim(varname)
+      end if
+   end subroutine
+
+   subroutine WriteRestartRealData2D(lakeid, time, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      type(SimTime), intent(in) :: time
+      character(len=*), intent(in) :: varname
+      real(r8), intent(inout) :: odata(:,:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(3), ncount(3)
+      integer :: ncid, varid, ndim1, ndim2
+
+      call GetRestartFullname(time, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_WRITE, &
+                  MPI_INFO_NULL, ncid) )
+      ndim1 = size(odata,1)
+      ndim2 = size(odata,2)
+      nstart = (/1, 1, lakeid/)
+      ncount = (/ndim1, ndim2, 1/)
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_put_var_all(ncid, varid, odata, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      if (masterproc .and. DEBUG) then
+         print *, "Write restart 2-D variable " // trim(varname)
+      end if
+   end subroutine
+
 end module io_utilities_mod

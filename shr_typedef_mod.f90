@@ -2,7 +2,7 @@ module shr_typedef_mod
 !----------------------------------------------------------------------------
 ! user self-defined types
 !----------------------------------------------------------------------------
-   use shr_kind_mod,          only: r8, r4
+   use shr_kind_mod,          only : r8, r4
    public
    type SurfaceData
       real(r8) :: temp                 ! 2-m air temperature (K)
@@ -15,8 +15,16 @@ module shr_typedef_mod
       real(r8) :: sw_sim               ! simulated incoming short-wave radiation (W/m2)
       real(r8) :: srd                  ! simulated net SW irradiance (W/m2)
       real(r8) :: lw                   ! incoming long-wave radiation (W/m2)
-      real(r8) :: dzsurf               ! lake water level decrease (m)
-      real(r8) :: srp                  ! lake epilimnion SRP (gP/m3)
+   end type
+   type HydroFluxData
+      real(r8) :: Qwi                  ! inflow (m3/s)
+      real(r8), pointer :: Qwo(:)      ! outflow (m3/s)
+      real(r8), pointer :: zWD(:)      ! withdraw height above lake bottom (m)
+      real(r8) :: WTi                  ! inflow water temperature (K)
+      real(r8) :: o2i                  ! inflow O2 conc (mol/m3)
+      real(r8) :: co2i                 ! inflow CO2 conc (mol/m3)
+      real(r8) :: ch4i                 ! inflow CH4 conc (mol/m3)
+      real(r8) :: srpi                 ! inflow SRP conc (mol/m3)
    end type
    type LakeInfo
       integer  :: id                   ! lake id
@@ -27,6 +35,7 @@ module shr_typedef_mod
       real(r8) :: depth                ! lake depth (m)
       real(r8) :: maxdepth             ! lake maximum depth (m)
       real(r8) :: Asurf                ! lake surface area (m2)
+      real(r8) :: Abasin               ! drainage basin area (km2)
       real(r8) :: zalt                 ! lake altitude (km)
       real(r8) :: wrt                  ! lake water residence time (day)
       real(r8) :: excice               ! land excessive ice fraction
@@ -63,6 +72,14 @@ module shr_typedef_mod
       real(r8) :: dayl                 ! day length
       integer  :: year, month, day     ! local time date
       integer  :: season               ! 0: winter or fall; 1: summer or spring
+   end type
+   !-------------------------------------------------------------------------
+   !  memory caches for lake hypsometric curve
+   !-------------------------------------------------------------------------
+   type HypsometricCurve
+      real(r8), pointer :: h(:)        ! elevation (m)
+      real(r8), pointer :: A(:)        ! cross section (m^2)
+      real(r8), pointer :: S(:)        ! salinity (ppt)
    end type
    !-------------------------------------------------------------------------
    !  memory caches for Runge-Kutta methods

@@ -49,19 +49,21 @@ module shr_ctrl_mod
    character(cx) :: lake_file
    character(cx) :: opt_file
    character(cx) :: bathy_file
+   character(cx) :: restart_file
    character(len=32) :: run_mode    ! "regular" or "sensitivity"
    ! debug group
    logical :: DEBUG
    ! simulation group
    logical :: Thermal_Module, Bubble_Module, Diagenesis_Module
-   logical :: Carbon_Module
+   logical :: Carbon_Module, Hydro_Module
    logical :: Use_Leap
    integer :: Start_Year, Start_Month, Start_Day, End_Year
    integer :: End_Month, End_Day
    integer :: Spinup_Month, Spinup_Day, nSpinup
    ! resolution group
-   integer :: NWLAYER, NSLAYER, NRLAYER, NSCOL 
+   integer :: NWLAYER, NSLAYER, NRLAYER, NSCOL
    integer :: WATER_LAYER, SED_LAYER
+   integer :: NZWD
    ! run data group
    character(len=32) :: forcing_tstep
    character(len=32) :: forcing_time   ! "UTC" or "LT"

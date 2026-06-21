@@ -4,7 +4,7 @@ module phy_const_mod
 !  Hydrodynamics parameters are from Wuest and Lorke (2003),
 !  Goudsmit et al. (2002) and etc.
 !----------------------------------------------------------------------------
-   use shr_kind_mod,          only: r8
+   use shr_kind_mod,          only : r8
    public
    ! substance identifier
    integer, parameter :: Wn2 = 1, Wo2 = 2, Wco2 = 3, Wch4 = 4, Wsrp = 5

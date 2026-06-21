@@ -137,10 +137,11 @@ contains
       time = SimTime(SA_Start_Year, SA_Start_Month, SA_Start_Day, &
                      SA_End_Year, SA_End_Month, SA_End_Day)
       if (minid==1 .and. masterproc) then
-         call CreateOutputFile(time, NWLAYER+1, 'zw', 'water layer depth', 'm')
+         call CreateOutputFile(time, NWLAYER+1, 'zw', 'Z', 'water layer depth', &
+                              'm', -9999.0_r4)
          call CreateOutputFile(time, NSLAYER+1, 'zs', 'sediment layer depth', 'm')
-         call CreateOutputFile(time, NWLAYER+1, 'Az', 'water layer ' // &
-                              'cross-section area', 'm^2');
+         call CreateOutputFile(time, NWLAYER+1, 'Az', 'Z', 'water layer ' // &
+                              'cross-section area', 'm^2', -9999.0_r4);
          call CreateOutputFile(time, NWLAYER+1, 'colindx', 'water layer ' // &
                               'connected sediment column index', 'index')
          if (Thermal_Module) then

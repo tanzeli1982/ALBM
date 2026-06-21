@@ -41,15 +41,13 @@ simulation_mod.o :	simulation_mod.f90      sim_coupler_mod.o		\
 							shr_param_mod.o			shr_typedef_mod.o		\
 							read_data_mod.o
 							$(f90comp) simulation_mod.f90
-costfunc_mod.o	:		costfunc_mod.f90			math_utilities_mod.o	\
-							read_data_mod.o			data_buffer_mod.o
-							$(f90comp) costfunc_mod.f90
 sim_coupler_mod.o :	sim_coupler_mod.f90		thermal_mod.o			\
 							soil_thermal_mod.o		shr_ctrl_mod.o			\
 							bubble_mod.o				carbon_cycle_mod.o	\
-							diagenesis_mod.o			read_data_mod.o		\
-							shr_kind_mod.o				shr_typedef_mod.o		\
-							boundary_mod.o				math_utilities_mod.o
+							diagenesis_mod.o			hydro_mod.o				\
+							read_data_mod.o			shr_kind_mod.o			\
+							shr_typedef_mod.o			boundary_mod.o			\
+							math_utilities_mod.o
 							$(f90comp) sim_coupler_mod.f90
 diagenesis_mod.o :	diagenesis_mod.f90		data_buffer_mod.o			\
 							phy_utilities_mod.o		bg_utilities_mod.o		\
@@ -73,6 +71,9 @@ thermal_mod.o :	thermal_mod.f90		phy_utilities_mod.o		\
 						shr_ctrl_mod.o			shr_param_mod.o			\
 						shr_typedef_mod.o
 						$(f90comp) thermal_mod.f90
+hydro_mod.o	:		hydro_mod.f90			data_buffer_mod.o			\
+						phy_utilities_mod.o	shr_ctrl_mod.o
+						$(f90comp) hydro_mod.f90
 boundary_mod.o :	boundary_mod.f90		data_buffer_mod.o			\
 						bg_utilities_mod.o	phy_utilities_mod.o		\
 						radiation_mod.o
@@ -100,12 +101,12 @@ io_utilities_mod.o :	io_utilities_mod.f90		shr_kind_mod.o			\
 							math_utilities_mod.o
 							$(f90comp) io_utilities_mod.f90
 bg_utilities_mod.o :		bg_utilities_mod.f90		bg_const_mod.o		\
-								phy_const_mod.o			shr_param_mod.o	\
-								shr_ctrl_mod.o
+								math_utilities_mod.o		phy_const_mod.o	\
+								shr_param_mod.o			shr_ctrl_mod.o
 								$(f90comp) bg_utilities_mod.f90
 phy_utilities_mod.o :   phy_utilities_mod.f90   phy_const_mod.o			\
-                        shr_ctrl_mod.o				shr_typedef_mod.o			\
-								shr_kind_mod.o
+                        math_utilities_mod.o		shr_ctrl_mod.o				\
+								shr_typedef_mod.o			shr_kind_mod.o
 								$(f90comp) phy_utilities_mod.f90
 math_utilities_mod.o :	math_utilities_mod.f90	shr_kind_mod.o		\
 								shr_ctrl_mod.o
