@@ -133,7 +133,7 @@ module data_buffer_mod
    real(r8), allocatable :: m_aCO2(:)
    real(r8), allocatable :: m_aO3(:)
    real(r8), allocatable :: m_aAOD(:)
-   ! water and sediment depth vector (m)
+   ! water and sediment elevation vector (m)
    real(r8), allocatable :: m_Zw(:), m_Zs(:)
    real(r8), allocatable :: m_dZw(:), m_dZs(:)
    ! lake depth-dependent area vector (m2)
@@ -200,7 +200,7 @@ contains
       integer :: o3Indx(2), aodIndx(2)
       integer :: co2Indx(2), timeIndx(2)
       real(r8) :: loc180(2)
-      real(r8) :: vol, Asurf, zmax
+      real(r8) :: vol, zmax
 
       loc180 = (/lake_info%longitude, lake_info%latitude/)
 
@@ -365,15 +365,14 @@ contains
       ! initialize depth vectors
       call ReadLakeHypsography(lake_info, m_hypsocurve)
       if (Hydro_Module) then
-         call ReadLakeInitGeometry(hydro_file, lake_info, time, &
-                  vol, Asurf, zmax)
-         call BuildDepthVector(zmax, lake_info%hsed, m_Zw, m_dZw, m_Zs, m_dZs)
-         m_Zw = m_Zw - zmax + lake_info%maxdepth
+         call ReadLakeInitVolume(hydro_file, lake_info, time, vol)
+         call GetHeightFromVolume(vol, m_hypsocurve, zmax)
       else
-         call BuildDepthVector(lake_info%maxdepth, lake_info%hsed, &
-                  m_Zw, m_dZw, m_Zs, m_dZs)
-         vol = lake_info%depth * lake_info%Asurf 
+         call GetVolumeFromHeight(lake_info%maxdepth, m_hypsocurve, vol) 
+         zmax = lake_info%maxdepth
       end if
+      call BuildDepthVector(zmax, lake_info%hsed, m_hypsocurve, &
+               m_Zw, m_dZw, m_Zs, m_dZs)
       call BuildLakeStructure(lake_info, m_hypsocurve, vol, m_Zw, m_dZw, &
                m_Az, m_dAz, m_SAL, m_soilColZ, m_soilColInd)
       call SetSedPorosity(m_Zs, m_dZs, m_sedpor)
@@ -556,6 +555,7 @@ contains
       ! destroy memory for hypsometric curve
       deallocate(m_hypsocurve%h)
       deallocate(m_hypsocurve%A)
+      deallocate(m_hypsocurve%V)
       deallocate(m_hypsocurve%S)
    end subroutine
     

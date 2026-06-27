@@ -735,9 +735,9 @@ contains
    !          1.0d-9 in Wuest and Lorke (2003). 
    !
    !------------------------------------------------------------------------------
-   subroutine CalcEddyDiffusivity(depth, freq, wind, lat, keddy)
+   subroutine CalcEddyDiffusivity(elev, freq, wind, lat, keddy)
       implicit none
-      real(r8), intent(in) :: depth(:)       ! units: m
+      real(r8), intent(in) :: elev(:)       ! units: m
       real(r8), intent(in) :: freq(:)        ! units: s-2
       real(r8), intent(in) :: wind           ! units: m/s
       real(r8), intent(in) :: lat            ! units: decimal
@@ -745,7 +745,7 @@ contains
       real(r8) :: uts, ubs, ekman, rlat
       real(r8) :: tmp, tmp1, Ri, w10
       real(r8) :: zhs, Nsqrt
-      real(r8) :: maxdepth, z0
+      real(r8) :: maxdepth, z0, zn
       integer :: ii, nn
 
       if (wind<0.1_r8) then
@@ -753,9 +753,10 @@ contains
          keddy = 0.0_r8
          return
       end if
-      nn = size(depth)
-      z0 = depth(1) 
-      maxdepth = depth(nn) - z0
+      nn = size(elev)
+      z0 = elev(1)
+      zn = elev(nn)
+      maxdepth = z0 - zn
       ! surface and bottom friction velocity
       w10 = ConvertWindSpeed10(wind, 2.0d0)
       uts = 1.2d-3 * wind
@@ -765,12 +766,12 @@ contains
       ekman = 6.6*sqrt(sin(abs(rlat)))*(wind**(-1.84))
       do ii = 1, nn, 1
          Nsqrt = max(7.5d-5, freq(ii))
-         tmp = uts * exp(-ekman*(depth(ii)-z0))
-         tmp1 = (40*Nsqrt*(Karman*(depth(ii)-z0))**2) / (tmp**2+inft)
+         tmp = uts * exp(-ekman*(z0-elev(ii)))
+         tmp1 = (40*Nsqrt*(Karman*(z0-elev(ii)))**2) / (tmp**2+inft)
          Ri = 0.05 * (-1 + sqrt(1.0+tmp1))
-         keddy(ii) = (Karman*(depth(ii)-z0)*tmp/Prandtl)/(1+37*Ri**2)
+         keddy(ii) = (Karman*(z0-elev(ii))*tmp/Prandtl)/(1+37*Ri**2)
          if (maxdepth>5._r8) then
-            zhs = maxdepth - depth(ii) + z0 + DeltaD
+            zhs = elev(ii) - zn + DeltaD
             tmp = ubs * exp(-ekman*zhs)
             tmp1 = (40*Nsqrt*(Karman*zhs)**2) / (tmp**2+inft)
             Ri = 0.05 * (-1 + sqrt(1.0+tmp1))
@@ -1414,10 +1415,11 @@ contains
    ! Purpose: Build the depth grids for water and sediment columns. 
    !
    !------------------------------------------------------------------------------
-   subroutine BuildDepthVector(maxdepth, hsed, Zw, dZw, Zs, dZs)
+   subroutine BuildDepthVector(maxdepth, hsed, hypsocurve, Zw, dZw, Zs, dZs)
       implicit none
       real(r8), intent(in)  :: maxdepth      ! maximum depth (m)
       real(r8), intent(in)  :: hsed          ! sediment column thickness (m)
+      type(HypsometricCurve), intent(in) :: hypsocurve
       real(r8), intent(out) :: Zw(:)         ! water layer depth vector
       real(r8), intent(out) :: dZw(:)        ! water layer thickness
       real(r8), intent(out) :: Zs(:)         ! sediment layer depth vector
@@ -1427,6 +1429,7 @@ contains
             0.1310, 0.1333, 0.1354, 0.1373, 0.1390, 0.1407, &
             0.1422, 0.1436, 0.1449, 0.1462, 0.1474/)
       real(r8) :: K1, K2, denom, pp
+      real(r8) :: v1, dv, r1, r2, rm
       integer :: nw, ns, nz, ii, idx
 
       ! for water column
@@ -1462,6 +1465,8 @@ contains
             dZw(ii) = 0.5 * (Zw(ii+1) - Zw(ii-1))
          end if
       end do
+      Zw = Zw(nw+1) - Zw
+
       ! for sediment column
       ns = size(Zs) - 1
       K2 = 0.05_r8
@@ -1496,6 +1501,47 @@ contains
             dZ(ii) = 0.5 * (Z(ii+1) - Z(ii-1))
          end if
       end do
+   end subroutine
+
+   subroutine GetVolumeFromHeight(depth, hypsocurve, vol)
+      implicit none
+      real(r8), intent(in)  :: depth         ! height above bottom (m)
+      type(HypsometricCurve), intent(in) :: hypsocurve
+      real(r8), intent(out) :: vol           ! lake volume (m^3)
+      real(r8) :: v1, dv, r1, r2, rm
+      integer :: idx
+      
+      call DichotomySectionSearch(hypsocurve%h, depth, idx)
+      v1 = hypsocurve%V(idx)
+      r1 = sqrt(hypsocurve%A(idx)/Pi)
+      r2 = sqrt(hypsocurve%A(idx+1)/Pi)
+      rm = (r2*(depth-hypsocurve%h(idx)) + r1*(hypsocurve%h(idx+1)-depth)) &
+         / (hypsocurve%h(idx+1) - hypsocurve%h(idx))
+      dv = Pi * (hypsocurve%h(idx+1) - hypsocurve%h(idx)) * &
+         (rm**3 - r1**3) / 3._r8 / (r2 - r1)
+      vol = v1 + dv
+   end subroutine
+
+   subroutine GetHeightFromVolume(vol, hypsocurve, depth)
+      implicit none
+      real(r8), intent(in)  :: vol           ! lake volume (m^3) 
+      type(HypsometricCurve), intent(in) :: hypsocurve
+      real(r8), intent(out) :: depth         ! height above bottom (m)
+      real(r8) :: z1, z2, dz
+      real(r8) :: r1, r2, rm
+      real(r8) :: v1, v2
+      integer :: idx
+
+      call DichotomySectionSearch(hypsocurve%V, vol, idx)
+      z1 = hypsocurve%h(idx)
+      z2 = hypsocurve%h(idx+1)
+      v1 = hypsocurve%V(idx)
+      v2 = hypsocurve%V(idx+1)
+      r1 = sqrt(hypsocurve%A(idx)/Pi)
+      r2 = sqrt(hypsocurve%A(idx+1)/Pi)
+      rm = (r2**3 - (v2-vol)/(v2-v1)*(r2**3-r1**3))**(1._r8/3._r8)
+      dz = (z2 - z1) * (rm - r1) / (r2 - r1)
+      depth = z1 + dz
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -1542,7 +1588,7 @@ contains
 
       call Interp1d(hypsocurve%h, sqrt(hypsocurve%A), tmpZw, tmpAz)
       call Interp1d(hypsocurve%h, hypsocurve%S, tmpZw, tmpSAL)
-      tmpAz = 1.d6 * tmpAz**2 ! km^2 > m^2
+      tmpAz = tmpAz**2
       Az = tmpAz(1:nz)
       SAL = tmpSAL(1:nz)
 

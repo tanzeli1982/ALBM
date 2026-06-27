@@ -152,31 +152,27 @@ contains
       end if
    end subroutine
 
-   subroutine ReadLakeInitGeometry(filename, info, time, vol, Asurf, zmax)
+   subroutine ReadLakeInitVolume(filename, info, time, vol)
       implicit none
       character(len=*), intent(in) :: filename
       type(LakeInfo), intent(in) :: info
       type(SimTime), intent(in) :: time
       real(r8), intent(out) :: vol
-      real(r8), intent(out) :: Asurf
-      real(r8), intent(out) :: zmax
       character(cx) :: fullname
       integer(kind=MPI_OFFSET_KIND) :: nstart(2)
       integer(kind=MPI_OFFSET_KIND) :: ncount(2)
       integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
       integer :: ncid, date_varid
-      integer :: vol_varid, Asurf_varid, zmax_varid
+      integer :: vol_varid
       integer :: JDN0, JDNb, t0, date(1)
       integer :: year, month, day
-      real(r8) :: tmpV(1,1), tmpA(1,1), tmpZ(1,1) 
+      real(r8) :: tmpV(1,1)
 
       call GetFullFileName(filename, fullname)
       call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
                   MPI_INFO_NULL, ncid) )
       call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
       call check( nf90mpi_inq_varid(ncid, "Vol", vol_varid) )
-      call check( nf90mpi_inq_varid(ncid, "Asurf", Asurf_varid) )
-      call check( nf90mpi_inq_varid(ncid, "zMax", zmax_varid) )
       
       ! read data start and end date
       call check( nf90mpi_get_var_all(ncid, date_varid, date, &
@@ -195,16 +191,12 @@ contains
       nstart = (/info%id, t0/)
       ncount = (/1, 1/)
       call check( nf90mpi_get_var_all(ncid, vol_varid, tmpV, nstart, ncount) )
-      call check( nf90mpi_get_var_all(ncid, Asurf_varid, tmpA, nstart, ncount) )
-      call check( nf90mpi_get_var_all(ncid, zmax_varid, tmpZ, nstart, ncount) )
       call check( nf90mpi_close(ncid) )
 
       vol = tmpV(1,1)
-      Asurf = tmpA(1,1)
-      zmax = tmpZ(1,1)
 
       if (DEBUG .and. masterproc) then
-         print *, "Read lake initial geometry from " // trim(fullname)
+         print *, "Read lake initial volume from " // trim(fullname)
       end if
    end subroutine
 
@@ -224,7 +216,7 @@ contains
       integer(kind=MPI_OFFSET_KIND) :: nlevel
       integer :: ncid, dimid
       integer :: h_varid, A_varid, S_varid
-      integer :: ii, nLvalid
+      integer :: ii, nLvalid, indx
       real(r8) :: rA, h1, h2
       real(r8), allocatable :: tmph(:,:)
       real(r8), allocatable :: tmpA(:,:)
@@ -251,30 +243,42 @@ contains
       ! remove all zero area above the maximum depth
       nLvalid = 0
       do ii = 1, nlevel, 1
-         if (tmpA(ii,1)>e8 .or. abs(tmph(ii,1)-info%maxdepth)<e8) then
+         if (tmpA(ii,1)>e8 .and. tmph(ii,1)>-e8) then
             nLvalid = nLvalid + 1
          end if
       end do
       allocate(hypsocurve%h(nLvalid+1))
       allocate(hypsocurve%A(nLvalid+1))
+      allocate(hypsocurve%V(nLvalid+1))
       allocate(hypsocurve%S(nLvalid+1))
 
-      nLvalid = 1
+      indx = 1
       do ii = 1, nlevel, 1
-         if (tmpA(ii,1)>e8 .or. abs(tmph(ii,1)-info%maxdepth)<e8) then
-            nLvalid = nLvalid + 1
-            hypsocurve%h(nLvalid) = tmph(ii,1)
-            hypsocurve%A(nLvalid) = tmpA(ii,1)
-            hypsocurve%S(nLvalid) = tmpS(ii,1)
+         if (tmpA(ii,1)>e8 .and. tmph(ii,1)>-e8) then
+            hypsocurve%h(indx) = tmph(ii,1)
+            hypsocurve%A(indx) = 1.d6 * tmpA(ii,1)
+            hypsocurve%S(indx) = tmpS(ii,1)
+            indx = indx + 1
          end if
       end do
 
-      h2 = hypsocurve%h(3) - hypsocurve%h(2)
-      h1 = 100._r8
-      rA = (sqrt(hypsocurve%A(2))*(h1+h2) - sqrt(hypsocurve%A(3))*h1) / h2
-      hypsocurve%h(1) = hypsocurve%h(2) - h1
-      hypsocurve%A(1) = rA**2
-      hypsocurve%S(1) = hypsocurve%S(2)
+      h2 = hypsocurve%h(nLvalid) - hypsocurve%h(nLvalid-1)
+      h1 = 1000._r8
+      rA = (sqrt(hypsocurve%A(nLvalid))*h2 + sqrt(hypsocurve%A(nLvalid-1))*h1) &
+         / (h2 + h1)
+      hypsocurve%h(nLvalid+1) = hypsocurve%h(nLvalid) + h1
+      hypsocurve%A(nLvalid+1) = rA**2
+      hypsocurve%S(nLvalid+1) = hypsocurve%S(nLvalid)
+
+      do ii = 1, nLvalid+1, 1
+         if (ii==1) then
+            hypsocurve%V(ii) = 0._r8
+         else
+            hypsocurve%V(ii) = (hypsocurve%h(ii) - hypsocurve%h(ii-1)) * &
+               (hypsocurve%A(ii) + sqrt(hypsocurve%A(ii)*hypsocurve%A(ii-1)) + &
+               hypsocurve%A(ii-1)) / 3._r8 + hypsocurve%V(ii-1)
+         end if
+      end do
 
       deallocate(tmph, tmpA, tmpS)
       if (DEBUG .and. masterproc) then

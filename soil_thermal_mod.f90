@@ -297,7 +297,7 @@ contains
          call CalcSedBottomTemp(lake_info, m_radPars%tref, margin, MAGT)
          ! calculate talik depth
          if (lake_info%thrmkst>0) then
-            talik = (m_Zw(indx) - z0) / lake_info%excice
+            talik = (z0 - m_Zw(indx)) / lake_info%excice
          else
             talik = lake_info%hsed
          end if
@@ -309,7 +309,7 @@ contains
             Ttop = T0 + 4.0
          else
             Tbot = min(MAGT,T0-1.0)
-            if (m_Zw(indx)-z0>=2.0) then
+            if (z0-m_Zw(indx)>=2.0) then
                Ttop = T0 + 4.0
             else
                Ttop = min(max(m_radPars%tref,T0+0.5),T0+4.0)

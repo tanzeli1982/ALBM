@@ -79,6 +79,7 @@ module shr_typedef_mod
    type HypsometricCurve
       real(r8), pointer :: h(:)        ! elevation (m)
       real(r8), pointer :: A(:)        ! cross section (m^2)
+      real(r8), pointer :: V(:)        ! cumulative volume (m^3)
       real(r8), pointer :: S(:)        ! salinity (ppt)
    end type
    !-------------------------------------------------------------------------

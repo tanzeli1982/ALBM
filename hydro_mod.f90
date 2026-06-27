@@ -70,6 +70,7 @@ contains
       real(r8) :: overlap, sumw
       real(r8) :: rdiff, maxZ
       real(r8) :: Vres, Vnew
+      real(r8) :: Ebg, Eed
       real(r8), parameter :: rw_min = 0.2_r8
       real(r8), parameter :: dZw_min = 0.1_r8
       real(r8), parameter :: err_max = 1.0_r8
@@ -86,6 +87,7 @@ contains
       ! increase surface layer volume by inflow
       zVol = m_dZw * m_Az        ! current volume
       zVol0 = zVol
+      Vtot0 = sum(zVol0)
       dV = m_hydroData%Qwi * dt
       zVol(top) = zVol(top) + dV
       
@@ -111,8 +113,8 @@ contains
 
       ! calculate withdrawal weights
       do ii = 1, NZWD, 1
-         zw = m_Zw(WATER_LAYER+1) - m_hydroData%zWD(ii)
-         indx = COUNT(m_Zw<=zw)
+         zw = m_hydroData%zWD(ii)
+         indx = COUNT(m_Zw>zw)
          if (indx==0) then
             weightsWD(ii,:) = 0._r8
             cycle
@@ -122,16 +124,16 @@ contains
          else
             rw = max( m_dZw(indx), rw_min )
          end if
-         za = zw - rw
-         zb = zw + rw
+         za = zw + rw
+         zb = zw - rw
          do jj = 1, WATER_LAYER+1, 1
             if (jj==1) then
-               overlap = min(m_Zw(jj)+m_dZw(jj), zb) - max(m_Zw(jj), za)
+               overlap = min(m_Zw(jj), za) - max(m_Zw(jj)-m_dZw(jj), zb)
             else if (jj==WATER_LAYER+1) then
-               overlap = min(m_Zw(jj), zb) - max(m_Zw(jj)-m_dZw(jj), za)
+               overlap = min(m_Zw(jj)+m_dZw(jj), za) - max(m_Zw(jj), zb)
             else
-               overlap = min(m_Zw(jj)+0.5*m_dZw(jj), zb) - &
-                  max(m_Zw(jj)-0.5*m_dZw(jj), za)
+               overlap = min(m_Zw(jj)+0.5*m_dZw(jj), za) - &
+                  max(m_Zw(jj)-0.5*m_dZw(jj), zb)
             end if
             if (overlap>e8) then
                weightsWD(ii,jj) = overlap
@@ -190,18 +192,12 @@ contains
 
       ! decrease layer volume by outflow
       zVol = zVol - realWD
+      Vtot = sum(zVol)
 
-      ! update layer thickness
-      m_dZw = zVol / m_Az
-      do ii = WATER_LAYER, 1, -1
-         if (ii==WATER_LAYER) then
-            m_Zw(ii) = m_Zw(ii+1) - m_dZw(ii+1) - 0.5*m_dZw(ii)
-         else if (ii==1) then
-            m_Zw(ii) = m_Zw(ii+1) - 0.5*m_dZw(ii+1) - m_dZw(ii)
-         else
-            m_Zw(ii) = m_Zw(ii+1) - 0.5*m_dZw(ii+1) - 0.5*m_dZw(ii)
-         end if
-      end do
+      dV = Vtot - Vtot0 + (sum(m_hydroData%Qwo) - m_hydroData%Qwi)*dt
+      if (abs(dV) > 1.d-3) then
+         call Endrun('Lake storage does not conserve after inflow/outflow')
+      end if
 
       ! check whether regridding is needed
       to_regrid = .False.
@@ -215,49 +211,69 @@ contains
 
       ! regridding is not needed
       if (.NOT. to_regrid) then
+         ! only update layer thickness 
+         m_dZw = zVol / m_Az
+         do ii = WATER_LAYER+1, 1, -1
+            if (ii==WATER_LAYER+1) then
+               m_Zw(ii) = 0._r8
+            else if (ii==WATER_LAYER) then
+               m_Zw(ii) = m_Zw(ii+1) + m_dZw(ii+1) + 0.5*m_dZw(ii)
+            else if (ii==1) then
+               m_Zw(ii) = m_Zw(ii+1) + 0.5*m_dZw(ii+1) + m_dZw(ii)
+            else
+               m_Zw(ii) = m_Zw(ii+1) + 0.5*(m_dZw(ii+1)+m_dZw(ii))
+            end if
+         end do
+
+         !print *, "Hydro info: ", sum(m_dZw), 1e-9*sum(zVol), &
+         !   1e-6*sum(m_Az)
          return
       end if
 
       ! adjust lake grid 
-      Vtot0 = sum(m_dZw*m_Az)
-      maxZ = sum(m_dZw)
-      !print *, maxZ, lake_info%maxdepth, m_Zw(1), m_Zw(WATER_LAYER+1)
-
-      call BuildDepthVector(maxZ, lake_info%hsed, m_Zw, m_dZw, m_Zs, m_dZs)
-      m_Zw = m_Zw + (lake_info%maxdepth - maxZ)
+      Vtot0 = sum(zVol)
+      call GetHeightFromVolume(Vtot0, m_hypsocurve, maxZ)
+      call BuildDepthVector(maxZ, lake_info%hsed, m_hypsocurve, m_Zw, m_dZw, &
+               m_Zs, m_dZs)
       call BuildLakeStructure(lake_info, m_hypsocurve, Vtot0, m_Zw, m_dZw, &
                m_Az, m_dAz, m_SAL, m_soilColZ, m_soilColInd)
       Vtot = sum(m_dZw*m_Az)
 
       if (abs(Vtot - Vtot0) > 1.d-3) then
-         print *, "New vs. old lake volume: ", Vtot, Vtot0
-         call Endrun('Lake volume does not conserve')
+         call Endrun('Lake storage does not conserve after regridding')
       end if
+      !print *, "Hydro info: ", maxZ, sum(m_dZw), 1e-9*Vtot0, &
+      !   1e-6*sum(m_Az)
 
       ! remap state variables onto the new grids
       indx = 1
       zVol0 = zVol
+      Ebg = sum(zVol*m_waterTemp) / sum(zVol)
       do ii = 1, WATER_LAYER+1, 1
-         Vnew = m_dZw(ii) * m_Az(ii)
-         Vres = Vnew
+         Vres = m_dZw(ii) * m_Az(ii)
+         Vnew = 0._r8
          tmpwaterTemp(ii) = 0._r8
          tmpwaterSubCon(:,ii) = 0._r8
-         do jj = indx, WATER_LAYER+1, 1
-            if (zVol0(jj)>=Vres) then
-               tmpwaterTemp(ii) = tmpwaterTemp(ii) + Vres*m_waterTemp(jj)
+         do while (Vres>e8 .and. indx<=WATER_LAYER+1)
+            if (Vres<=zVol0(indx)) then
+               tmpwaterTemp(ii) = tmpwaterTemp(ii) + Vres*m_waterTemp(indx)
                tmpwaterSubCon(:,ii) = tmpwaterSubCon(:,ii) + &
-                  Vres*m_waterSubCon(:,jj)
-               zVol0(jj) = zVol0(jj) - Vres
-               indx = jj
-               exit
+                  Vres*m_waterSubCon(:,indx)
+               Vnew = Vnew + Vres
+               zVol0(indx) = zVol0(indx) - Vres
+               Vres = 0._r8
             else
-               tmpwaterTemp(ii) = tmpwaterTemp(ii) + zVol0(jj)*m_waterTemp(jj)
+               tmpwaterTemp(ii) = tmpwaterTemp(ii) + &
+                  zVol0(indx)*m_waterTemp(indx)
                tmpwaterSubCon(:,ii) = tmpwaterSubCon(:,ii) + &
-                  zVol0(jj)*m_waterSubCon(:,jj)
-               Vres = Vres - zVol0(jj)
-               zVol0(jj) = 0._r8
+                  zVol0(indx)*m_waterSubCon(:,indx)
+               Vnew = Vnew + zVol0(indx)
+               Vres = Vres - zVol0(indx)
+               zVol0(indx) = 0._r8
+               indx = indx + 1
             end if
          end do
+
          ! average
          tmpwaterTemp(ii) = tmpwaterTemp(ii) / Vnew
          tmpwaterSubCon(:,ii) = tmpwaterSubCon(:,ii) / Vnew
@@ -266,6 +282,12 @@ contains
       ! update state variables
       m_waterTemp = tmpwaterTemp
       m_waterSubCon = tmpwaterSubCon
+
+      Eed = sum(m_dZw*m_Az*m_waterTemp) / sum(m_dZw*m_Az)
+      if (abs(Ebg - Eed) > 1.d-6) then
+         print *, "Ebg and Eed: ", Ebg, Eed, Ebg-Eed
+         call Endrun('Heat budget does not conserve after remapping')
+      end if
 
    end subroutine 
 

@@ -23,6 +23,7 @@ module carbon_cycle_mod
    public :: CarbonCycleEquation, PhytoplanktonDynamics 
    public :: GetProductionRates, GetRespirationRates
    public :: BedVegetationDynamics
+   public :: ConvectiveMixing
    ! memory cache for Runge-Kutta
    type(RungeKuttaCache2D) :: mem_sub
    ! gas transfer velocity (m/s)
@@ -336,7 +337,7 @@ contains
          if(ii==1) then
             aa = 0.5 * (m_Kv(ii) + m_Kv(ii+1))
             Az1 = m_Az(ii+1)
-            dca = (con(:,ii+1) - con(:,ii)) / (m_Zw(ii+1) - m_Zw(ii))
+            dca = (con(:,ii+1) - con(:,ii)) / (m_Zw(ii) - m_Zw(ii+1))
             dcon(:,ii) = (aa*Az1*dca + qb(:,ii)*m_dAz(ii) - qt*m_Az(ii)) / &
                   m_dZw(ii) / m_Az(ii) + rDYN(:,ii)
          else if(ii==WATER_LAYER+1) then
@@ -346,7 +347,7 @@ contains
                bb = 0._r8
             end if
             Az2 = m_Az(ii) 
-            dcb = (con(:,ii) - con(:,ii-1)) / (m_Zw(ii) - m_Zw(ii-1))
+            dcb = (con(:,ii) - con(:,ii-1)) / (m_Zw(ii-1) - m_Zw(ii))
             dcon(:,ii) = (qb(:,ii)*m_dAz(ii) - bb*Az2*dcb) / m_dZw(ii) / &
                   m_Az(ii) + rDYN(:,ii)
          else
@@ -358,8 +359,8 @@ contains
             end if
             Az1 = m_Az(ii+1) 
             Az2 = m_Az(ii) 
-            dca = (con(:,ii+1) - con(:,ii)) / (m_Zw(ii+1) - m_Zw(ii))
-            dcb = (con(:,ii) - con(:,ii-1)) / (m_Zw(ii) - m_Zw(ii-1))
+            dca = (con(:,ii+1) - con(:,ii)) / (m_Zw(ii) - m_Zw(ii+1))
+            dcb = (con(:,ii) - con(:,ii-1)) / (m_Zw(ii-1) - m_Zw(ii))
             dcon(:,ii) = (aa*Az1*dca + qb(:,ii)*m_dAz(ii) - bb*Az2*dcb) / &
                   m_dZw(ii) / m_Az(ii) + rDYN(:,ii)
          end if

@@ -219,22 +219,22 @@ contains
          Cbg(:,:,indx+1) = Vbg0(:,:,icol)
          Cbg(:,:,1:indx) = 0.0_r8
 
-         pos_frz = -topZw(top)
+         pos_frz = topZw(top)
          do rIndx = 1, NRLAYER+1, 1
             ! bubble release from sediment-water interface
-            pos = -btmZw(indx)
+            pos = btmZw(indx)
             rr = m_Rb0(rIndx) 
             Vbg = Vbg0(:,rIndx,icol)
             locIndx = indx
-            do while (pos<pos_frz .and. rr>e8)
-               if (pos>-topZw(locIndx)) then
+            do while (pos>pos_frz .and. rr>e8)
+               if (pos<topZw(locIndx)) then
                   Cbg(:,rIndx,locIndx) = Vbg
                   locIndx = locIndx - 1
                end if
                temp = m_waterTemp(locIndx) 
                wb = CalcBuoyantVelocity(rr, dVsc(locIndx))
                gama = bGama(locIndx) 
-               pressure = m_surfData%pressure + 2.0*gama/rr - Roul*G*pos
+               pressure = m_surfData%pressure + 2.0*gama/rr + Roul*G*pos
                ! gas exchange rate
                peclet = rr * wb / bDiff(:,locindx)
                reynold = peclet / schmidt(:,locindx)
@@ -251,12 +251,12 @@ contains
                Vbg = Vbg + bNumb(rIndx,icol) * ndm * tdelta
                where (Vbg<0._r8) Vbg = 0._r8    ! remove small negatives
                ! new radius
-               pr_tmp = 3.0*m_surfData%pressure - 3.0*Roul*G*pos + 4.0*gama/rr
+               pr_tmp = 3.0*m_surfData%pressure + 3.0*Roul*G*pos + 4.0*gama/rr
                dr_tmp1 = 0.75d-3*R*temp/(Pi*rr**2.0)/pr_tmp
                dr_tmp2 = rr*Roul*G*wb/pr_tmp
                rr = rr + (dr_tmp1*sum(ndm)+dr_tmp2)*tdelta
                ! new position
-               pos = pos + wb*tdelta
+               pos = pos - wb*tdelta
             end do
             ! including ice layers
             do jj = 1, locIndx, 1
@@ -318,14 +318,14 @@ contains
       ! initialize intermediate variables
       do ii = 1, WATER_LAYER+1, 1
          if (ii==1) then
-            topZw(ii) = m_Zw(ii) - m_Zw(1)
-            btmZw(ii) = m_Zw(ii) + m_dZw(ii) - m_Zw(1)
+            topZw(ii) = 0._r8 
+            btmZw(ii) = m_dZw(ii)
          else if (ii==WATER_LAYER+1) then
-            topZw(ii) = m_Zw(ii) - m_dZw(ii) - m_Zw(1)
-            btmZw(ii) = m_Zw(ii) - m_Zw(1)
+            topZw(ii) = m_Zw(1) - m_Zw(ii) - m_dZw(ii)
+            btmZw(ii) = m_Zw(1) - m_Zw(ii)
          else
-            topZw(ii) = m_Zw(ii) - 0.5*m_dZw(ii) - m_Zw(1)
-            btmZw(ii) = m_Zw(ii) + 0.5*m_dZw(ii) - m_Zw(1)
+            topZw(ii) = m_Zw(1) - m_Zw(ii) - 0.5*m_dZw(ii)
+            btmZw(ii) = m_Zw(1) - m_Zw(ii) + 0.5*m_dZw(ii)
          end if
       end do
    end subroutine

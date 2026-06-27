@@ -20,6 +20,7 @@ module thermal_mod
    public :: ThermalModuleSetup, ThermalModuleCallback
    public :: UpdateLakeWaterTopIndex, UpdateLakeIceThickness
    public :: GetBoundaryOutputs, HeatEquation
+   public :: ConvectiveMixing
    ! module cache for Runge-Kutta
    type(RungeKuttaCache1D) :: mem_tw
    ! volumetric heat capacity (J/K/m3)
@@ -209,23 +210,24 @@ contains
          else
             qb = m_Ktb(ii) * (m_sedTemp(icol,1) - temp(ii)) / DeltaD
          end if
+         qb = 0._r8
          if(ii==1) then
             aa = 0.5 * (m_Kt(ii+1) + m_Kt(ii))
-            dT1 = (temp(ii+1) - temp(ii)) / (m_Zw(ii+1) - m_Zw(ii))
+            dT1 = (temp(ii+1) - temp(ii)) / (m_Zw(ii) - m_Zw(ii+1))
             Az1 = m_Az(ii)
             dtemp(ii) = (aa*Az1*dT1 + qb*m_dAz(ii) - qt*m_Az(ii)) / &
                   m_dZw(ii) / m_Az(ii) + rad(ii)
          else if(ii==WATER_LAYER+1) then
             bb = 0.5 * (m_Kt(ii-1) + m_Kt(ii))
-            dT2 = (temp(ii) - temp(ii-1)) / (m_Zw(ii) - m_Zw(ii-1))
+            dT2 = (temp(ii) - temp(ii-1)) / (m_Zw(ii-1) - m_Zw(ii))
             Az2 = m_Az(ii) 
             dtemp(ii) = (qb*m_dAz(ii) - bb*Az2*dT2) / m_dZw(ii) / &
                   m_Az(ii) + rad(ii)
          else
             aa = 0.5 * (m_Kt(ii+1) + m_Kt(ii))
             bb = 0.5 * (m_Kt(ii-1) + m_Kt(ii))
-            dT1 = (temp(ii+1) - temp(ii)) / (m_Zw(ii+1) - m_Zw(ii))
-            dT2 = (temp(ii) - temp(ii-1)) / (m_Zw(ii) - m_Zw(ii-1))
+            dT1 = (temp(ii+1) - temp(ii)) / (m_Zw(ii) - m_Zw(ii+1))
+            dT2 = (temp(ii) - temp(ii-1)) / (m_Zw(ii-1) - m_Zw(ii))
             Az1 = m_Az(ii)
             Az2 = m_Az(ii) 
             dtemp(ii) = (aa*Az1*dT1 + qb*m_dAz(ii) - bb*Az2*dT2) / &
