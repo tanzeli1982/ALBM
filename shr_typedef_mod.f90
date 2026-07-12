@@ -19,7 +19,7 @@ module shr_typedef_mod
    type HydroFluxData
       real(r8) :: Qwi                  ! inflow (m3/s)
       real(r8), pointer :: Qwo(:)      ! outflow (m3/s)
-      real(r8), pointer :: zWD(:)      ! withdraw height above lake bottom (m)
+      real(r8), pointer :: vWD(:)      ! volume when water surface at gate (m3)
       real(r8) :: WTi                  ! inflow water temperature (K)
       real(r8) :: o2i                  ! inflow O2 conc (mol/m3)
       real(r8) :: co2i                 ! inflow CO2 conc (mol/m3)

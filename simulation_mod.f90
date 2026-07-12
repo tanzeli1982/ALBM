@@ -145,6 +145,7 @@ contains
                                  'Temperature of Lake Sediment', 'K', -9999.0_r4)
          end if
          if (Hydro_Module) then
+            call CreateOutputFile(time, 'Sw', 'Water storage', 'm^3', -9999.0_r4)
             call CreateOutputFile(time, 'Qwt', 'Outflow water temperature', &
                                  'm', -9999.0_r4)
             call CreateOutputFile(time, 'Qch4', 'Outflow CH4 concentration', &

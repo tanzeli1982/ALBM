@@ -54,6 +54,7 @@ module data_buffer_mod
    real(r4), allocatable :: m_oldcarbHist(:,:,:)
    real(r4), allocatable :: m_sedEHLHist(:,:,:)
    ! simulated hourly outflow temperature and chemicals
+   real(r4), allocatable :: m_SwHist(:)
    real(r4), allocatable :: m_QwtHist(:)
    real(r4), allocatable :: m_Qch4Hist(:)
    real(r4), allocatable :: m_Qco2Hist(:)
@@ -276,6 +277,7 @@ contains
       allocate(m_actcarbHist(NSCOL,SED_LAYER+1,ntout))
       allocate(m_oldcarbHist(NSCOL,SED_LAYER+1,ntout))
       allocate(m_sedEHLHist(NSCOL,SED_LAYER+1,ntout))
+      allocate(m_SwHist(ntout))
       allocate(m_QwtHist(ntout))
       allocate(m_Qch4Hist(ntout))
       allocate(m_Qco2Hist(ntout))
@@ -332,7 +334,7 @@ contains
          allocate(m_Qch4i(simday))
          allocate(m_Qsrpi(simday))
          allocate(m_hydroData%Qwo(NZWD))
-         allocate(m_hydroData%zWD(NZWD))
+         allocate(m_hydroData%vWD(NZWD))
       end if
       ! allocate memory for irradiation data
       allocate(m_aCO2(simyr))
@@ -407,7 +409,7 @@ contains
                m_aAOD)
       ! hydrology and chemistry input data
       if (Hydro_Module) then
-         call ReadSiteStaticData(hydro_file, 'zWD', lake_info, m_hydroData%zWD)
+         call ReadSiteStaticData(hydro_file, 'vWD', lake_info, m_hydroData%vWD)
          call ReadSiteTSData(hydro_file, 'Qwi', lake_info, time, 24, m_Qwi)
          call ReadSite2DTSData(hydro_file, 'Qwo', lake_info, time, 24, m_Qwo)
          call ReadSiteTSData(hydro_file, 'WT', lake_info, time, 24, m_Qwti)
@@ -466,6 +468,7 @@ contains
       deallocate(m_actcarbHist)
       deallocate(m_oldcarbHist)
       deallocate(m_sedEHLHist)
+      deallocate(m_SwHist)
       deallocate(m_QwtHist)
       deallocate(m_Qch4Hist)
       deallocate(m_Qco2Hist)
@@ -522,7 +525,7 @@ contains
          deallocate(m_Qch4i)
          deallocate(m_Qsrpi)
          deallocate(m_hydroData%Qwo)
-         deallocate(m_hydroData%zWD)
+         deallocate(m_hydroData%vWD)
       end if
       ! destroy memory for irradiation data
       deallocate(m_aCO2)

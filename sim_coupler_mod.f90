@@ -133,8 +133,13 @@ contains
          if (Hydro_Module) then
             if (isHourNode .and. (.NOT. isspinup)) then
                call UpdateLakeStatesForHydroFluxes(3.6d3)
-               call ConvectiveMixing_t(0._r8)
-               call ConvectiveMixing_c()
+               if (Thermal_Module) then
+                  call UpdateWaterDensity()
+                  call ConvectiveMixing_t(0._r8)
+               end if
+               if (Carbon_Module) then
+                  call ConvectiveMixing_c()
+               end if
             end if
          end if
          if (Thermal_Module) then
@@ -272,6 +277,7 @@ contains
       m_swdwHist = -9999.0_r4 
       m_swupHist = -9999.0_r4
       m_fturbHist = -9999.0_r4
+      m_SwHist = -9999.0_r4
       m_QwtHist = -9999.0_r4
       m_Qch4Hist = -9999.0_r4
       m_Qco2Hist = -9999.0_r4
@@ -314,7 +320,7 @@ contains
       real(r8) :: fsed, turbdiff(NWLAYER+1)
       real(r8) :: gpp, npp, pch4(NWLAYER+1)
       real(r8) :: och4(NWLAYER+1), sedpch4(NSCOL)
-      real(r8) :: Qwt, Qo2, Qco2, Qch4, Qsrp
+      real(r8) :: Sw, Qwt, Qo2, Qco2, Qch4, Qsrp
 
       m_ZwHist(:,hindx) = m_Zw
       m_AzHist(:,hindx) = m_Az
@@ -335,7 +341,8 @@ contains
          m_fturbHist(:,hindx) = REAL(turbdiff)
       end if
       if (Hydro_Module) then
-         call GetOutflowFluxes(Qwt, Qo2, Qco2, Qch4, Qsrp)
+         call GetOutflowFluxes(Sw, Qwt, Qo2, Qco2, Qch4, Qsrp)
+         m_SwHist(hindx) = REAL(Sw)
          m_QwtHist(hindx) = REAL(Qwt)
          m_Qo2Hist(hindx) = REAL(Qo2) 
          m_Qco2Hist(hindx) = REAL(Qco2)
@@ -407,6 +414,7 @@ contains
          !call WriteData(lakeId, time, 'turbdiffheat', archive_tstep, m_fturbHist)
       end if
       if (Hydro_Module) then
+         call WriteData(lakeId, time, 'Sw', archive_tstep, m_SwHist)
          call WriteData(lakeId, time, 'Qwt', archive_tstep, m_QwtHist)
          call WriteData(lakeId, time, 'Qch4', archive_tstep, m_Qch4Hist)
          call WriteData(lakeId, time, 'Qco2', archive_tstep, m_Qco2Hist)

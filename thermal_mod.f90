@@ -20,7 +20,7 @@ module thermal_mod
    public :: ThermalModuleSetup, ThermalModuleCallback
    public :: UpdateLakeWaterTopIndex, UpdateLakeIceThickness
    public :: GetBoundaryOutputs, HeatEquation
-   public :: ConvectiveMixing
+   public :: ConvectiveMixing, UpdateWaterDensity
    ! module cache for Runge-Kutta
    type(RungeKuttaCache1D) :: mem_tw
    ! volumetric heat capacity (J/K/m3)

@@ -22,6 +22,7 @@ module hydro_mod
    ! layer volume
    real(r8), allocatable :: zVol(:)          ! m3
    real(r8), allocatable :: zVol0(:)         ! m3
+   real(r8), allocatable :: accVol(:)        ! m3
    ! temporal state variables
    real(r8), allocatable :: tmpwaterTemp(:)
    real(r8), allocatable :: tmpwaterSubCon(:,:)
@@ -40,8 +41,11 @@ contains
       allocate(realWD(WATER_LAYER+1))
       allocate(zVol(WATER_LAYER+1))
       allocate(zVol0(WATER_LAYER+1))
+      allocate(accVol(WATER_LAYER+1))
       allocate(tmpwaterTemp(WATER_LAYER+1))
       allocate(tmpwaterSubCon(NWSUB,WATER_LAYER+1))
+
+      zVol = m_dZw * m_Az        ! current volume
    end subroutine
 
    subroutine DestructHydroModule()
@@ -52,6 +56,7 @@ contains
       deallocate(realWD)
       deallocate(zVol)
       deallocate(zVol0)
+      deallocate(accVol)
       deallocate(tmpwaterTemp)
       deallocate(tmpwaterSubCon)
    end subroutine
@@ -66,9 +71,9 @@ contains
       real(r8), intent(in) :: dt
       real(r8) :: dV, Vtot, Vtot0 
       real(r8) :: over_request
-      real(r8) :: zw, za, zb, rw
+      real(r8) :: vw, va, vb
       real(r8) :: overlap, sumw
-      real(r8) :: rdiff, maxZ
+      real(r8) :: rw, rdiff, maxZ
       real(r8) :: Vres, Vnew
       real(r8) :: Ebg, Eed
       real(r8), parameter :: rw_min = 0.2_r8
@@ -77,63 +82,68 @@ contains
       integer :: ii, jj, indx, top
       logical :: to_regrid
 
-      ! skip ice-on period
-      if (m_Hice>e8) then
-         return
-      end if
-
       top = m_lakeWaterTopIndex
 
       ! increase surface layer volume by inflow
-      zVol = m_dZw * m_Az        ! current volume
       zVol0 = zVol
       Vtot0 = sum(zVol0)
       dV = m_hydroData%Qwi * dt
       zVol(top) = zVol(top) + dV
       
       ! update state variables 
-      !if (Thermal_Module) then
-      !   m_waterTemp(top) = (m_waterTemp(top)*zVol0(top) + &
-      !      m_hydroData%WTi*dV) / zVol(top)
-      !end if
-      !if (Carbon_Module) then
-      !   m_waterSubCon(Wo2,top) = (m_waterSubCon(Wo2,top)*zVol0(top) + &
-      !      m_hydroData%o2i*dV) / zVol(top)
-      !   m_waterSubCon(Wco2,top) = (m_waterSubCon(Wco2,top)*zVol0(top) + &
-      !      m_hydroData%co2i*dV) / zVol(top)
-      !   m_waterSubCon(Wch4,top) = (m_waterSubCon(Wch4,top)*zVol0(top) + &
-      !      m_hydroData%ch4i*dV) / zVol(top)
-      !   m_waterSubCon(Wsrp,top) = (m_waterSubCon(Wsrp,top)*zVol0(top) + &
-      !      m_hydroData%srpi*dV) / zVol(top)
-      !end if
+      if (Thermal_Module) then
+         if (m_hydroData%WTi>-e8) then
+            m_waterTemp(top) = (m_waterTemp(top)*zVol0(top) + &
+               m_hydroData%WTi*dV) / zVol(top)
+         end if
+      end if
+      if (Carbon_Module) then
+         m_waterSubCon(Wo2,top) = (m_waterSubCon(Wo2,top)*zVol0(top) + &
+            m_hydroData%o2i*dV) / zVol(top)
+         m_waterSubCon(Wco2,top) = (m_waterSubCon(Wco2,top)*zVol0(top) + &
+            m_hydroData%co2i*dV) / zVol(top)
+         m_waterSubCon(Wch4,top) = (m_waterSubCon(Wch4,top)*zVol0(top) + &
+            m_hydroData%ch4i*dV) / zVol(top)
+         m_waterSubCon(Wsrp,top) = (m_waterSubCon(Wsrp,top)*zVol0(top) + &
+            m_hydroData%srpi*dV) / zVol(top)
+      end if
 
       do ii = 1, WATER_LAYER+1, 1
          supplyWD(ii) = max(zVol(ii)-dZw_min*m_Az(ii), 0._r8)
       end do
 
+      ! update cumulative volume 
+      do jj = WATER_LAYER+1, 1, -1
+         if (jj==WATER_LAYER+1) then
+            accVol(jj) = zVol(jj)
+         else
+            accVol(jj) = accVol(jj+1) + zVol(jj)
+         end if
+      end do
+
       ! calculate withdrawal weights
+      weightsWD = 0._r8
       do ii = 1, NZWD, 1
-         zw = m_hydroData%zWD(ii)
-         indx = COUNT(m_Zw>zw)
+         vw = m_hydroData%vWD(ii)
+         indx = COUNT(accVol>=vw)
+         ! water surface is below the gate
          if (indx==0) then
-            weightsWD(ii,:) = 0._r8
+            weightsWD(ii,1) = 1._r8
             cycle
          end if
+         ! water surface is above the gate
          if (indx<WATER_LAYER+1) then
-            rw = max( 0.5*(m_dZw(indx)+m_dZw(indx+1)), rw_min )
+            rw = max( 0.5*(zVol(indx)+zVol(indx+1)), rw_min*m_Az(indx) )
          else
-            rw = max( m_dZw(indx), rw_min )
+            rw = max( zVol(indx), rw_min*m_Az(indx) )
          end if
-         za = zw + rw
-         zb = zw - rw
+         va = vw + rw
+         vb = vw - rw
          do jj = 1, WATER_LAYER+1, 1
-            if (jj==1) then
-               overlap = min(m_Zw(jj), za) - max(m_Zw(jj)-m_dZw(jj), zb)
+            if (jj<WATER_LAYER+1) then
+               overlap = min(accVol(jj), va) - max(accVol(jj+1), vb)
             else if (jj==WATER_LAYER+1) then
-               overlap = min(m_Zw(jj)+m_dZw(jj), za) - max(m_Zw(jj), zb)
-            else
-               overlap = min(m_Zw(jj)+0.5*m_dZw(jj), za) - &
-                  max(m_Zw(jj)-0.5*m_dZw(jj), zb)
+               overlap = min(accVol(jj), va) - vb
             end if
             if (overlap>e8) then
                weightsWD(ii,jj) = overlap
@@ -194,20 +204,23 @@ contains
       zVol = zVol - realWD
       Vtot = sum(zVol)
 
-      dV = Vtot - Vtot0 + (sum(m_hydroData%Qwo) - m_hydroData%Qwi)*dt
-      if (abs(dV) > 1.d-3) then
+      dV = Vtot - Vtot0 - m_hydroData%Qwi*dt + sum(m_hydroData%Qwo)*dt
+      if (abs(dV) > err_max) then
+         print *, " Lake storage imbalance: ", dV
          call Endrun('Lake storage does not conserve after inflow/outflow')
       end if
 
       ! check whether regridding is needed
       to_regrid = .False.
-      do ii = 1, WATER_LAYER+1, 1
-         rdiff = zVol(ii)/zVol0(ii) - 1._r8
-         if (abs(rdiff)>0.01_r8) then
-            to_regrid = .True.
-            exit
-         end if
-      end do 
+      if (m_Hice < e8) then
+         do ii = 1, WATER_LAYER+1, 1
+            rdiff = zVol(ii)/zVol0(ii) - 1._r8
+            if (abs(rdiff)>0.01_r8) then
+               to_regrid = .True.
+               exit
+            end if
+         end do
+      end if
 
       ! regridding is not needed
       if (.NOT. to_regrid) then
@@ -221,12 +234,10 @@ contains
             else if (ii==1) then
                m_Zw(ii) = m_Zw(ii+1) + 0.5*m_dZw(ii+1) + m_dZw(ii)
             else
-               m_Zw(ii) = m_Zw(ii+1) + 0.5*(m_dZw(ii+1)+m_dZw(ii))
+               m_Zw(ii) = m_Zw(ii+1) + 0.5*m_dZw(ii+1) + 0.5*m_dZw(ii)
             end if
          end do
 
-         !print *, "Hydro info: ", sum(m_dZw), 1e-9*sum(zVol), &
-         !   1e-6*sum(m_Az)
          return
       end if
 
@@ -242,13 +253,13 @@ contains
       if (abs(Vtot - Vtot0) > 1.d-3) then
          call Endrun('Lake storage does not conserve after regridding')
       end if
-      !print *, "Hydro info: ", maxZ, sum(m_dZw), 1e-9*Vtot0, &
-      !   1e-6*sum(m_Az)
+
+      zVol0 = zVol
+      zVol = m_dZw * m_Az        ! update current volume
 
       ! remap state variables onto the new grids
       indx = 1
-      zVol0 = zVol
-      Ebg = sum(zVol*m_waterTemp) / sum(zVol)
+      Ebg = sum(zVol0*m_waterTemp) / sum(zVol0)
       do ii = 1, WATER_LAYER+1, 1
          Vres = m_dZw(ii) * m_Az(ii)
          Vnew = 0._r8
@@ -280,11 +291,16 @@ contains
       end do
 
       ! update state variables
-      m_waterTemp = tmpwaterTemp
-      m_waterSubCon = tmpwaterSubCon
+      if (Thermal_Module) then
+         m_waterTemp = tmpwaterTemp
+      end if
 
-      Eed = sum(m_dZw*m_Az*m_waterTemp) / sum(m_dZw*m_Az)
-      if (abs(Ebg - Eed) > 1.d-6) then
+      if (Carbon_Module) then
+         m_waterSubCon = tmpwaterSubCon
+      end if
+
+      Eed = sum(zVol*m_waterTemp) / sum(zVol)
+      if (Thermal_Module .and. abs(Ebg - Eed) > 1.d-6) then
          print *, "Ebg and Eed: ", Ebg, Eed, Ebg-Eed
          call Endrun('Heat budget does not conserve after remapping')
       end if
@@ -296,8 +312,9 @@ contains
    ! Purpose: Get outflow thermal and chemical fluxes.
    !
    !------------------------------------------------------------------------------
-   subroutine GetOutflowFluxes(Qwt, Qo2, Qco2, Qch4, Qsrp)
+   subroutine GetOutflowFluxes(Sw, Qwt, Qo2, Qco2, Qch4, Qsrp)
       implicit none
+      real(r8), intent(out) :: Sw      ! m^3
       real(r8), intent(out) :: Qwt     ! K
       real(r8), intent(out) :: Qo2     ! mol/m3
       real(r8), intent(out) :: Qco2    ! mol/m3
@@ -305,16 +322,20 @@ contains
       real(r8), intent(out) :: Qsrp    ! mol/m3
       real(r8) :: Qwo
 
-      Qwo = sum(realWD)    ! m3 
-      if (Qwo > e8) then
-         Qwt = sum( realWD * m_waterTemp ) / Qwo 
+      Sw = sum(zVol)
+      Qwo = sum(realWD)    ! m3
+      if (Qwo > e8 .and. Thermal_Module) then
+         Qwt = sum( realWD * m_waterTemp ) / Qwo
+      else
+         Qwt = -9999._r8
+      end if
+      if (Qwo > e8 .and. Carbon_Module) then
          Qo2 = sum( realWD * m_waterSubCon(Wo2,:) ) / Qwo
          Qco2 = sum( realWD * m_waterSubCon(Wco2,:) ) / Qwo
          Qch4 = sum( realWD * m_waterSubCon(Wch4,:) ) / Qwo
          Qsrp = sum( realWD * m_waterSubCon(Wsrp,:) ) / Qwo
       else
-         Qwt = -9999._r8
-         Qo2 = -9999._r8 
+         Qo2 = -9999._r8
          Qco2 = -9999._r8
          Qch4 = -9999._r8
          Qsrp = -9999._r8
