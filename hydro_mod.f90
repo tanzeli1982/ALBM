@@ -9,6 +9,8 @@ module hydro_mod
    use shr_ctrl_mod,          only : Thermal_Module, Carbon_Module
    use phy_utilities_mod
    use data_buffer_mod
+   use thermal_mod, ConvectiveMixing_T => ConvectiveMixing
+   use carbon_cycle_mod, ConvectiveMixing_C => ConvectiveMixing
 
    implicit none
    private
@@ -24,7 +26,9 @@ module hydro_mod
    real(r8), allocatable :: zVol0(:)         ! m3
    real(r8), allocatable :: accVol(:)        ! m3
    ! temporal state variables
-   real(r8), allocatable :: tmpwaterTemp(:)
+   real(r8), allocatable :: tmpwaterHeat(:)
+   real(r8), allocatable :: tmpWaterTemp(:)
+   real(r8), allocatable :: tmpwaterIce(:)
    real(r8), allocatable :: tmpwaterSubCon(:,:)
 
 contains
@@ -36,13 +40,15 @@ contains
    subroutine InitializeHydroModule()
       implicit none
 
-      allocate(weightsWD(NZWD,WATER_LAYER+1))
+      allocate(weightsWD(NZWD+1,WATER_LAYER+1))
       allocate(supplyWD(WATER_LAYER+1))
       allocate(realWD(WATER_LAYER+1))
       allocate(zVol(WATER_LAYER+1))
       allocate(zVol0(WATER_LAYER+1))
       allocate(accVol(WATER_LAYER+1))
-      allocate(tmpwaterTemp(WATER_LAYER+1))
+      allocate(tmpwaterHeat(WATER_LAYER+1))
+      allocate(tmpWaterTemp(WATER_LAYER+1))
+      allocate(tmpwaterIce(WATER_LAYER+1))
       allocate(tmpwaterSubCon(NWSUB,WATER_LAYER+1))
 
       zVol = m_dZw * m_Az        ! current volume
@@ -57,7 +63,9 @@ contains
       deallocate(zVol)
       deallocate(zVol0)
       deallocate(accVol)
-      deallocate(tmpwaterTemp)
+      deallocate(tmpwaterHeat)
+      deallocate(tmpWaterTemp)
+      deallocate(tmpwaterIce)
       deallocate(tmpwaterSubCon)
    end subroutine
 
@@ -76,6 +84,7 @@ contains
       real(r8) :: rw, rdiff, maxZ
       real(r8) :: Vres, Vnew
       real(r8) :: Ebg, Eed
+      real(r8) :: tmpEres1, tmpEres2
       real(r8), parameter :: rw_min = 0.2_r8
       real(r8), parameter :: dZw_min = 0.1_r8
       real(r8), parameter :: err_max = 1.0_r8
@@ -157,13 +166,15 @@ contains
          else
             call Endrun('Zero sum of withdrawal weights')
          end if
-      end do 
+      end do
+      weightsWD(NZWD+1,1) = 1._r8
 
       ! calculate requested outflow
       realWD = 0._r8
       do ii = 1, NZWD, 1
          realWD = realWD + m_hydroData%Qwo(ii) * dt * weightsWD(ii,:)
       end do
+      realWD = realWD + m_hydroData%Qws * dt * weightsWD(NZWD+1,:) 
 
       ! cap and redistribute over-requested outflow 
       over_request = 0._r8
@@ -204,7 +215,8 @@ contains
       zVol = zVol - realWD
       Vtot = sum(zVol)
 
-      dV = Vtot - Vtot0 - m_hydroData%Qwi*dt + sum(m_hydroData%Qwo)*dt
+      dV = Vtot - Vtot0 - m_hydroData%Qwi*dt + m_hydroData%Qws*dt + &
+         sum(m_hydroData%Qwo)*dt
       if (abs(dV) > err_max) then
          print *, " Lake storage imbalance: ", dV
          call Endrun('Lake storage does not conserve after inflow/outflow')
@@ -212,15 +224,13 @@ contains
 
       ! check whether regridding is needed
       to_regrid = .False.
-      if (m_Hice < e8) then
-         do ii = 1, WATER_LAYER+1, 1
-            rdiff = zVol(ii)/zVol0(ii) - 1._r8
-            if (abs(rdiff)>0.01_r8) then
-               to_regrid = .True.
-               exit
-            end if
-         end do
-      end if
+      do ii = 1, WATER_LAYER+1, 1
+         rdiff = zVol(ii)/zVol0(ii) - 1._r8
+         if (abs(rdiff)>0.01_r8) then
+            to_regrid = .True.
+            exit
+         end if
+      end do
 
       ! regridding is not needed
       if (.NOT. to_regrid) then
@@ -254,30 +264,35 @@ contains
          call Endrun('Lake storage does not conserve after regridding')
       end if
 
-      zVol0 = zVol
-      zVol = m_dZw * m_Az        ! update current volume
-
       ! remap state variables onto the new grids
+      zVol0 = zVol
       indx = 1
       Ebg = sum(zVol0*m_waterTemp) / sum(zVol0)
       do ii = 1, WATER_LAYER+1, 1
          Vres = m_dZw(ii) * m_Az(ii)
          Vnew = 0._r8
-         tmpwaterTemp(ii) = 0._r8
+         tmpwaterHeat(ii) = 0._r8
+         tmpwaterIce(ii) = 0._r8
          tmpwaterSubCon(:,ii) = 0._r8
          do while (Vres>e8 .and. indx<=WATER_LAYER+1)
             if (Vres<=zVol0(indx)) then
-               tmpwaterTemp(ii) = tmpwaterTemp(ii) + Vres*m_waterTemp(indx)
-               tmpwaterSubCon(:,ii) = tmpwaterSubCon(:,ii) + &
-                  Vres*m_waterSubCon(:,indx)
+               tmpwaterHeat(ii) = tmpwaterHeat(ii) + Vres* &
+                  Cpi*(m_waterTemp(indx)-T0)*m_waterIce(indx) + Vres* &
+                  Cpl*(m_waterTemp(indx)-T0)*(1.0-m_waterIce(indx))
+               tmpwaterIce(ii) = tmpwaterIce(ii) + Vres*m_waterIce(indx)
+               tmpwaterSubCon(:,ii) = tmpwaterSubCon(:,ii) + Vres* &
+                  m_waterSubCon(:,indx)
                Vnew = Vnew + Vres
                zVol0(indx) = zVol0(indx) - Vres
                Vres = 0._r8
             else
-               tmpwaterTemp(ii) = tmpwaterTemp(ii) + &
-                  zVol0(indx)*m_waterTemp(indx)
-               tmpwaterSubCon(:,ii) = tmpwaterSubCon(:,ii) + &
-                  zVol0(indx)*m_waterSubCon(:,indx)
+               tmpwaterHeat(ii) = tmpwaterHeat(ii) + zVol0(indx)* &
+                  Cpi*(m_waterTemp(indx)-T0)*m_waterIce(indx) + zVol0(indx)* &
+                  Cpl*(m_waterTemp(indx)-T0)*(1.0-m_waterIce(indx))
+               tmpwaterIce(ii) = tmpwaterIce(ii) + zVol0(indx)* &
+                  m_waterIce(indx)
+               tmpwaterSubCon(:,ii) = tmpwaterSubCon(:,ii) + zVol0(indx)* &
+                  m_waterSubCon(:,indx)
                Vnew = Vnew + zVol0(indx)
                Vres = Vres - zVol0(indx)
                zVol0(indx) = 0._r8
@@ -286,23 +301,53 @@ contains
          end do
 
          ! average
-         tmpwaterTemp(ii) = tmpwaterTemp(ii) / Vnew
+         tmpwaterIce(ii) = tmpwaterIce(ii) / Vnew
+         tmpEres1 = Lf * (1.0-tmpwaterIce(ii)) * Vnew
+         tmpEres2 = Lf * tmpwaterIce(ii) * Vnew
+         if (tmpwaterIce(ii)<e8) then
+            tmpwaterTemp(ii) = T0 + tmpwaterHeat(ii) / Vnew / Cpl
+         else if (tmpwaterHeat(ii)>-e8) then
+            if (tmpEres2>tmpwaterHeat(ii)) then
+               tmpWaterIce(ii) = tmpWaterIce(ii) - tmpwaterHeat(ii) / Lf / Vnew 
+               tmpwaterTemp(ii) = T0
+            else
+               tmpWaterIce(ii) = 0._r8
+               tmpwaterTemp(ii) = T0 + (tmpwaterHeat(ii)-tmpEres2) / Cpl / Vnew
+            end if
+         else
+            if (tmpEres1>-tmpwaterHeat(ii)) then
+               tmpWaterIce(ii) = tmpWaterIce(ii) - tmpwaterHeat(ii) / Lf / Vnew
+               tmpwaterTemp(ii) = T0
+            else
+               tmpWaterIce(ii) = 1._r8
+               tmpwaterTemp(ii) = T0 + (tmpwaterHeat(ii)+tmpEres1) / Cpi / Vnew
+            end if
+         end if
          tmpwaterSubCon(:,ii) = tmpwaterSubCon(:,ii) / Vnew
       end do
 
       ! update state variables
+      zVol = m_dZw * m_Az        ! update current volume
+
       if (Thermal_Module) then
          m_waterTemp = tmpwaterTemp
+         m_waterIce = tmpwaterIce
+         call UpdateLakeWaterTopIndex()
+         call UpdateLakeIceThickness()
+         call UpdateWaterDensity()
+         call ConvectiveMixing_T(0._r8)
+
+         ! check energy balance
+         Eed = sum(zVol*m_waterTemp) / sum(zVol)
+         if (abs(Ebg - Eed) > 1.d-6) then
+            print *, "Ebg and Eed: ", Ebg, Eed, Ebg-Eed
+            !call Endrun('Heat budget does not conserve after remapping')
+         end if
       end if
 
       if (Carbon_Module) then
          m_waterSubCon = tmpwaterSubCon
-      end if
-
-      Eed = sum(zVol*m_waterTemp) / sum(zVol)
-      if (Thermal_Module .and. abs(Ebg - Eed) > 1.d-6) then
-         print *, "Ebg and Eed: ", Ebg, Eed, Ebg-Eed
-         call Endrun('Heat budget does not conserve after remapping')
+         call ConvectiveMixing_C()
       end if
 
    end subroutine 

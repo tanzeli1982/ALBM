@@ -124,6 +124,7 @@ module data_buffer_mod
    real(r8), allocatable :: m_airLWRad(:)
    ! hydrological flux inputs
    real(r8), allocatable :: m_Qwi(:)
+   real(r8), allocatable :: m_Qws(:)
    real(r8), allocatable :: m_Qwo(:,:)
    real(r8), allocatable :: m_Qwti(:)
    real(r8), allocatable :: m_Qo2i(:)
@@ -327,6 +328,7 @@ contains
       ! allocate memory for hydrology data
       if (Hydro_Module) then
          allocate(m_Qwi(simday))
+         allocate(m_Qws(simday))
          allocate(m_Qwo(NZWD,simday))
          allocate(m_Qwti(simday))
          allocate(m_Qo2i(simday))
@@ -411,6 +413,7 @@ contains
       if (Hydro_Module) then
          call ReadSiteStaticData(hydro_file, 'vWD', lake_info, m_hydroData%vWD)
          call ReadSiteTSData(hydro_file, 'Qwi', lake_info, time, 24, m_Qwi)
+         call ReadSiteTSData(hydro_file, 'Qsurf', lake_info, time, 24, m_Qws)
          call ReadSite2DTSData(hydro_file, 'Qwo', lake_info, time, 24, m_Qwo)
          call ReadSiteTSData(hydro_file, 'WT', lake_info, time, 24, m_Qwti)
          call ReadSiteTSData(hydro_file, 'O2', lake_info, time, 24, m_Qo2i)
@@ -518,6 +521,7 @@ contains
       ! destroy memory for hydrology data
       if (Hydro_Module) then
          deallocate(m_Qwi)
+         deallocate(m_Qws)
          deallocate(m_Qwo)
          deallocate(m_Qwti)
          deallocate(m_Qo2i)

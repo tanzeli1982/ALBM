@@ -13,11 +13,11 @@ module sim_coupler_mod
    use boundary_mod
    use radiation_mod
    use hydro_mod
-   use thermal_mod, ConvectiveMixing_t => ConvectiveMixing
+   use thermal_mod
    use soil_thermal_mod
    use bubble_mod
    use diagenesis_mod
-   use carbon_cycle_mod, ConvectiveMixing_c => ConvectiveMixing
+   use carbon_cycle_mod
 
 contains
    !------------------------------------------------------------------------------
@@ -133,13 +133,6 @@ contains
          if (Hydro_Module) then
             if (isHourNode .and. (.NOT. isspinup)) then
                call UpdateLakeStatesForHydroFluxes(3.6d3)
-               if (Thermal_Module) then
-                  call UpdateWaterDensity()
-                  call ConvectiveMixing_t(0._r8)
-               end if
-               if (Carbon_Module) then
-                  call ConvectiveMixing_c()
-               end if
             end if
          end if
          if (Thermal_Module) then

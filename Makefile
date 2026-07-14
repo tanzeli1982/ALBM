@@ -49,6 +49,10 @@ sim_coupler_mod.o :	sim_coupler_mod.f90		thermal_mod.o			\
 							shr_typedef_mod.o			boundary_mod.o			\
 							math_utilities_mod.o
 							$(f90comp) sim_coupler_mod.f90
+hydro_mod.o :		hydro_mod.f90        data_buffer_mod.o       \
+						thermal_mod.o			carbon_cycle_mod.o		\
+						phy_utilities_mod.o  shr_ctrl_mod.o
+						$(f90comp) hydro_mod.f90
 diagenesis_mod.o :	diagenesis_mod.f90		data_buffer_mod.o			\
 							phy_utilities_mod.o		bg_utilities_mod.o		\
 							shr_ctrl_mod.o				shr_param_mod.o
@@ -71,9 +75,6 @@ thermal_mod.o :	thermal_mod.f90		phy_utilities_mod.o		\
 						shr_ctrl_mod.o			shr_param_mod.o			\
 						shr_typedef_mod.o
 						$(f90comp) thermal_mod.f90
-hydro_mod.o	:		hydro_mod.f90			data_buffer_mod.o			\
-						phy_utilities_mod.o	shr_ctrl_mod.o
-						$(f90comp) hydro_mod.f90
 boundary_mod.o :	boundary_mod.f90		data_buffer_mod.o			\
 						bg_utilities_mod.o	phy_utilities_mod.o		\
 						radiation_mod.o

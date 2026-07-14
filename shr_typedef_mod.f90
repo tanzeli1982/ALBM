@@ -18,6 +18,7 @@ module shr_typedef_mod
    end type
    type HydroFluxData
       real(r8) :: Qwi                  ! inflow (m3/s)
+      real(r8) :: Qws                  ! surface outflow (m3/s)
       real(r8), pointer :: Qwo(:)      ! outflow (m3/s)
       real(r8), pointer :: vWD(:)      ! volume when water surface at gate (m3)
       real(r8) :: WTi                  ! inflow water temperature (K)

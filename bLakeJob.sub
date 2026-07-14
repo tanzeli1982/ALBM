@@ -21,5 +21,5 @@ module load intel/2022.1.0 mvapich2/2.3.7
 
 export MV2_USE_SHMEM_COLL=0
 
-mpirun -np 1 ./ALBM.exe namelist.bLake
 #mpirun -np 1 ./ALBM.exe namelist.bLake.spinup
+mpirun -np 1 ./ALBM.exe namelist.bLake

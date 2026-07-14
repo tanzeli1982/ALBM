@@ -135,6 +135,7 @@ contains
          ndtot = size(m_Qwi)
          idx = max(min(nday, ndtot), 1)
          m_hydroData%Qwi = m_Qwi(idx) / SECOND_OF_DAY
+         m_hydroData%Qws = m_Qws(idx) / SECOND_OF_DAY
          m_hydroData%Qwo = m_Qwo(:,idx) / SECOND_OF_DAY
          m_hydroData%WTi = m_Qwti(idx)
          m_hydroData%o2i = m_Qo2i(idx)
@@ -144,6 +145,7 @@ contains
       else
          ! keep water level constant during spin-up
          m_hydroData%Qwi = 0._r8
+         m_hydroData%Qws = 0._r8
          m_hydroData%Qwo = 0._r8
          m_hydroData%WTi = T0 + 4._r8
          m_hydroData%o2i = 0._r8
