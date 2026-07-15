@@ -334,7 +334,7 @@ contains
          m_fturbHist(:,hindx) = REAL(turbdiff)
       end if
       if (Hydro_Module) then
-         call GetOutflowFluxes(Sw, Qwt, Qo2, Qco2, Qch4, Qsrp)
+         call GetWithdrawFlow(Sw, Qwt, Qo2, Qco2, Qch4, Qsrp)
          m_SwHist(hindx) = REAL(Sw)
          m_QwtHist(hindx) = REAL(Qwt)
          m_Qo2Hist(hindx) = REAL(Qo2) 

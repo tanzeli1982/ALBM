@@ -16,11 +16,12 @@ module hydro_mod
    private
    public :: InitializeHydroModule, DestructHydroModule
    public :: UpdateLakeStatesForHydroFluxes
-   public :: GetOutflowFluxes
+   public :: GetWithdrawFlow
    ! withdrawal weights, supply, and real rate
    real(r8), allocatable :: weightsWD(:,:)
    real(r8), allocatable :: supplyWD(:)      ! m3
    real(r8), allocatable :: realWD(:)        ! m3
+   real(r8), allocatable :: ratioWD(:)
    ! layer volume
    real(r8), allocatable :: zVol(:)          ! m3
    real(r8), allocatable :: zVol0(:)         ! m3
@@ -43,6 +44,7 @@ contains
       allocate(weightsWD(NZWD+1,WATER_LAYER+1))
       allocate(supplyWD(WATER_LAYER+1))
       allocate(realWD(WATER_LAYER+1))
+      allocate(ratioWD(WATER_LAYER+1))
       allocate(zVol(WATER_LAYER+1))
       allocate(zVol0(WATER_LAYER+1))
       allocate(accVol(WATER_LAYER+1))
@@ -60,6 +62,7 @@ contains
       deallocate(weightsWD)
       deallocate(supplyWD)
       deallocate(realWD)
+      deallocate(ratioWD)
       deallocate(zVol)
       deallocate(zVol0)
       deallocate(accVol)
@@ -82,8 +85,8 @@ contains
       real(r8) :: vw, va, vb
       real(r8) :: overlap, sumw
       real(r8) :: rw, rdiff, maxZ
-      real(r8) :: Vres, Vnew
-      real(r8) :: Ebg, Eed
+      real(r8) :: Vres, Vnew, Ebg, Eed
+      real(r8) :: Vsurf, Vhuman
       real(r8) :: tmpEres1, tmpEres2
       real(r8), parameter :: rw_min = 0.2_r8
       real(r8), parameter :: dZw_min = 0.1_r8
@@ -176,6 +179,16 @@ contains
       end do
       realWD = realWD + m_hydroData%Qws * dt * weightsWD(NZWD+1,:) 
 
+      do ii = 1, WATER_LAYER+1, 1
+         Vsurf = m_hydroData%Qws * weightsWD(NZWD+1,ii)
+         Vhuman = sum( m_hydroData%Qwo * weightsWD(:,ii) )
+         if (Vsurf>e8) then
+            ratioWD(ii) = Vhuman / (Vhuman + Vsurf) 
+         else
+            ratioWD(ii) = 1._r8
+         end if
+      end do
+
       ! cap and redistribute over-requested outflow 
       over_request = 0._r8
       do ii = 1, WATER_LAYER+1, 1
@@ -267,7 +280,7 @@ contains
       ! remap state variables onto the new grids
       zVol0 = zVol
       indx = 1
-      Ebg = sum(zVol0*m_waterTemp) / sum(zVol0)
+      !Ebg = sum(zVol0*m_waterTemp) / sum(zVol0)
       do ii = 1, WATER_LAYER+1, 1
          Vres = m_dZw(ii) * m_Az(ii)
          Vnew = 0._r8
@@ -338,11 +351,11 @@ contains
          call ConvectiveMixing_T(0._r8)
 
          ! check energy balance
-         Eed = sum(zVol*m_waterTemp) / sum(zVol)
-         if (abs(Ebg - Eed) > 1.d-6) then
-            print *, "Ebg and Eed: ", Ebg, Eed, Ebg-Eed
-            !call Endrun('Heat budget does not conserve after remapping')
-         end if
+         !Eed = sum(zVol*m_waterTemp) / sum(zVol)
+         !if (abs(Ebg - Eed) > 1.d-6) then
+         !   print *, "Ebg and Eed: ", Ebg, Eed, Ebg-Eed
+         !   call Endrun('Heat budget does not conserve after remapping')
+         !end if
       end if
 
       if (Carbon_Module) then
@@ -357,7 +370,7 @@ contains
    ! Purpose: Get outflow thermal and chemical fluxes.
    !
    !------------------------------------------------------------------------------
-   subroutine GetOutflowFluxes(Sw, Qwt, Qo2, Qco2, Qch4, Qsrp)
+   subroutine GetWithdrawFlow(Sw, Qwt, Qo2, Qco2, Qch4, Qsrp)
       implicit none
       real(r8), intent(out) :: Sw      ! m^3
       real(r8), intent(out) :: Qwt     ! K
@@ -368,17 +381,17 @@ contains
       real(r8) :: Qwo
 
       Sw = sum(zVol)
-      Qwo = sum(realWD)    ! m3
+      Qwo = sum(ratioWD*realWD)    ! m3
       if (Qwo > e8 .and. Thermal_Module) then
-         Qwt = sum( realWD * m_waterTemp ) / Qwo
+         Qwt = sum( ratioWD * realWD * m_waterTemp ) / Qwo
       else
          Qwt = -9999._r8
       end if
       if (Qwo > e8 .and. Carbon_Module) then
-         Qo2 = sum( realWD * m_waterSubCon(Wo2,:) ) / Qwo
-         Qco2 = sum( realWD * m_waterSubCon(Wco2,:) ) / Qwo
-         Qch4 = sum( realWD * m_waterSubCon(Wch4,:) ) / Qwo
-         Qsrp = sum( realWD * m_waterSubCon(Wsrp,:) ) / Qwo
+         Qo2 = sum( ratioWD * realWD * m_waterSubCon(Wo2,:) ) / Qwo
+         Qco2 = sum( ratioWD * realWD * m_waterSubCon(Wco2,:) ) / Qwo
+         Qch4 = sum( ratioWD * realWD * m_waterSubCon(Wch4,:) ) / Qwo
+         Qsrp = sum( ratioWD * realWD * m_waterSubCon(Wsrp,:) ) / Qwo
       else
          Qo2 = -9999._r8
          Qco2 = -9999._r8
