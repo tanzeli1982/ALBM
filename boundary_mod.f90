@@ -126,10 +126,6 @@ contains
       logical, intent(in) :: isspinup
       integer :: nday, ndtot, idx, JDN0, JDN1
 
-      if (.NOT. Hydro_Module) then
-         return
-      end if
-
       if (.NOT. isspinup) then
          nday = GetDay(3.6d3*(hindx-1)) + 1
          ndtot = size(m_Qwi)

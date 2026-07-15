@@ -126,7 +126,9 @@ contains
 
          if (isHourNode) then
             call GetAtmoConditions(time, hindx, isspinup)
-            call GetHydroConditions(time, hindx, isspinup)
+            if (Hydro_Module) then
+               call GetHydroConditions(time, hindx, isspinup)
+            end if
             call GetSolarConditions(hindx)
          end if
 
