@@ -50,7 +50,8 @@ module shr_ctrl_mod
    character(cx) :: opt_file
    character(cx) :: bathy_file
    character(cx) :: restart_file
-   character(len=32) :: run_mode    ! "regular" or "sensitivity"
+   ! "regular", "sensitivity", or "assimilation"
+   character(len=32) :: run_mode
    ! debug group
    logical :: DEBUG
    ! simulation group
@@ -64,6 +65,9 @@ module shr_ctrl_mod
    integer :: NWLAYER, NSLAYER, NRLAYER, NSCOL
    integer :: WATER_LAYER, SED_LAYER
    integer :: NZWD
+   ! assimilation group
+   integer :: NPART
+   character(cx) :: obs_file
    ! run data group
    character(len=32) :: forcing_tstep
    character(len=32) :: forcing_time   ! "UTC" or "LT"

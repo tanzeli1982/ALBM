@@ -23,7 +23,7 @@ module carbon_cycle_mod
    public :: CarbonCycleEquation, PhytoplanktonDynamics 
    public :: GetProductionRates, GetRespirationRates
    public :: BedVegetationDynamics
-   public :: ConvectiveMixing
+   public :: EnforceBGCConsistency 
    ! memory cache for Runge-Kutta
    type(RungeKuttaCache2D) :: mem_sub
    ! gas transfer velocity (m/s)
@@ -200,11 +200,11 @@ contains
       deallocate(mem_sub%rerr)
    end subroutine
 
-   subroutine CarbonModuleSetup(isHourNode, isSubHourNode, hindx)
+   subroutine CarbonModuleSetup(isHourNode, isSubHourNode, hour)
       implicit none
       logical, intent(in) :: isHourNode
       logical, intent(in) :: isSubHourNode
-      integer(i8), intent(in) :: hindx
+      integer, intent(in) :: hour
       real(r8) :: pH, temp, pressure
       real(r8) :: mixing_ratio(NGAS)
       integer :: top, gas
@@ -250,7 +250,7 @@ contains
 
       call CalcSurfaceExchange()
       call CalcBottomExchange()
-      call UpdateChla2POCRatio(isHourNode, hindx)
+      call UpdateChla2POCRatio(isHourNode, hour)
       call UpdatePOMSettlingVelocity()
       call UpdateCarbonCycleRates(isSubHourNode)
    end subroutine
@@ -771,23 +771,23 @@ contains
    ! Purpose: Update phytoplankton Chla : C ratio 
    !
    !------------------------------------------------------------------------------
-   subroutine UpdateChla2POCRatio(isHourNode, hindx)
+   subroutine UpdateChla2POCRatio(isHourNode, hour)
       implicit none
       logical, intent(in) :: isHourNode
-      integer(i8), intent(in) :: hindx
+      integer, intent(in) :: hour         ! local hour
       integer :: ii, top
       logical :: isUpdate
 
       top = m_lakeWaterTopIndex
-      if (isHourNode .and. mod(hindx-1,24)==12 .and. top<=WATER_LAYER+1) then
+      if (isHourNode .and. hour==12 .and. top<=WATER_LAYER+1) then
          isUpdate = .True.
       else
          isUpdate = .False.
       end if
 
       if (isUpdate) then
-         call CalcChl2CRatio(m_Ipar(1:WATER_LAYER+1), m_waterTemp, m_waterSubCon(Wsrp,:), &
-               m_waterSubCon(Wco2,:), top, m_rChl2C)
+         call CalcChl2CRatio(m_Ipar(1:WATER_LAYER+1), m_waterTemp, &
+               m_waterSubCon(Wsrp,:), m_waterSubCon(Wco2,:), top, m_rChl2C)
       end if
       m_chla = sum(m_waterPOC*m_rChl2C,1) 
    end subroutine
@@ -862,6 +862,17 @@ contains
       !      m_waterPOC(kk,mindx:btm) = biomas_avg
       !   end do
       !end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: enforce biogeochemical consistency.
+   !
+   !------------------------------------------------------------------------------
+   subroutine EnforceBGCConsistency()
+      implicit none
+      
+      call ConvectiveMixing()
    end subroutine
 
    !------------------------------------------------------------------------------

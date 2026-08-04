@@ -198,7 +198,7 @@ contains
       implicit none
       type(SimTime) :: time, otime
       integer :: simday, simmon, simyr
-      integer :: ntin, ntout, ndayout, indx
+      integer :: ntin, ntout, indx
       integer :: o3Indx(2), aodIndx(2)
       integer :: co2Indx(2), timeIndx(2)
       real(r8) :: loc180(2)
@@ -206,8 +206,8 @@ contains
 
       loc180 = (/lake_info%longitude, lake_info%latitude/)
 
-      time = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
-                     End_Month,End_Day)
+      time = SimTime(Start_Year, Start_Month, Start_Day, 0, &
+                     End_Year, End_Month,End_Day, 0)
       simday = CalcRunningDays(time, Use_Leap)
       simmon = CalcRunningMonths(time)
       simyr = CalcRunningYears(time)
@@ -221,14 +221,13 @@ contains
       ntin = 24 * simday / forcing_nhour 
 
       if (trim(run_mode)=='sensitivity') then
-         otime = SimTime(SA_Start_Year, SA_Start_Month, SA_Start_Day, &
-                         SA_End_Year, SA_End_Month, SA_End_Day)
+         otime = SimTime(SA_Start_Year, SA_Start_Month, SA_Start_Day, 0, &
+                         SA_End_Year, SA_End_Month, SA_End_Day, 0)
       else
-         otime = SimTime(Start_Year, Start_Month, Start_Day, End_Year, &
-                         End_Month,End_Day)
+         otime = SimTime(Start_Year, Start_Month, Start_Day, 0, &
+                         End_Year, End_Month,End_Day, 0)
       end if
-      ndayout = CalcRunningDays(otime, Use_Leap)
-      ntout = 24 * ndayout
+      ntout = CalcRunningHours(otime, Use_Leap) 
 
       co2Indx = (/time%year0-1764, simyr/)
       o3Indx = (/12*(time%year0-1978)+time%month0, simmon/)

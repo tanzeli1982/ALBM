@@ -1,67 +1,63 @@
-module simulation_mod
+module assimilation_mod
 !---------------------------------------------------------------------------------
-! Purpose: This module runs simulations on each specified lake.
+! Purpose: This module runs data assimilation on each specified lake.
 !
 !---------------------------------------------------------------------------------
    use shr_ctrl_mod
    use shr_param_mod
    use shr_typedef_mod
    use sim_coupler_mod
+   use math_utilities_mod, only : init_cond_random_seed
    use read_data_mod
+   use epfm_da_mod
+   use epfm_bridge_mod
 #ifdef USE_INTEL_COMPILER
    use ifport
 #endif
    use mpi
 
    private
-   public :: RunRegular
+   public :: RunAssimilation
+   ! current particle Id
+   integer :: cur_particle
 
 contains
-   subroutine RunRegular(taskid, numprocs, arg)
+   subroutine RunAssimilation(taskid, numprocs, arg)
       implicit none
       integer, intent(in) :: taskid
       integer, intent(in) :: numprocs
       character(len=*), intent(in) :: arg
-      integer, allocatable :: lakeIds(:)
-      integer, parameter :: ndid = 200
-      integer :: lake_next_range(2)
-      integer :: lakeId, err, minid, maxid
-      integer :: nlake, istep, ii, itmp
-      integer :: ntotlake, jj
-      character(cx) :: script
+      integer, allocatable :: partIds(:)
+      integer :: partId, err
+      integer :: ii, jj, itmp
 
-      allocate(lakeIds(numprocs))
-      minid = minval(lake_range)
-      maxid = maxval(lake_range)
-      nlake = maxid - minid + 1
-
-      if (masterproc) then
-         print "(A, I0, A, I0)", 'Run lakes from ', minid, ' to ', maxid
+      ! only support numprocs == NPART
+      if (numprocs /= NPART) then
+         print *, "Number of particles and processors: ", NPART, numprocs
+         call Endrun("Number of processors must be set to number of particles")
       end if
 
-      call DoSimulationWarmup(minid, ntotlake)
+      allocate(partIds(numprocs))
 
-      do istep = 1, nlake, numprocs
-         if (masterproc) then
-            if (nlake-istep+1>=numprocs) then
-               lakeIds = (/(ii, ii = minid+istep-1, minid+istep+numprocs-2)/)
-            else
-               itmp = nlake - istep + 1
-               lakeIds(1:itmp) = (/(ii, ii = minid+istep-1, maxid)/)
-               do jj = itmp+1, numprocs, 1
-                  lakeIds(jj) = minid + mod(jj-itmp-1, itmp)
-               end do
-            end if
-         end if
-         call MPI_BCAST(lakeIds, size(lakeIds), MPI_INTEGER, 0, &
-                        MPI_COMM_WORLD, err)
-         lakeId = lakeIds(taskid+1)
-         call RegularSimulation(lakeId, err)
-         print "(A, I0, A, I0, A, I0)", "Lake ", lakeId, ", processor ", &
-               taskid, ", error ", err
-      end do
+      if (masterproc) then
+         print "(A, I0, A)", 'Run ', NPART, ' particles'
+      end if
 
-      deallocate(lakeIds)
+      call DoAssimilationWarmup()
+
+      if (masterproc) then
+         partIds = (/(ii, ii = 0, numprocs-1)/)
+      end if
+      call MPI_BCAST(partIds, numprocs, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
+      partId = partIds(taskid+1)
+      if (masterproc .and. partId/=0) then
+         call Endrun("partId 0 must be on the root processor")  
+      end if
+      call DASimulation(partId, taskid, err)
+      print "(A, I0, A, I0, A, I0)", "Particle ", partId, ", processor ", &
+            taskid, ", error ", err
+
+      deallocate(partIds)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -69,19 +65,13 @@ contains
    ! Purpose: create simulation archive files 
    !
    !------------------------------------------------------------------------------
-   subroutine DoSimulationWarmup(minid, nlake)
+   subroutine DoAssimilationWarmup()
       implicit none
-      integer, intent(in) :: minid
-      integer, intent(out) :: nlake
       type(SimTime) :: time
       
-      call ReadLakeTotalNumber(nlake)
       time = SimTime(Start_Year, Start_Month, Start_Day, 0, &
                      End_Year, End_Month, End_Day, 0)
-      if (minid==1 .and. masterproc) then
-         ! create restart file
-         call CreateRestartFile(time)
-
+      if (masterproc) then
          ! create output files
          call CreateOutputFile(time, NWLAYER+1, 'zw', 'Z', 'water layer depth', &
                               'm', -9999.0_r4) 
@@ -197,57 +187,88 @@ contains
       end if
    end subroutine
 
-   subroutine RegularSimulation(lakeId, error)
+   subroutine DASimulation(partId, rank, error)
       implicit none
-      integer, intent(in) :: lakeId
+      integer, intent(in) :: partId
+      integer, intent(in) :: rank
       integer, intent(out) :: error
-      type(SimTime) :: time, spinup, otime
+      type(SimTime) :: time, otime
       real(r8) :: OptParams(NPARAM)
-      integer :: i4ret
+      integer :: i4ret, lakeId
 
 #ifdef USE_INTEL_COMPILER
       i4ret = SIGNALQQ(SIG$FPE, hand_fpe)
 #endif
       ! read lake information (i.e. depth, location ...)
-      call ReadLakeInfo(lakeId, -9999)
+      lakeId = lake_range(1)
+      call ReadLakeInfo(lakeId, partId)
       call ReadOptimumParameters(OptParams)
       call LoadSensitiveParameters(OptParams)
       time = SimTime(Start_Year, Start_Month, Start_Day, 0, &
                      End_Year, End_Month, End_Day, 0)
-      spinup = SimTime(Start_Year-nSpinup, Spinup_Month, Spinup_Day, 0, &
-                       Start_Year, Start_Month, Start_Day, 0)
       otime = time 
       call InitializeSimulation()
-      call ModelRun(lakeId, time, spinup, otime, error)
-      call ArchiveModelOutput(lakeId, otime)
-      call ArchiveRestartStates(lakeId, otime)
+      call EPFM_Initialize(lakeId, time) 
+      call ModelRun(lakeId, partId, rank, time, otime, error)
+      call ArchiveAsssimilationOutput(partId, otime)
+      call EPFM_Finalize()
       call FinalizeSimulation()
    end subroutine
 
-   subroutine ModelRun(lakeId, time, spinup, otime, error)
+   subroutine ModelRun(lakeId, partId, rank, time, otime, error)
       implicit none
       integer, intent(in) :: lakeId
+      integer, intent(in) :: partId 
+      integer, intent(in) :: rank
       type(SimTime), intent(in) :: time
-      type(SimTime), intent(in) :: spinup
       type(SimTime), intent(in) :: otime
       integer, intent(out) :: error
+      type(SimTime) :: window
+      type(EPFM_Obs) :: obs_c, obs_p
+      integer :: ii, n_assim_times
 
-      ! run spinup at first
-      error = 0
-      if (len_trim(restart_file)==0) then
-         call ModuleCoupler(lakeId, spinup, spinup, otime, .True., error)
-         if (error==0) then
-            call ConstructOldCarbonPool()
-            call ConstructActCarbonPool()
-         end if
-      else
+      if (len_trim(restart_file)>0) then
          call ExtractRestartStates(lakeId)
+      else
+         call Endrun('restart_file cannot be empty in the DA mode')
       end if
+      
+      call init_cond_random_seed(12345, partId)
+      call UpdateEPFMConfig(lake_info%kext)
+      call PerturbInitialTemperatureProfile(partId) 
+      call PerturbInitialSensParameters(partId)
 
+      n_assim_times = size(epfm_obs4da)
       ! Run simulation during the interested period
-      if (error==0) then
-         call ModuleCoupler(lakeId, time, time, otime, .False., error)
-      end if
+      call CopyLakeStateToEPFM(.False.)
+      do ii = 1, n_assim_times, 1
+         if (ii==1) then
+            obs_c = epfm_obs4da(ii)
+            window = SimTime(time%year0, time%month0, time%day0, time%hour0, &
+               obs_c%year, obs_c%month, obs_c%day, obs_c%hour+1)
+         else
+            obs_c = epfm_obs4da(ii)
+            obs_p = epfm_obs4da(ii-1)
+            window = SimTime(obs_p%year, obs_p%month, obs_p%day, obs_p%hour, &
+               obs_c%year, obs_c%month, obs_c%day, obs_c%hour+1)
+         end if
+         call ModuleCoupler(partId, time, window, otime, .False., error)
+         if (error/=0) then
+            exit
+         end if
+         call CopyLakeStateToEPFM(.True.) 
+         ! assimilation
+         if (obs_c%has_lwst .or. obs_c%has_secchi) then
+            call GatherParticlesToRoot(rank)
+            if (masterproc) then
+               call ArraysToEPFMParticles() 
+               call EPFM_Assimilate(obs_c, ObsOperator, RerunWindow)
+               call EPFMParticlesToArrays()
+            end if
+            call ScatterParticlesFromRoot(rank)
+         end if
+         call SaveEPFMToLakeState()
+      end do
 
       if (error/=0) then
          call InitializeModelOutputs()
@@ -288,9 +309,9 @@ contains
             print *, ' Floating point exception: Non-IEEE type'
       end select
       !CALL TRACEBACKQQ(trim(header), USER_EXIT_CODE=-1)
-      print *, 'lake failed: ', lake_info 
+      print *, 'failed particle ', cur_particle
       hand_fpe = 1
    end function
 #endif
 
-end module
+end module assimilation_mod

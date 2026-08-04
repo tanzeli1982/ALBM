@@ -25,41 +25,15 @@ contains
    ! Purpose: manage the simulation of different modules
    !
    !------------------------------------------------------------------------------
-   subroutine ModelRun(rid, time, spinup, otime, error)
-      implicit none
-      integer, intent(in) :: rid  ! lake or sample id
-      type(SimTime), intent(in) :: time
-      type(SimTime), intent(in) :: spinup
-      type(SimTime), intent(in) :: otime
-      integer, intent(out) :: error
-
-      ! run spinup at first
-      if (len_trim(restart_file)==0) then
-         call ModuleCoupler(rid, spinup, otime, .True., error)
-      else
-         call ExtractRestartStates(rid, error)
-      end if
-
-      ! Run simulation during the interested period
-      if (error==0) then
-         call ConstructOldCarbonPool()
-         call ConstructActCarbonPool()
-         call ModuleCoupler(rid, time, otime, .False., error)
-      end if
-
-      if (error==1) then
-         call InitializeModelOutputs()
-      end if
-   end subroutine
-
-   subroutine ModuleCoupler(rid, time, otime, isspinup, error)
+   subroutine ModuleCoupler(rid, time, window, otime, isspinup, error)
       implicit none
       integer, intent(in) :: rid ! lake or sample id
       type(SimTime), intent(in) :: time
+      type(SimTime), intent(in) :: window
       type(SimTime), intent(in) :: otime
       logical, intent(in) :: isspinup
       integer, intent(out) :: error
-      type(SimTime) :: otime0, otime1
+      type(SimTime) :: time0, time1
       real(r8) :: STtol_col(NSCOL)
       real(r8) :: curstep, nextstep
       real(r8) :: curstep1, nextstep1
@@ -69,37 +43,41 @@ contains
       real(r8) :: t, t_old, tf
       integer(i8) :: simhour, hindx
       integer(i8) :: ohindx0, ohindx1
-      integer :: simday, ncount, ndayout
-      integer :: year, month, day
+      integer(i8) :: hindx0, hour
+      integer :: ncount
       logical :: isHourNode, isSubHourNode
 
       ! simulation time length
-      simday = CalcRunningDays(time, Use_Leap)
-      simhour = 24 * simday
+      simhour = CalcRunningHours(window, Use_Leap)
       tf = 3.6d+3 * DBLE(simhour)
 
       ! model output time window
-      otime0 = SimTime(time%year0, time%month0, time%day0, &
-                       otime%year0, otime%month0, otime%day0)
-      otime1 = SimTime(time%year0, time%month0, time%day0, &
-                       otime%year1, otime%month1, otime%day1)
-      ndayout = CalcRunningDays(otime0, Use_Leap)
-      ohindx0 = 24 * ndayout
-      ndayout = CalcRunningDays(otime1, Use_Leap)
-      ohindx1 = 24 * ndayout
+      time0 = SimTime(time%year0, time%month0, time%day0, time%hour0, &
+                      otime%year0, otime%month0, otime%day0, otime%hour0)
+      time1 = SimTime(time%year0, time%month0, time%day0, time%hour0, &
+                      otime%year1, otime%month1, otime%day1, otime%hour1)
+      ohindx0 = CalcRunningHours(time0, Use_Leap)
+      ohindx1 = CalcRunningHours(time1, Use_Leap)
 
+      ! initial time index
+      time0 = SimTime(time%year0, time%month0, time%day0, time%hour0, &
+                      window%year0, window%month0, window%day0, window%hour0)
+      hindx0 = CalcRunningHours(time0, Use_Leap) ! simulation timestep base index
 
       error = 0                     ! error flag (/=0, error)
       t = 0.0_r8                    ! the timer of simulation
       t_old = 0.0_r8                ! the old time point of sub-hourly update
-      hindx = 0                     ! simulation output index
+      hindx = 0                     ! simulation timestep relative index
+      hour = 1                      ! local hour
       ncount = 0                    ! the count of consecutive small steps
+      
       curstep = 50.0_r8             ! time step of simulation (sec)
       curstep1 = 50.0_r8
       curstep2 = 50.0_r8
       curstep3 = 50.0_r8
       curstep4 = 50.0_r8
       nextstep = MAX_OF_STEP        ! time step in the next cycle
+      
       isHourNode = .True.           ! hourly node flag
       isSubHourNode = .True.        ! sub-hourly node flag
 
@@ -109,14 +87,15 @@ contains
             if (DEBUG) then
                if (IsSpinup) then
                   print "(A, I0, A, I0)", "Run ", rid, &
-                        ": start spinup hour step ", hindx
+                        ": start spinup hour step ", hindx0 + hindx
                else
                   print "(A, I0, A, I0)", "Run ", rid, &
-                        ": start formal hour step ", hindx
+                        ": start formal hour step ", hindx0 + hindx
                end if
             end if
             isHourNode = .True.
             hindx = hindx + 1
+            hour = mod(hindx + window%hour0 - 1, 24)
          end if
 
          if (t-t_old>=TSTEP_SUB .or. isHourNode) then
@@ -125,11 +104,11 @@ contains
          end if
 
          if (isHourNode) then
-            call GetAtmoConditions(time, hindx, isspinup)
+            call GetAtmoConditions(time, hindx0+hindx, isspinup)
             if (Hydro_Module) then
-               call GetHydroConditions(time, hindx, isspinup)
+               call GetHydroConditions(time, hindx0+hindx, isspinup)
             end if
-            call GetSolarConditions(hindx)
+            call GetSolarConditions(hindx0+hindx)
          end if
 
          if (Hydro_Module) then
@@ -159,7 +138,7 @@ contains
          end if
          if (Carbon_Module) then
             curstep3 = curstep
-            call CarbonModuleSetup(isHourNode, isSubHourNode, hindx)
+            call CarbonModuleSetup(isHourNode, isSubHourNode, INT(hour,i4))
             call RungeKutta4(CarbonCycleEquation, mem_sub, adaptive_mode, WStol, &
                              curstep3, nextstep3, m_waterSubCon, m_tmpWaterSubCon)
             curstep = min(curstep,curstep3)
@@ -212,8 +191,8 @@ contains
          end if
 
          if (isHourNode .and. (.NOT. isspinup)) then
-            if (hindx>ohindx0 .and. hindx<=ohindx1) then
-               call CacheHourlyResults(hindx-ohindx0)
+            if (hindx0+hindx>ohindx0 .and. hindx0+hindx<=ohindx1) then
+               call CacheHourlyResults(hindx0+hindx-ohindx0)
             end if
          end if
 
@@ -223,7 +202,8 @@ contains
             ncount = ncount + 1
             if (ncount>100) then
                error = 1
-               print "(A, I0, A, I0)", 'Run ', rid, ': diverges at step ', hindx
+               print "(A, I0, A, I0)", 'Run ', rid, ': diverges at step ', &
+                  hindx0+hindx
             end if
             nextstep = 50.0_r8
          else if (curstep>=0.1) then
@@ -487,6 +467,46 @@ contains
       end if
    end subroutine
 
+   subroutine ArchiveAsssimilationOutput(partId, time)
+      implicit none
+      integer, intent(in) :: partId
+      type(SimTime), intent(in) :: time
+
+      call WriteData(partId, time, 'zw', archive_tstep, m_Zw)
+      call WriteData(partId, time, 'zs', archive_tstep, m_Zs)
+      call WriteData(partId, time, 'Az', archive_tstep, m_Az)
+      call WriteData(partId, time, 'colindx', archive_tstep, m_soilColInd)
+      if (Thermal_Module) then
+         call WriteData(partId, time, 'watertemp', archive_tstep, m_tempwHist)
+         call WriteData(partId, time, 'snowthick', archive_tstep, m_snowHist)
+         call WriteData(partId, time, 'icethick', archive_tstep, m_iceHist)
+      end if
+      if (Carbon_Module) then
+         call WriteData(partId, time, 'ch4df', archive_tstep, m_dfch4airHist)
+         call WriteData(partId, time, 'gpp', archive_tstep, m_totGPPHist)
+         call WriteData(partId, time, 'npp', archive_tstep, m_totNPPHist)
+         call WriteData(partId, time, 'och4prod', archive_tstep, m_pch4watHist)
+         call WriteData(partId, time, 'ch4oxid', archive_tstep, m_och4watHist)
+         call WriteData(partId, time, 'ch4conc', archive_tstep, m_ch4concHist)
+         call WriteData(partId, time, 'o2conc', archive_tstep, m_o2concHist)
+         call WriteData(partId, time, 'chla', archive_tstep, m_chlaHist)
+         call WriteData(partId, time, 'cdep', archive_tstep, m_depAtCHist)
+         call WriteData(partId, time, 'biomass', archive_tstep, m_biomassHist)
+         call WriteData(partId, time, 'bveg', archive_tstep, m_bvegHist)
+      end if
+      if (Diagenesis_Module) then
+         call WriteData(partId, time, 'sedch4df', archive_tstep, m_dfch4sedHist)
+         call WriteData(partId, time, 'sedch4eb', archive_tstep, m_ebch4sedHist)
+         call WriteData(partId, time, 'ch4prod', archive_tstep, m_totpch4sedHist)
+         call WriteData(partId, time, 'actcarb', archive_tstep, m_actcarbHist)
+         call WriteData(partId, time, 'oldcarb', archive_tstep, m_oldcarbHist)
+      end if
+      if (Bubble_Module) then
+         call WriteData(partId, time, 'ch4eb', archive_tstep, m_ebch4airHist)
+         call WriteData(partId, time, 'icebch4', archive_tstep, m_icebch4Hist)
+      end if
+   end subroutine
+
    subroutine ArchiveRestartStates(lakeId, time)
       implicit none
       integer, intent(in) :: lakeId
@@ -512,10 +532,9 @@ contains
       end if
    end subroutine
 
-   subroutine ExtractRestartStates(lakeId, error)
+   subroutine ExtractRestartStates(lakeId)
       implicit none
       integer, intent(in) :: lakeId
-      integer, intent(out) :: error
 
       call ReadRestartData(lakeId, 'zw', m_Zw)
       call ReadRestartData(lakeId, 'zs', m_Zs)
@@ -535,7 +554,6 @@ contains
          call ReadRestartData(lakeId, 'sedtemp', m_sedTemp)
          call ReadRestartData(lakeId, 'sedice', m_sedIce)
       end if
-      error = 0
    end subroutine
 
    subroutine FinalizeSimulation()

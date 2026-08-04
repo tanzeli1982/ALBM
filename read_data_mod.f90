@@ -8,7 +8,7 @@ module read_data_mod
 !---------------------------------------------------------------------------------
    use shr_kind_mod,       only : cs => SHR_KIND_CS, cx => SHR_KIND_CX
    use shr_kind_mod,       only : r8, r4, i8, i4, i1
-   use shr_typedef_mod,    only : LakeInfo, SimTime
+   use shr_typedef_mod,    only : LakeInfo, SimTime, EPFM_Obs
    use shr_ctrl_mod
    use shr_param_mod
    use io_utilities_mod
@@ -226,18 +226,21 @@ contains
       call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
                   NF90_NOWRITE, MPI_INFO_NULL, ncid) )
       call check( fname, nf90mpi_inq_dimid(ncid, 'level', dimid) )
-      call check( nf90mpi_inquire_dimension(ncid, dimid, len = nlevel) )
-      call check( nf90mpi_inq_varid(ncid, 'h', h_varid) )
-      call check( nf90mpi_inq_varid(ncid, 'A', A_varid) )
-      call check( nf90mpi_inq_varid(ncid, 'sal', S_varid) )
+      call check( fname, nf90mpi_inquire_dimension(ncid, dimid, len = nlevel) )
+      call check( fname, nf90mpi_inq_varid(ncid, 'h', h_varid) )
+      call check( fname, nf90mpi_inq_varid(ncid, 'A', A_varid) )
+      call check( fname, nf90mpi_inq_varid(ncid, 'sal', S_varid) )
       nstart = (/1, info%id/)
       ncount = (/nlevel, 1_i8/)
       allocate(tmph(nlevel,1))
       allocate(tmpA(nlevel,1))
       allocate(tmpS(nlevel,1))
-      call check( nf90mpi_get_var_all(ncid, h_varid, tmph, nstart, ncount) )
-      call check( nf90mpi_get_var_all(ncid, A_varid, tmpA, nstart, ncount) )
-      call check( nf90mpi_get_var_all(ncid, S_varid, tmpS, nstart, ncount) )
+      call check( fname, nf90mpi_get_var_all(ncid, h_varid, tmph, &
+                  nstart, ncount) )
+      call check( fname, nf90mpi_get_var_all(ncid, A_varid, tmpA, &
+                  nstart, ncount) )
+      call check( fname, nf90mpi_get_var_all(ncid, S_varid, tmpS, &
+                  nstart, ncount) )
       call check( nf90mpi_close(ncid) )
 
       ! remove all zero area above the maximum depth
@@ -306,6 +309,7 @@ contains
       namelist /bayesian/ NMAXSAMPLE, sample_range, mc_file, SA_Start_Year, &
                           SA_Start_Month, SA_Start_Day, SA_End_Year, &
                           SA_End_Month, SA_End_Day
+      namelist /assimilation/ NPART, obs_file
       namelist /radiation/ solar_dir, gas_dir, albedo_dir, co2_file, &
                            o3_file, aod_file
       namelist /rundata/ forcing_tstep, forcing_time, tas_file, tasmax_file, &
@@ -341,6 +345,11 @@ contains
       if (error/=0) then
          close(unit=fid)
          call Endrun("reading bayesian group")
+      end if
+      read(unit=fid, NML=assimilation, iostat=error)
+      if (error/=0) then
+         close(unit=fid)
+         call Endrun("reading assimilation group")
       end if
       read(unit=fid, NML=radiation, iostat=error)
       if (error/=0) then
@@ -425,6 +434,10 @@ contains
       call MPI_BCAST(SA_End_Year, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(SA_End_Month, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(SA_End_Day, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
+      ! assimilation group
+      call MPI_BCAST(NPART, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
+      call MPI_BCAST(obs_file, len(obs_file), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
       ! radiation group
       call MPI_BCAST(solar_dir, len(solar_dir), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
@@ -502,6 +515,7 @@ contains
       namelist /bayesian/ NMAXSAMPLE, sample_range, mc_file, SA_Start_Year, &
                           SA_Start_Month, SA_Start_Day, SA_End_Year, &
                           SA_End_Month, SA_End_Day
+      namelist /assimilation/ NPART, obs_file
       namelist /radiation/ solar_dir, gas_dir, albedo_dir, co2_file, &
                            o3_file, aod_file
       namelist /rundata/ forcing_tstep, forcing_time, tas_file, tasmax_file, &
@@ -537,6 +551,11 @@ contains
       if (error/=0) then
          close(unit=fid)
          call Endrun("writing bayesian group")
+      end if
+      write(unit=fid, NML=assimilation, iostat=error)
+      if (error/=0) then
+         close(unit=fid)
+         call Endrun("writing assimilation group")
       end if
       write(unit=fid, NML=radiation, iostat=error)
       if (error/=0) then
@@ -575,11 +594,11 @@ contains
       integer :: ncid, dimid
 
       call GetFullFileName(lake_file, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
+      call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
                   NF90_NOWRITE, MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_inq_dimid(ncid, "lake", dimid) )
-      call check( nf90mpi_inquire_dimension(ncid, dimid, len=ncohort) )
-      call check( nf90mpi_close(ncid) )
+      call check( fname, nf90mpi_inq_dimid(ncid, "lake", dimid) )
+      call check( fname, nf90mpi_inquire_dimension(ncid, dimid, len=ncohort) )
+      call check( fname, nf90mpi_close(ncid) )
       nlake = INT(ncohort, i4)
    end subroutine
 
@@ -1335,6 +1354,96 @@ contains
 
    !------------------------------------------------------------------------------
    !
+   ! Purpose: This subroutine is used to read assimilated observations.
+   !
+   !------------------------------------------------------------------------------
+   subroutine ReadObservations4DA(lakeId, time, obs4da)
+      implicit none
+      integer, intent(in) :: lakeId
+      type(SimTime), intent(in) :: time
+      type(EPFM_Obs), allocatable, intent(out) :: obs4da(:)
+      character(len=32) :: fname = "ReadObservations4DA"
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer(kind=MPI_OFFSET_KIND) :: ntime
+      character(cx) :: fullname
+      integer :: ncid, dimid
+      integer :: date_varid, lwst_varid, secchi_varid
+      integer :: nobs, nobs_tot, indx0, indx1
+      integer :: date0, date1, date_val, ii
+      integer :: year, month, day, hour
+      integer, allocatable :: date_tmp(:,:)
+      real(r8), allocatable :: lwst_tmp(:,:)
+      real(r8), allocatable :: secchi_tmp(:,:)
+      real(r8) :: filled_lwst, filled_secchi
+
+      date0 = 1000000*time%year0 + 10000*time%month0 + &
+         100*time%day0 + time%hour0
+      date1 = 1000000*time%year1 + 10000*time%month1 + &
+         100*time%day1 + time%hour1
+      ! read data
+      call GetFullFileName(obs_file, fullname)
+      call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
+                  NF90_NOWRITE, MPI_INFO_NULL, ncid) )
+      call check( fname, nf90mpi_inq_dimid(ncid, "time", dimid) )
+      call check( fname, nf90mpi_inquire_dimension(ncid, dimid, len = ntime) )
+      call check( fname, nf90mpi_inq_varid(ncid, "date", date_varid) )
+      call check( fname, nf90mpi_inq_varid(ncid, "LWST", lwst_varid) )
+      call check( fname, nf90mpi_inq_varid(ncid, "Secchi", secchi_varid) )
+      call check( fname, nf90mpi_get_att(ncid, lwst_varid, "_FillValue", &
+                  filled_lwst) )
+      call check( fname, nf90mpi_get_att(ncid, secchi_varid, "_FillValue", &
+                  filled_secchi) )
+      nobs_tot = INT(ntime, i4)
+      allocate(date_tmp(1,nobs_tot))
+      call check( fname, nf90mpi_get_var_all(ncid, date_varid, date_tmp) )
+      indx0 = COUNT(date_tmp(1,:)<date0) + 1
+      indx1 = COUNT(date_tmp(1,:)<date1)
+      nobs = indx1 - indx0 + 1
+      allocate(lwst_tmp(1,nobs))
+      allocate(secchi_tmp(1,nobs))
+      nstart = (/lakeId, indx0/)
+      ncount = (/1, nobs/)
+      call check( fname, nf90mpi_get_var_all(ncid, lwst_varid, lwst_tmp, &
+                  nstart, ncount) )
+      call check( fname, nf90mpi_get_var_all(ncid, secchi_varid, secchi_tmp, &
+                  nstart, ncount) ) 
+      call check( fname, nf90mpi_close(ncid) )
+      
+      allocate(obs4da(nobs))
+      do ii = 1, nobs, 1
+         ! time info
+         date_val = date_tmp(1,indx0+ii-1) 
+         year = INT(date_val/1.e6_r8)
+         month = INT( (date_val - year*1000000)/1.e4 )
+         day = INT( (date_val - year*1000000 - month*10000)/1.e2 )
+         hour = date_val - year*1000000 - month*10000 - day*100
+         obs4da(ii)%year = year
+         obs4da(ii)%month = month
+         obs4da(ii)%day = day
+         obs4da(ii)%hour = hour
+         ! values
+         obs4da(ii)%lwst = lwst_tmp(1,ii)
+         obs4da(ii)%secchi = secchi_tmp(1,ii)
+         if (obs4da(ii)%lwst <= filled_lwst) then
+            obs4da(ii)%has_lwst = .False.
+         else
+            obs4da(ii)%has_lwst = .True.
+         end if
+         if (obs4da(ii)%secchi <= filled_secchi) then
+            obs4da(ii)%has_secchi = .False.
+         else
+            obs4da(ii)%has_secchi = .True.
+         end if
+      end do
+
+      deallocate(date_tmp, lwst_tmp, secchi_tmp)
+      if (DEBUG .and. masterproc) then
+         print *, "Read DA observations from " // trim(fullname)
+      end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
    ! Purpose: Create a netcdf file for model output storage. It includes the
    !        creation of file, dimensions and variables. The dimension lengths should
    !        the maximum of all lakes.    
@@ -1342,7 +1451,7 @@ contains
    !------------------------------------------------------------------------------
    subroutine CreateOutputFile0d(time, nz, varname, longname, units)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       integer, intent(in) :: nz
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: longname
@@ -1400,7 +1509,7 @@ contains
 
    subroutine CreateOutputFile1d(time, varname, longname, units, defval)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: longname
       character(len=*), intent(in) :: units
@@ -1410,7 +1519,7 @@ contains
       integer(kind=MPI_OFFSET_KIND) :: ntime
       integer :: ncid, varid, cmode
       integer :: time_dimid, lake_dimid
-      integer :: gmtime(6), simday, err
+      integer :: gmtime(6), err
 
       call GetArchiveFullname(time, varname, archive_tstep, fullname)
       if (masterproc) then
@@ -1427,11 +1536,10 @@ contains
       write(str1,"('Records start since ', I4, '-', I2.2, '-', I2.2)") &
          time%year0, time%month0, time%day0
       timestr = trim(str1) // " 00:00:00 GMT"
-      simday = CalcRunningDays(time, Use_Leap)
       if (trim(archive_tstep)=='day') then
-         ntime = simday
+         ntime = CalcRunningDays(time, Use_Leap)
       else if (trim(archive_tstep)=='hour') then
-         ntime = 24 * simday
+         ntime = CalcRunningHours(time, Use_Leap)
       end if
 
       ! Create the file.
@@ -1471,7 +1579,7 @@ contains
    subroutine CreateOutputFile2d(time, ndim, varname, dimname, longname, &
                   units, defval)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       integer, intent(in) :: ndim
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: dimname
@@ -1483,7 +1591,7 @@ contains
       integer(kind=MPI_OFFSET_KIND) :: ntime
       integer :: ncid, varid, cmode
       integer :: dimid, time_dimid, lake_dimid
-      integer :: gmtime(6), simday, err
+      integer :: gmtime(6), err
 
       call GetArchiveFullname(time, varname, archive_tstep, fullname)
       if (masterproc) then
@@ -1500,11 +1608,10 @@ contains
       write(str1,"('Records start since ', I4, '-', I2.2, '-', I2.2)") &
          time%year0, time%month0, time%day0
       timestr = trim(str1) // " 00:00:00 GMT"
-      simday = CalcRunningDays(time, Use_Leap)
       if (trim(archive_tstep)=='day') then
-         ntime = simday
+         ntime = CalcRunningDays(time, Use_Leap) 
       else if (trim(archive_tstep)=='hour') then
-         ntime = 24 * simday
+         ntime = CalcRunningHours(time, Use_Leap)
       end if
 
       ! Create the file.
@@ -1546,7 +1653,7 @@ contains
    subroutine CreateOutputFile3d(time, ndim1, ndim2, varname, &
                   dimname1, dimname2, longname, units, defval)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       integer, intent(in) :: ndim1
       integer, intent(in) :: ndim2
       character(len=*), intent(in) :: varname
@@ -1560,7 +1667,7 @@ contains
       integer(kind=MPI_OFFSET_KIND) :: ntime
       integer :: ncid, varid, cmode
       integer :: dimid1, dimid2, time_dimid, lake_dimid
-      integer :: gmtime(6), simday, err
+      integer :: gmtime(6), err
 
       call GetArchiveFullname(time, varname, archive_tstep, fullname)
       if (masterproc) then
@@ -1577,11 +1684,10 @@ contains
       write(str1,"('Records start since ', I4, '-', I2.2, '-', I2.2)") &
          time%year0, time%month0, time%day0
       timestr = trim(str1) // " 00:00:00 GMT"
-      simday = CalcRunningDays(time, Use_Leap)
       if (trim(archive_tstep)=='day') then
-         ntime = simday
+         ntime = CalcRunningDays(time, Use_Leap)
       else if (trim(archive_tstep)=='hour') then
-         ntime = 24 * simday
+         ntime = CalcRunningHours(time, Use_Leap)
       end if
 
       ! Create the file.
@@ -1628,7 +1734,7 @@ contains
    !------------------------------------------------------------------------------
    subroutine CreateRestartFile(time)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       character(cx) :: fullname, histstr, timestr
       character(cx) :: str1, str2
       integer :: ncid, cmode, varid

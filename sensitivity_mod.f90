@@ -1,6 +1,6 @@
 module sensitivity_mod
 !---------------------------------------------------------------------------------
-! Purpose: this module governs the sensitivity analysis of the bLake model
+! Purpose: this module governs the sensitivity analysis of the ALBM model
 !
 !---------------------------------------------------------------------------------
    use shr_ctrl_mod
@@ -44,21 +44,6 @@ contains
       end if
 
       call DoSensitivityWarmup(minid)
-
-      ! check the end sample id, if not end, refresh the sample range
-      ! and restart with a new job
-      !if (masterproc .and. (.NOT. DEBUG)) then
-      !   if (maxid<NMAXSAMPLE) then
-      !      sample_next_range = sample_range
-      !      sample_range = (/minid+ndid, min(maxid+ndid,NMAXSAMPLE)/)
-      !      call WriteSimulationSettings(arg)
-      !      call GetFullFileName('bLakeJob.sub', script)
-      !      script = "sbatch " // trim(script)
-      !      err = system(trim(script))
-      !      print "(A, I0)", "A new job is submitted. Return = ", err
-      !      sample_range = sample_next_range
-      !   end if
-      !end if
 
       allocate(samples(NMAXSAMPLE,NPARAM))
       if (masterproc) then
@@ -112,16 +97,46 @@ contains
       lakeId = lake_range(1)
       call ReadLakeInfo(lakeId, sampleId)
       call LoadSensitiveParameters(sample)
-      time = SimTime(Start_Year,Start_Month,Start_Day,End_Year, &
-                     End_Month,End_Day)
-      spinup = SimTime(Start_Year-nSpinup, Spinup_Month, Spinup_Day, &
-                       Start_Year, Start_Month, Start_Day)
-      otime = SimTime(SA_Start_Year, SA_Start_Month, SA_Start_Day, &
-                      SA_End_Year, SA_End_Month, SA_End_Day)  
+      time = SimTime(Start_Year, Start_Month, Start_Day, 0, &
+                     End_Year, End_Month, End_Day, 0)
+      spinup = SimTime(Start_Year-nSpinup, Spinup_Month, Spinup_Day, 0, &
+                       Start_Year, Start_Month, Start_Day, 0)
+      otime = SimTime(SA_Start_Year, SA_Start_Month, SA_Start_Day, 0, &
+                      SA_End_Year, SA_End_Month, SA_End_Day, 0)  
       call InitializeSimulation()
       call ModelRun(sampleId, time, spinup, otime, error)
       call ArchiveSensitivityOutput(sampleId, otime)
       call FinalizeSimulation()
+   end subroutine
+
+   subroutine ModelRun(sampleId, time, spinup, otime, error)
+      implicit none
+      integer, intent(in) :: sampleId 
+      type(SimTime), intent(in) :: time
+      type(SimTime), intent(in) :: spinup
+      type(SimTime), intent(in) :: otime
+      integer, intent(out) :: error
+
+      ! run spinup at first
+      error = 0
+      if (len_trim(restart_file)==0) then
+         call ModuleCoupler(sampleId, spinup, spinup, otime, .True., error)
+         if (error==0) then
+            call ConstructOldCarbonPool()
+            call ConstructActCarbonPool()
+         end if
+      else
+         call ExtractRestartStates(sampleId)
+      end if
+
+      ! Run simulation during the interested period
+      if (error==0) then
+         call ModuleCoupler(sampleId, time, time, otime, .False., error)
+      end if
+
+      if (error/=0) then
+         call InitializeModelOutputs()
+      end if
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -134,8 +149,8 @@ contains
       integer, intent(in) :: minid
       type(SimTime) :: time 
 
-      time = SimTime(SA_Start_Year, SA_Start_Month, SA_Start_Day, &
-                     SA_End_Year, SA_End_Month, SA_End_Day)
+      time = SimTime(SA_Start_Year, SA_Start_Month, SA_Start_Day, 0, &
+                     SA_End_Year, SA_End_Month, SA_End_Day, 0)
       if (minid==1 .and. masterproc) then
          call CreateOutputFile(time, NWLAYER+1, 'zw', 'Z', 'water layer depth', &
                               'm', -9999.0_r4)

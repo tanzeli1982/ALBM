@@ -164,6 +164,34 @@ contains
       return
    end function
 
+   function CalcRunningHours(time, useleap)
+      implicit none
+      type(SimTime), intent(in) :: time
+      logical, intent(in) :: useleap
+      integer :: CalcRunningHours
+      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
+      integer :: nday, JDN0, JDN1
+
+      if (useleap) then
+         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
+         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
+         nday = JDN1 - JDN0
+      else
+         if (time%year1>time%year0) then
+            nday = 365*(time%year1-time%year0-1) + &
+               sum(ndays(time%month0:12)) + sum(ndays(1:time%month1-1)) - &
+               time%day0 + time%day1
+         else if (time%month1>time%month0) then
+            nday = sum(ndays(time%month0:time%month1-1)) - &
+               time%day0 + time%day1
+         else
+            nday = time%day1 - time%day0
+         end if
+      end if
+      CalcRunningHours = 24 * nday - time%hour0 + time%hour1
+      return
+   end function
+
    function CalcRunningMonths(time)
       implicit none
       type(SimTime), intent(in) :: time
@@ -199,6 +227,16 @@ contains
       integer(i8) :: GetUTCHourIndex      ! UTC hour index
       
       GetUTCHourIndex = hindx - NINT(longitude/15.0)
+      return
+   end function
+
+   function GetLocalHourIndex(hindx, longitude)
+      implicit none
+      integer(i8), intent(in) :: hindx    ! UTC hour index
+      real(r8), intent(in) :: longitude   ! degree
+      integer(i8) :: GetLocalHourIndex    ! local time hour index
+
+      GetLocalHourIndex = hindx + NINT(longitude/15.0)
       return
    end function
    

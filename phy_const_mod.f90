@@ -60,7 +60,7 @@ module phy_const_mod
    ! Solar constant (W/m2)
    real(r8), parameter :: Solar = 1366.1
    ! Pi constant
-   real(r8), parameter :: Pi = 3.14159265d+0
+   real(r8), parameter :: Pi = 3.14159265358979323846_r8 
    ! Euler's constant
    real(r8), parameter :: e = 2.71828183d+0
    ! Transfer coefficeint for sensible heat and latent heat

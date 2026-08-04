@@ -43,6 +43,11 @@
  SA_End_Day = 1
 /
 
+&assimilation
+ NPART = 100
+ obs_file = '/rcfs/projects/rsvtmp/tanz151/input_data/Lakes_GrandCoulee_landsat_obs.nc'
+/
+
 &radiation
  solar_dir = './Solar/'
  gas_dir = './Gases/'

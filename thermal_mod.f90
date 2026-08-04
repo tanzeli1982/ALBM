@@ -18,9 +18,8 @@ module thermal_mod
    public :: mem_tw
    public :: InitializeThermalModule, DestructThermalModule 
    public :: ThermalModuleSetup, ThermalModuleCallback
-   public :: UpdateLakeWaterTopIndex, UpdateLakeIceThickness
    public :: GetBoundaryOutputs, HeatEquation
-   public :: ConvectiveMixing, UpdateWaterDensity
+   public :: EnforceThermalConsistency 
    ! module cache for Runge-Kutta
    type(RungeKuttaCache1D) :: mem_tw
    ! volumetric heat capacity (J/K/m3)
@@ -99,6 +98,7 @@ contains
       implicit none
       real(r8) :: cita, icita, temp
       real(r8) :: Kml, wind, w10, lat
+      real(r8) :: Dscaler 
       integer :: ii, top, icol
 
       top = m_lakeWaterTopIndex
@@ -109,8 +109,10 @@ contains
       fmm_hr = Roua * Cd10 * (w10**3)
       ! wind-driven eddy diffusivity
       call CalcBruntVaisalaFreq(m_dZw, m_wrho, freq)
+      Dscaler = sa_params(Param_Dscale)
       if (m_Hice<e8) then
          call CalcEddyDiffusivity(m_Zw, freq, wind, lat, m_Kt)
+         m_Kt = Dscaler * m_Kt
          m_Kt(1) = max(m_Kt(1), 1.0d-5)
       else
          call CalcEnhancedDiffusivity(freq, m_waterIce, m_Kt)
@@ -788,6 +790,20 @@ contains
                                "totally frozen!!'
          wfirstime = .False.
       end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: enforce thermal consistency.
+   !
+   !------------------------------------------------------------------------------
+   subroutine EnforceThermalConsistency()
+      implicit none
+
+      call UpdateLakeWaterTopIndex()
+      call UpdateLakeIceThickness()
+      call UpdateWaterDensity()
+      call ConvectiveMixing(0._r8)
    end subroutine
 
 end module thermal_mod

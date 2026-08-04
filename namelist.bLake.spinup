@@ -12,7 +12,7 @@
  Bubble_Module = .False.
  Diagenesis_Module = .False.
  Carbon_Module = .False.
- Start_Year = 1985
+ Start_Year = 1986
  Start_Month = 1
  Start_Day = 1
  End_Year = 1990
@@ -41,6 +41,11 @@
  SA_End_Year = 2017
  SA_End_Month = 1
  SA_End_Day = 1
+/
+
+&assimilation
+ NPART = 100
+ obs_file = '/rcfs/projects/rsvtmp/tanz151/input_data/Lakes_GrandCoulee_obs.nc'
 /
 
 &radiation

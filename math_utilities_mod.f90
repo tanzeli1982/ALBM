@@ -1128,7 +1128,26 @@ contains
       end if
       call random_seed(put=seed)
       deallocate(seed)
-   end subroutine init_random_seed
+   end subroutine
+
+   ! the random seed is unchanged with the same base seed and id
+   subroutine init_cond_random_seed(base_seed, global_id)
+      implicit none
+      integer, intent(in) :: base_seed
+      integer, intent(in) :: global_id
+      integer :: nseed, ii
+      integer, allocatable :: seed(:)
+
+      call random_seed(size=nseed)
+      allocate(seed(nseed))
+
+      do ii = 1, nseed, 1
+         seed(ii) = base_seed + 104729 * global_id + 37 * ii
+      end do
+
+      call random_seed(put=seed)
+      deallocate(seed)
+   end subroutine
 
    subroutine trapezoid_random_generator(ub, randn)
       implicit none
@@ -1153,6 +1172,39 @@ contains
       call random_number(rrand2)
       rand = std * sqrt(-2.0_r8*log(rrand1)) * cos(2.0_r8*fpi*rrand2) + avg
    end subroutine
+
+   subroutine ClipArray(x, xmin, xmax)
+      implicit none
+      real(r8), intent(inout) :: x(:)
+      real(r8), intent(in)    :: xmin, xmax
+
+      where (x < xmin) x = xmin
+      where (x > xmax) x = xmax
+   end subroutine
+
+   real(r8) function ReflectToBounds(x, xmin, xmax) result(y)
+      implicit none
+      real(r8), intent(in) :: x, xmin, xmax
+
+      y = x
+      do while (y < xmin .or. y > xmax)
+         if (y < xmin) y = xmin + (xmin - y)
+         if (y > xmax) y = xmax - (y - xmax)
+      end do
+      y = min(max(y, xmin), xmax)
+   end function
+
+   real(r8) function Randn() result(z)
+      implicit none
+      real(r8), parameter :: TINY_R8 = 1.0e-12_r8
+      real(r8), parameter :: PI_R8 = 3.14159265358979323846_r8
+      real(r8) :: u1, u2
+
+      call random_number(u1)
+      call random_number(u2)
+      u1 = max(u1, TINY_R8)
+      z = sqrt(-2.0_r8*log(u1)) * cos(2.0_r8*PI_R8*u2)
+   end function
 
    !------------------------------------------------------------------------------
    !

@@ -9,8 +9,8 @@ module hydro_mod
    use shr_ctrl_mod,          only : Thermal_Module, Carbon_Module
    use phy_utilities_mod
    use data_buffer_mod
-   use thermal_mod, ConvectiveMixing_T => ConvectiveMixing
-   use carbon_cycle_mod, ConvectiveMixing_C => ConvectiveMixing
+   use thermal_mod,           only : EnforceThermalConsistency
+   use carbon_cycle_mod,      only : EnforceBGCConsistency 
 
    implicit none
    private
@@ -345,10 +345,7 @@ contains
       if (Thermal_Module) then
          m_waterTemp = tmpwaterTemp
          m_waterIce = tmpwaterIce
-         call UpdateLakeWaterTopIndex()
-         call UpdateLakeIceThickness()
-         call UpdateWaterDensity()
-         call ConvectiveMixing_T(0._r8)
+         call EnforceThermalConsistency() 
 
          ! check energy balance
          !Eed = sum(zVol*m_waterTemp) / sum(zVol)
@@ -360,7 +357,7 @@ contains
 
       if (Carbon_Module) then
          m_waterSubCon = tmpwaterSubCon
-         call ConvectiveMixing_C()
+         call EnforceBGCConsistency() 
       end if
 
    end subroutine 

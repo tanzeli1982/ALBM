@@ -118,7 +118,7 @@ contains
    !------------------------------------------------------------------------------
    subroutine GetRestartFullname(time, fullname)
       implicit none
-      Type(SimTime), intent(in) :: time
+      type(SimTime), intent(in) :: time
       character(len=*), intent(out) :: fullname
       character(cx) :: filename
 
@@ -250,7 +250,7 @@ contains
    !------------------------------------------------------------------------------
    subroutine GetArchiveFullname(time, varname, tstep, fullname)
       implicit none
-      Type(SimTime), intent(in) :: time
+      type(SimTime), intent(in) :: time
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: tstep 
       character(len=*), intent(out) :: fullname

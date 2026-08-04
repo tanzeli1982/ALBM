@@ -40,30 +40,30 @@ module shr_param_mod
    
    implicit none
 
-   integer, parameter :: NPARAM = 32
+   integer, parameter :: NPARAM = 33
    ! thermal related parameters
    integer, parameter :: Param_Roun = 1, Param_Feta = 2, Param_Wstr = 3, &
-                         Param_Hscale = 4                       
+                         Param_Hscale = 4, Param_Dscale = 5                      
    ! phytoplankton related parameters
-   integer, parameter :: Param_Vm0s = 5, Param_Vm0l = 6, Param_Ksrps = 7, &
-                         Param_Ksrpl = 8, Param_Klrs = 9, Param_Klrl = 10, &
-                         Param_fDepMorts = 11, Param_fDepMortl = 12
+   integer, parameter :: Param_Vm0s = 6, Param_Vm0l = 7, Param_Ksrps = 8, &
+                         Param_Ksrpl = 9, Param_Klrs = 10, Param_Klrl = 11, &
+                         Param_fDepMorts = 12, Param_fDepMortl = 13
    ! ebullition related parameters
-   integer, parameter :: Param_Re = 13, Param_Ae = 14, Param_icebflux = 15, &
-                         Param_icebloss = 16 
+   integer, parameter :: Param_Re = 14, Param_Ae = 15, Param_icebflux = 16, &
+                         Param_icebloss = 17 
    ! sediment C pool related parameters
-   integer, parameter :: Param_csedDMP = 17, Param_Rcapas = 18, Param_Rcaact = 19, &
-                         Param_Rcpas = 20, Param_Rcact = 21, Param_Rcold = 22
+   integer, parameter :: Param_csedDMP = 18, Param_Rcapas = 19, Param_Rcaact = 20, &
+                         Param_Rcpas = 21, Param_Rcact = 22, Param_Rcold = 23
    ! other sediment methanogenesis parameters
-   integer, parameter :: Param_PQ10pas = 23, Param_PQ10act = 24, Param_PQ10old = 25, &
-                         Param_cRx = 26        
+   integer, parameter :: Param_PQ10pas = 24, Param_PQ10act = 25, Param_PQ10old = 26, &
+                         Param_cRx = 27        
    ! methane oxidation related parameters
-   integer, parameter :: Param_Qch4 = 27, Param_OQ10 = 28, Param_betaCH4 = 29, &
-                         Param_lamdaO2 = 30
+   integer, parameter :: Param_Qch4 = 28, Param_OQ10 = 29, Param_betaCH4 = 30, &
+                         Param_lamdaO2 = 31
    ! oxic methane production parameter
-   integer, parameter :: Param_RcOMP = 31
+   integer, parameter :: Param_RcOMP = 32
    ! submerged macrophytes parameters
-   integer, parameter :: Param_MuMaxVeg = 32
+   integer, parameter :: Param_MuMaxVeg = 33
    ! sensitive parameter collection
    real(r8) :: sa_params(NPARAM)
    ! maximum sample size
