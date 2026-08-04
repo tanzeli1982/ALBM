@@ -46,12 +46,12 @@ contains
       call DoAssimilationWarmup()
 
       if (masterproc) then
-         partIds = (/(ii, ii = 0, numprocs-1)/)
+         partIds = (/(ii, ii = 1, numprocs)/)
       end if
       call MPI_BCAST(partIds, numprocs, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
       partId = partIds(taskid+1)
-      if (masterproc .and. partId/=0) then
-         call Endrun("partId 0 must be on the root processor")  
+      if (masterproc .and. partId/=1) then
+         call Endrun("partId 1 must be on the root processor")  
       end if
       call DASimulation(partId, taskid, err)
       print "(A, I0, A, I0, A, I0)", "Particle ", partId, ", processor ", &

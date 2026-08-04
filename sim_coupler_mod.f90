@@ -432,9 +432,9 @@ contains
       integer, intent(in) :: sampleId
       type(SimTime), intent(in) :: time
 
-      call WriteData(sampleId, time, 'zw', archive_tstep, m_Zw)
+      call WriteData(sampleId, time, 'zw', archive_tstep, m_ZwHist)
       call WriteData(sampleId, time, 'zs', archive_tstep, m_Zs)
-      call WriteData(sampleId, time, 'Az', archive_tstep, m_Az)
+      call WriteData(sampleId, time, 'Az', archive_tstep, m_AzHist)
       call WriteData(sampleId, time, 'colindx', archive_tstep, m_soilColInd)
       if (Thermal_Module) then
          call WriteData(sampleId, time, 'watertemp', archive_tstep, m_tempwHist)
@@ -472,14 +472,22 @@ contains
       integer, intent(in) :: partId
       type(SimTime), intent(in) :: time
 
-      call WriteData(partId, time, 'zw', archive_tstep, m_Zw)
+      call WriteData(partId, time, 'zw', archive_tstep, m_ZwHist)
       call WriteData(partId, time, 'zs', archive_tstep, m_Zs)
-      call WriteData(partId, time, 'Az', archive_tstep, m_Az)
+      call WriteData(partId, time, 'Az', archive_tstep, m_AzHist)
       call WriteData(partId, time, 'colindx', archive_tstep, m_soilColInd)
       if (Thermal_Module) then
          call WriteData(partId, time, 'watertemp', archive_tstep, m_tempwHist)
          call WriteData(partId, time, 'snowthick', archive_tstep, m_snowHist)
          call WriteData(partId, time, 'icethick', archive_tstep, m_iceHist)
+      end if
+      if (Hydro_Module) then
+         call WriteData(partId, time, 'Sw', archive_tstep, m_SwHist)
+         call WriteData(partId, time, 'Qwt', archive_tstep, m_QwtHist)
+         call WriteData(partId, time, 'Qch4', archive_tstep, m_Qch4Hist)
+         call WriteData(partId, time, 'Qco2', archive_tstep, m_Qco2Hist)
+         call WriteData(partId, time, 'Qo2', archive_tstep, m_Qo2Hist)
+         call WriteData(partId, time, 'Qsrp', archive_tstep, m_QsrpHist)
       end if
       if (Carbon_Module) then
          call WriteData(partId, time, 'ch4df', archive_tstep, m_dfch4airHist)

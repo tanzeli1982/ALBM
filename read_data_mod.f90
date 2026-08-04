@@ -663,7 +663,9 @@ contains
             close(unit=fid)
             call Endrun(fname, 'reading ' // trim(fullname))
          end if
-         print *, ii, OptParams(ii)
+         if (masterproc) then
+            print *, ii, OptParams(ii)
+         end if
       end do
       close(unit=fid)
    end subroutine

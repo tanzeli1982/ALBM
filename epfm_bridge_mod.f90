@@ -27,7 +27,7 @@ contains
       real(r8) :: smooth_noise(WATER_LAYER+1)
 
       ! keep one particle exactly equal to the original ALBM configuration
-      if (partId==0) then
+      if (partId==1) then
          return
       end if
 
@@ -77,7 +77,7 @@ contains
       real(r8) :: base_value
 
       ! keep one particle exactly equal to the original ALBM configuration
-      if (partId==0) then
+      if (partId==1) then
          return
       end if 
       
