@@ -1424,7 +1424,7 @@ contains
          obs4da(ii)%day = day
          obs4da(ii)%hour = hour
          ! values
-         obs4da(ii)%lwst = lwst_tmp(1,ii)
+         obs4da(ii)%lwst = lwst_tmp(1,ii) + 273.15_r8
          obs4da(ii)%secchi = secchi_tmp(1,ii)
          if (obs4da(ii)%lwst <= filled_lwst) then
             obs4da(ii)%has_lwst = .False.

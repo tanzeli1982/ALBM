@@ -235,34 +235,34 @@ contains
       
       call init_cond_random_seed(12345, partId)
       call UpdateEPFMConfig(lake_info%kext)
-      call PerturbInitialTemperatureProfile(partId) 
-      call PerturbInitialSensParameters(partId)
+      call PerturbTemperatureProfile(epfm_cfg_ini, partId) 
 
       n_assim_times = size(epfm_obs4da)
       ! Run simulation during the interested period
-      call CopyLakeStateToEPFM(.False.)
       do ii = 1, n_assim_times, 1
          if (ii==1) then
             obs_c = epfm_obs4da(ii)
             window = SimTime(time%year0, time%month0, time%day0, time%hour0, &
                obs_c%year, obs_c%month, obs_c%day, obs_c%hour+1)
+            call EvolveParameters(epfm_cfg_ini, obs_c%month)
          else
             obs_c = epfm_obs4da(ii)
             obs_p = epfm_obs4da(ii-1)
             window = SimTime(obs_p%year, obs_p%month, obs_p%day, obs_p%hour, &
                obs_c%year, obs_c%month, obs_c%day, obs_c%hour+1)
+            call EvolveParameters(epfm_cfg, obs_c%month)
          end if
          call ModuleCoupler(partId, time, window, otime, .False., error)
          if (error/=0) then
             exit
          end if
-         call CopyLakeStateToEPFM(.True.) 
+         call CopyLakeStateToEPFM() 
          ! assimilation
          if (obs_c%has_lwst .or. obs_c%has_secchi) then
             call GatherParticlesToRoot(rank)
             if (masterproc) then
                call ArraysToEPFMParticles() 
-               call EPFM_Assimilate(obs_c, ObsOperator, RerunWindow)
+               call EPFM_Assimilate(obs_c, ObsOperator)
                call EPFMParticlesToArrays()
             end if
             call ScatterParticlesFromRoot(rank)

@@ -9,6 +9,7 @@ module epfm_da_mod
 !   - sa_params(Param_Feta)
 !   - sa_params(Param_Hscale)
 !   - sa_params(Param_Dscale)
+!   - sa_params(Param_TinDiff)
 !
 ! Observations assimilated:
 !   - daily LWST
@@ -27,11 +28,11 @@ module epfm_da_mod
    use shr_kind_mod,       only : r8
    use shr_typedef_mod,    only : EPFM_Obs, SimTime
    use shr_param_mod,      only : NPARAM, sa_params
-   use shr_param_mod,      only : Param_Feta, Param_Hscale, Param_Dscale
+   use shr_param_mod,      only : Param_Feta
    use shr_ctrl_mod,       only : NPART, WATER_LAYER, masterproc
-   use data_buffer_mod,    only : m_waterTemp 
-   use math_utilities_mod, only : gaussian_random_generator
-   use math_utilities_mod, only : ClipArray, ReflectToBounds, Randn
+   use data_buffer_mod,    only : m_waterTemp, m_mixTopIndex 
+   use math_utilities_mod, only : gaussian_randn
+   use math_utilities_mod, only : ClipArray, ReflectToBounds
    use read_data_mod,      only : ReadObservations4DA
    use thermal_mod,        only : EnforceThermalConsistency 
    use mpi
@@ -42,14 +43,14 @@ module epfm_da_mod
    public :: EPFM_Particle
    public :: EPFM_Initialize, EPFM_Finalize
    public :: EPFM_Assimilate
-   public :: EPFM_SystematicResample
    public :: UpdateEPFMConfig
    public :: GatherParticlesToRoot, ScatterParticlesFromRoot 
    public :: ArraysToEPFMParticles, EPFMParticlesToArrays
    public :: CopyLakeStateToEPFM, SaveEPFMToLakeState 
-   public :: PerturbPositiveParameter
+   public :: PerturbPositiveParameter, PerturbRealParameter
    public :: DefaultObsOperator
-   public :: epfm_cfg, epfm_obs4da
+   public :: epfm_cfg, epfm_cfg_ini
+   public :: epfm_obs4da
 
    real(r8), parameter :: PI_R8 = 3.14159265358979323846_r8
    real(r8), parameter :: TINY_R8 = 1.0e-12_r8
@@ -57,8 +58,8 @@ module epfm_da_mod
    type :: EPFM_Config
       real(r8) :: rho_c = 0.70_r8         ! crossover probability
       real(r8) :: rho_m = 0.10_r8         ! mutation probability
-      real(r8) :: psi   = 0.01_r8         ! mutation variance multiplier (should be tuned)
-      real(r8) :: sigma_lwst = 0.50_r8    ! K
+      real(r8) :: psi   = 2.0_r8         ! mutation variance multiplier (should be tuned)
+      real(r8) :: sigma_lwst = 0.5_r8     ! K
       real(r8) :: sigma_log_secchi = 0.20_r8
       real(r8) :: sigma_deep = 0.1_r8     ! K
       real(r8) :: corr_len = 5._r8        ! m
@@ -67,20 +68,22 @@ module epfm_da_mod
       real(r8) :: feta_bounds(2)   = (/ 0.10_r8, 10.00_r8 /)
       real(r8) :: hscale_bounds(2) = (/ 0.50_r8, 2.00_r8 /)
       real(r8) :: dscale_bounds(2) = (/ 0.10_r8, 10.00_r8 /)
-      real(r8) :: feta_log_sd   = 0.15_r8  ! log-space RW std
-      real(r8) :: hscale_log_sd = 0.10_r8
-      real(r8) :: dscale_log_sd = 0.15_r8
+      real(r8) :: tindiff_bounds(2) = (/ -5._r8, 5._r8 /)
+      real(r8) :: feta_log_sd   = 0.03_r8 ! log-space RW std
+      real(r8) :: hscale_log_sd = 0.03_r8
+      real(r8) :: dscale_log_sd = 0.03_r8
+      real(r8) :: tindiff_sd = 0.02_r8    ! fractional std
       real(r8) :: kext_base = 0.50_r8           ! baseline extinction for Secchi operator
    end type
 
    type :: EPFM_Particle
       real(r8), allocatable :: tw(:)       ! current prior / analysis water temp
-      real(r8), allocatable :: tw_prev(:)  ! previous analysis state; used in rerun callback
       real(r8), allocatable :: params(:)   ! local sensitive parameter vector
       real(r8) :: sim_lwst   = 0.0_r8
       real(r8) :: sim_secchi = 0.0_r8
       real(r8) :: loglik     = 0.0_r8
       real(r8) :: weight     = 0.0_r8
+      integer  :: mixIndex   = 51 
    end type
 
    abstract interface
@@ -89,16 +92,6 @@ module epfm_da_mod
          implicit none
          real(r8), intent(in)  :: tw(:)
          real(r8), intent(in)  :: params(:)
-         real(r8), intent(out) :: sim_lwst
-         real(r8), intent(out) :: sim_secchi
-      end subroutine
-
-      subroutine rerun_window_ifc(tw_prev, params, tw_new, sim_lwst, sim_secchi)
-         import :: r8
-         implicit none
-         real(r8), intent(in)  :: tw_prev(:)
-         real(r8), intent(in)  :: params(:)
-         real(r8), intent(out) :: tw_new(:)
          real(r8), intent(out) :: sim_lwst
          real(r8), intent(out) :: sim_secchi
       end subroutine
@@ -114,20 +107,20 @@ module epfm_da_mod
    real(r8), allocatable :: mcmc_proposal(:)
    real(r8), allocatable :: mcmc_prior(:)
    
-   real(r8), allocatable :: local_temp(:,:)       ! (nz, nlocal)
-   real(r8), allocatable :: local_temp_prev(:,:)  ! (nz, nlocal)
-   real(r8), allocatable :: local_params(:,:)     ! (NPARAM, nlocal)
+   real(r8), allocatable :: local_temp(:,:)        ! (nz, nlocal)
+   real(r8), allocatable :: local_params(:,:)      ! (NPARAM, nlocal)
+   integer, allocatable  :: local_mixIndex(:)      ! (nlocal)
 
    real(r8), allocatable :: global_temp(:,:)       ! (nz, npart)
-   real(r8), allocatable :: global_temp_prev(:,:)  ! (nz, npart)
    real(r8), allocatable :: global_params(:,:)     ! (NPARAM, npart)
+   integer, allocatable  :: global_mixIndex(:)     ! (npart)
 
    type(EPFM_Particle), allocatable :: particles(:)
    type(EPFM_Particle), allocatable :: particles_old(:)
    type(EPFM_Particle), allocatable :: offspring(:)
 
    type(EPFM_Obs), allocatable :: epfm_obs4da(:)
-   type(EPFM_Config) :: epfm_cfg
+   type(EPFM_Config) :: epfm_cfg, epfm_cfg_ini
 
 contains
 
@@ -141,8 +134,8 @@ contains
       integer :: ii, nparent, nmut
 
       allocate(local_temp(WATER_LAYER+1,1))
-      allocate(local_temp_prev(WATER_LAYER+1,1))
       allocate(local_params(NPARAM,1))
+      allocate(local_mixIndex(1))
       if (masterproc) then
          nparent = max(2, int(epfm_cfg%rho_c * real(NPART, r8)))
          nmut = max(1, int(epfm_cfg%rho_m * real(NPART, r8)))
@@ -155,23 +148,24 @@ contains
          allocate(mcmc_proposal(WATER_LAYER+1))
          allocate(mcmc_prior(WATER_LAYER+1))
          allocate(global_temp(WATER_LAYER+1,NPART))
-         allocate(global_temp_prev(WATER_LAYER+1,NPART))
          allocate(global_params(NPARAM,NPART))
+         allocate(global_mixIndex(NPART))
          allocate(particles(NPART))
          allocate(particles_old(NPART))
          allocate(offspring(NPART))
          do ii = 1, NPART, 1
             allocate(particles(ii)%tw(WATER_LAYER+1))
-            allocate(particles(ii)%tw_prev(WATER_LAYER+1))
             allocate(particles(ii)%params(NPARAM))
             allocate(particles_old(ii)%tw(WATER_LAYER+1))
-            allocate(particles_old(ii)%tw_prev(WATER_LAYER+1))
             allocate(particles_old(ii)%params(NPARAM))
             allocate(offspring(ii)%tw(WATER_LAYER+1))
-            allocate(offspring(ii)%tw_prev(WATER_LAYER+1))
             allocate(offspring(ii)%params(NPARAM))
          end do
       end if
+      epfm_cfg_ini%feta_log_sd = 0.15_r8
+      epfm_cfg_ini%hscale_log_sd = 0.15_r8
+      epfm_cfg_ini%dscale_log_sd = 0.15_r8
+      epfm_cfg_ini%tindiff_sd = 0.1_r8
       ! read observations
       call ReadObservations4DA(lakeId, time, epfm_obs4da)
    end subroutine
@@ -179,8 +173,8 @@ contains
    subroutine EPFM_Finalize()
       
       deallocate(local_temp)
-      deallocate(local_temp_prev)
       deallocate(local_params)
+      deallocate(local_mixIndex)
       if (masterproc) then
          deallocate(cdf)
          deallocate(mcmc_parent_idx)
@@ -190,8 +184,8 @@ contains
          deallocate(mcmc_proposal)
          deallocate(mcmc_prior)
          deallocate(global_temp)
-         deallocate(global_temp_prev)
          deallocate(global_params)
+         deallocate(global_mixIndex)
          deallocate(particles)
          deallocate(particles_old)
          deallocate(offspring)
@@ -220,17 +214,17 @@ contains
          call MPI_Abort(MPI_COMM_WORLD, ierr, ierr_abort)
       end if
 
-      call MPI_Gather(local_temp_prev, nz*nlocal, MPI_REAL8, &
-         global_temp_prev, nz*nlocal, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
-      if (ierr /= MPI_SUCCESS) then
-         write(*,*) "MPI_Gather local_temp_prev failed on rank ", rank
-         call MPI_Abort(MPI_COMM_WORLD, ierr, ierr_abort)
-      end if
-
       call MPI_Gather(local_params, npara*nlocal, MPI_REAL8, &
          global_params, npara*nlocal, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
       if (ierr /= MPI_SUCCESS) then
          write(*,*) "MPI_Gather local_params failed on rank ", rank
+         call MPI_Abort(MPI_COMM_WORLD, ierr, ierr_abort)
+      end if
+
+      call MPI_Gather(local_mixIndex, nlocal, MPI_INTEGER, &
+         global_mixIndex, nlocal, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+      if (ierr /= MPI_SUCCESS) then
+         write(*,*) "MPI_Gather local_mixIndex failed on rank ", rank
          call MPI_Abort(MPI_COMM_WORLD, ierr, ierr_abort)
       end if
    end subroutine
@@ -251,13 +245,6 @@ contains
          call MPI_Abort(MPI_COMM_WORLD, ierr, ierr_abort)
       end if
 
-      call MPI_Scatter(global_temp_prev, nz*nlocal, MPI_REAL8, &
-         local_temp_prev, nz*nlocal, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
-      if (ierr /= MPI_SUCCESS) then
-         write(*,*) "MPI_Scatter local_temp_prev failed on rank ", rank
-         call MPI_Abort(MPI_COMM_WORLD, ierr, ierr_abort)
-      end if
-
       call MPI_Scatter(global_params, npara*nlocal, MPI_REAL8, &
          local_params, npara*nlocal, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
       if (ierr /= MPI_SUCCESS) then
@@ -271,8 +258,8 @@ contains
 
       do ii = 1, NPART, 1
          particles(ii)%tw        = global_temp(:,ii)
-         particles(ii)%tw_prev   = global_temp_prev(:,ii)
          particles(ii)%params    = global_params(:,ii)
+         particles(ii)%mixIndex  = global_mixIndex(ii)
       end do
    end subroutine
 
@@ -281,19 +268,15 @@ contains
 
       do ii = 1, NPART, 1
          global_temp(:,ii)       = particles(ii)%tw
-         global_temp_prev(:,ii)  = particles(ii)%tw_prev
          global_params(:,ii)     = particles(ii)%params
       end do
    end subroutine 
 
-   subroutine CopyLakeStateToEPFM(update_prev)
-      logical, intent(in) :: update_prev
+   subroutine CopyLakeStateToEPFM()
 
-      if (update_prev) then
-         local_temp_prev = local_temp
-      end if
       local_temp(:,1) = m_waterTemp
       local_params(:,1) = sa_params
+      local_mixIndex(1) = m_mixTopIndex 
    end subroutine
 
    subroutine SaveEPFMToLakeState()
@@ -314,10 +297,9 @@ contains
    ! Purpose: The main subroutine for the workflow of data assimilation.
    !
    !------------------------------------------------------------------------------
-   subroutine EPFM_Assimilate(obs, obs_operator, rerun_window)
+   subroutine EPFM_Assimilate(obs, obs_operator)
       type(EPFM_Obs), intent(in)    :: obs
       procedure(obs_operator_ifc)   :: obs_operator
-      procedure(rerun_window_ifc)   :: rerun_window
       ! local variables
       integer :: ii
       logical :: has_obs
@@ -344,9 +326,6 @@ contains
 
       ! 3) Resample (may consider conditional resampling)
       call EPFM_SystematicResample()
-
-      ! 4) MCMC parameter update after resampling
-      !call ParameterMCMC(epfm_cfg, obs, rerun_window)
 
       ! 5) Set equal weights after analysis
       do ii = 1, NPART, 1
@@ -439,11 +418,11 @@ contains
       nmut = size(mcmc_mut_idx)
 
       do ii = 1, nn, 1
-         offspring(ii)%tw      = particles(ii)%tw
-         offspring(ii)%tw_prev = particles(ii)%tw_prev
-         offspring(ii)%params  = particles(ii)%params
-         offspring(ii)%weight  = particles(ii)%weight
-         offspring(ii)%loglik  = particles(ii)%loglik
+         offspring(ii)%tw        = particles(ii)%tw
+         offspring(ii)%params    = particles(ii)%params
+         offspring(ii)%mixIndex  = particles(ii)%mixIndex
+         offspring(ii)%weight    = particles(ii)%weight
+         offspring(ii)%loglik    = particles(ii)%loglik
       end do
 
       call WeightedMomentsState(particles, mcmc_mu, mcmc_varx)
@@ -473,8 +452,8 @@ contains
       call RandomUniqueIndex(nn, nmut, mcmc_mut_idx)
       do ii = 1, nmut, 1
          imut = mcmc_mut_idx(ii)
-         call MutateState(offspring(imut)%tw, mcmc_varx, cfg%psi, &
-                  cfg%temp_min, cfg%temp_max)
+         call MutateState(offspring(imut)%tw, offspring(imut)%mixIndex, &
+                  mcmc_varx, cfg%psi, cfg%temp_min, cfg%temp_max)
       end do
 
       ! MCMC accept/reject against current prior particles
@@ -547,19 +526,21 @@ contains
       end do
    end function
 
-   subroutine MutateState(tw, varx, psi, tmin, tmax)
+   subroutine MutateState(tw, mixIndex, varx, psi, tmin, tmax)
       real(r8), intent(inout) :: tw(:)
+      integer, intent(in)     :: mixIndex
       real(r8), intent(in)    :: varx(:)
       real(r8), intent(in)    :: psi, tmin, tmax
       integer :: k, nz
-      real(r8) :: eta
+      real(r8) :: eta, randn
 
-      nz = size(tw)
+      nz = max(1, min(mixIndex,size(tw)))
       call random_number(eta)
       k = 1 + INT(DBLE(nz) * eta)
       k = min(max(k,1), nz)
 
-      tw(k) = tw(k) + Randn() * sqrt(max(psi*varx(k), 1.0e-10_r8))
+      randn = gaussian_randn(0._r8, 1._r8)
+      tw(k) = tw(k) + randn * sqrt(max(psi*varx(k), 1.0e-10_r8))
       tw(k) = min(max(tw(k), tmin), tmax)
    end subroutine
 
@@ -574,7 +555,6 @@ contains
       nn = size(particles)
       do ii = 1, nn
          particles_old(ii)%tw         = particles(ii)%tw
-         particles_old(ii)%tw_prev    = particles(ii)%tw_prev
          particles_old(ii)%params     = particles(ii)%params
          particles_old(ii)%sim_lwst   = particles(ii)%sim_lwst
          particles_old(ii)%sim_secchi = particles(ii)%sim_secchi
@@ -598,7 +578,6 @@ contains
             jj = jj + 1
          end do
          particles(ii)%tw         = particles_old(jj)%tw
-         particles(ii)%tw_prev    = particles_old(jj)%tw_prev
          particles(ii)%params     = particles_old(jj)%params
          particles(ii)%sim_lwst   = particles_old(jj)%sim_lwst
          particles(ii)%sim_secchi = particles_old(jj)%sim_secchi
@@ -608,7 +587,7 @@ contains
    end subroutine
 
 !==============================================================================
-! Parameter MCMC after resampling
+! Parameter perturbation 
 !==============================================================================
    real(r8) function PerturbPositiveParameter(base_value, log_sd, &
          lower_bound, upper_bound) result(value_p)
@@ -619,55 +598,25 @@ contains
       ! local variables
       real(r8) :: rand
 
-      call gaussian_random_generator(0._r8, sqrt(0.2_r8), rand)
+      rand = gaussian_randn(0._r8, 1._r8)
       value_p = base_value * exp(log_sd * rand)
       value_p = ReflectToBounds(value_p, lower_bound, upper_bound)
    end function
 
-   subroutine ParameterMCMC(cfg, obs, rerun_window)
-      type(EPFM_Config), intent(in) :: cfg
-      type(EPFM_Obs), intent(in)    :: obs
-      procedure(rerun_window_ifc)   :: rerun_window
+   real(r8) function PerturbRealParameter(base_value, sd, &
+         lower_bound, upper_bound) result(value_p)
+      real(r8), intent(in) :: base_value
+      real(r8), intent(in) :: sd
+      real(r8), intent(in) :: lower_bound
+      real(r8), intent(in) :: upper_bound
       ! local variables
-      integer :: ii, nz
-      real(r8) :: params_p(NPARAM)
-      real(r8) :: tw_new(WATER_LAYER+1)
-      real(r8) :: sim_lwst_p, sim_secchi_p, loglik_p
-      real(r8) :: base_value, alpha_log, u
+      real(r8) :: rand, width
 
-      nz = size(tw_new)
-
-      do ii = 1, size(particles)
-         params_p = particles(ii)%params
-
-         base_value = particles(ii)%params(Param_Feta)
-         params_p(Param_Feta) = PerturbPositiveParameter(base_value, &
-            cfg%feta_log_sd, cfg%feta_bounds(1), cfg%feta_bounds(2))
-
-         base_value = particles(ii)%params(Param_Hscale)
-         params_p(Param_Hscale) = PerturbPositiveParameter(base_value, &
-            cfg%hscale_log_sd, cfg%hscale_bounds(1), cfg%hscale_bounds(2))
-
-         base_value = particles(ii)%params(Param_Dscale)
-         params_p(Param_Dscale) = PerturbPositiveParameter(base_value, &
-            cfg%dscale_log_sd, cfg%dscale_bounds(1), cfg%dscale_bounds(2))
-
-         call rerun_window(particles(ii)%tw_prev, params_p, tw_new, &
-                           sim_lwst_p, sim_secchi_p)
-         loglik_p = LogLikelihood(obs, cfg, sim_lwst_p, sim_secchi_p)
-
-         alpha_log = loglik_p - particles(ii)%loglik 
-         call random_number(u)
-
-         if (log(u) <= min(0.0_r8, alpha_log)) then
-            particles(ii)%params     = params_p
-            particles(ii)%tw         = tw_new
-            particles(ii)%sim_lwst   = sim_lwst_p
-            particles(ii)%sim_secchi = sim_secchi_p
-            particles(ii)%loglik     = loglik_p
-         end if
-      end do
-   end subroutine
+      rand = gaussian_randn(0._r8, 1._r8)
+      width = upper_bound - lower_bound
+      value_p = base_value + sd * width * rand
+      value_p = ReflectToBounds(value_p, lower_bound, upper_bound)
+   end function
 
 !==============================================================================
 ! Helpers

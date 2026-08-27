@@ -88,6 +88,7 @@ contains
       real(r8) :: Vres, Vnew, Ebg, Eed
       real(r8) :: Vsurf, Vhuman
       real(r8) :: tmpEres1, tmpEres2
+      real(r8) :: TinDiff, tw_inflow
       real(r8), parameter :: rw_min = 0.2_r8
       real(r8), parameter :: dZw_min = 0.1_r8
       real(r8), parameter :: err_max = 1.0_r8
@@ -101,12 +102,14 @@ contains
       Vtot0 = sum(zVol0)
       dV = m_hydroData%Qwi * dt
       zVol(top) = zVol(top) + dV
+      TinDiff = sa_params(Param_TinDiff)
       
       ! update state variables 
       if (Thermal_Module) then
          if (m_hydroData%WTi>-e8) then
+            tw_inflow = m_hydroData%WTi + TinDiff
             m_waterTemp(top) = (m_waterTemp(top)*zVol0(top) + &
-               m_hydroData%WTi*dV) / zVol(top)
+               tw_inflow*dV) / zVol(top)
          end if
       end if
       if (Carbon_Module) then

@@ -1159,19 +1159,20 @@ contains
       randn = 1 + int(ub + 0.5 - sqrt( (ub+0.5)**2 - ub*(ub+1)*rrand ))
    end subroutine
 
-   subroutine gaussian_random_generator(avg, std, rand)
+   real(r8) function gaussian_randn(avg, std) result(rand)
       implicit none
       real(r8), intent(in) :: avg
       real(r8), intent(in) :: std
-      real(r8), intent(out) :: rand
+      real(r8), parameter :: TINY_R8 = 1.0e-12_r8
       real(r8) :: rrand1, rrand2, fpi
 
       ! algorithm from http://pastebin.com/4bjBvZAD
       fpi = 4.0d+0 * atan(1.0d+0)   ! definition of pi
       call random_number(rrand1)
       call random_number(rrand2)
+      rrand1 = max(rrand1, TINY_R8)
       rand = std * sqrt(-2.0_r8*log(rrand1)) * cos(2.0_r8*fpi*rrand2) + avg
-   end subroutine
+   end function
 
    subroutine ClipArray(x, xmin, xmax)
       implicit none
@@ -1192,18 +1193,6 @@ contains
          if (y > xmax) y = xmax - (y - xmax)
       end do
       y = min(max(y, xmin), xmax)
-   end function
-
-   real(r8) function Randn() result(z)
-      implicit none
-      real(r8), parameter :: TINY_R8 = 1.0e-12_r8
-      real(r8), parameter :: PI_R8 = 3.14159265358979323846_r8
-      real(r8) :: u1, u2
-
-      call random_number(u1)
-      call random_number(u2)
-      u1 = max(u1, TINY_R8)
-      z = sqrt(-2.0_r8*log(u1)) * cos(2.0_r8*PI_R8*u2)
    end function
 
    !------------------------------------------------------------------------------
