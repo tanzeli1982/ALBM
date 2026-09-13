@@ -58,14 +58,14 @@ sim_coupler_mod.o :	sim_coupler_mod.f90		thermal_mod.o			\
 							$(f90comp) sim_coupler_mod.f90
 epfm_bridge_mod.o :	epfm_bridge_mod.f90		epfm_da_mod.o			\
 							thermal_mod.o				data_buffer_mod.o		\
-							math_utilities_mod.o		shr_ctrl_mod.o			\
-							shr_param_mod.o
+							math_utilities_mod.o		io_utilities_mod.o	\
+							shr_ctrl_mod.o				shr_param_mod.o
 							$(f90comp) epfm_bridge_mod.f90
 epfm_da_mod.o :	epfm_da_mod.f90			thermal_mod.o			\
 						read_data_mod.o			data_buffer_mod.o		\
-						math_utilities_mod.o		shr_ctrl_mod.o			\
-						shr_param_mod.o			shr_typedef_mod.o		\
-						shr_kind_mod.o
+						phy_utilities_mod.o		math_utilities_mod.o	\
+						shr_ctrl_mod.o				shr_param_mod.o		\
+						shr_typedef_mod.o			shr_kind_mod.o
 						$(f90comp) epfm_da_mod.f90
 hydro_mod.o :		hydro_mod.f90        data_buffer_mod.o       \
 						thermal_mod.o			carbon_cycle_mod.o		\

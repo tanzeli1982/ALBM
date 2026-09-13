@@ -1831,4 +1831,79 @@ contains
       end if
    end subroutine
 
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Create a netcdf file for dynamic optimum parameters from DA.
+   !
+   !------------------------------------------------------------------------------
+   subroutine CreateDynOptParamFile(time)
+      implicit none
+      type(SimTime), intent(in)  :: time
+      character(cx) :: fullname, histstr, timestr
+      character(cx) :: str1, str2
+      integer(kind=MPI_OFFSET_KIND) :: ntime
+      integer :: ncid, cmode, varid
+      integer :: time_dimid, lake_dimid
+      integer :: gmtime(6), err
+
+      call GetDynOptParamFullname(time, fullname)
+      if (masterproc) then
+         call GetGMTime(Use_Leap, gmtime)
+         write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
+               gmtime(3)
+         write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"
+         histstr = trim(str1) // trim(str2)
+      end if
+
+      write(str1,"('Archive daily opt params from ', I4, '-', I2.2, '-', I2.2)") &
+            time%year0, time%month0, time%day0
+      timestr = trim(str1) // " 00:00:00 GMT"
+
+      ntime = CalcRunningDays(time, Use_Leap)
+
+      ! Create the file.
+      cmode = IOR(NF90_CLOBBER, NF90_64BIT_OFFSET)
+      call check( nf90mpi_create(MPI_COMM_SELF, trim(fullname), &
+                  cmode, MPI_INFO_NULL, ncid) )
+
+      ! Define the dimensions
+      call check( nf90mpi_def_dim(ncid, 'Time', ntime, time_dimid) )
+      call check( nf90mpi_def_dim(ncid, 'Lake', NFMPI_UNLIMITED, lake_dimid) )
+
+      ! Define the coordinate variables
+      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "history", &
+                  trim(histstr)) )
+      call check( nf90mpi_put_att(ncid, NF90_GLOBAL, "description", &
+                  trim(timestr)) )
+
+      ! ! Define the netCDF variables and assign attributes for state variables.
+      call DefNcVariable(ncid, (/time_dimid, lake_dimid/), "Feta", &
+               "light attenuation correction factor", "unitless", &
+               -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/time_dimid, lake_dimid/), "Hscale", &
+               "heat transfer coefficeint scaling factor", "unitless", &
+               -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/time_dimid, lake_dimid/), "Dscale", &
+               "turbulent diffusivity scaling factor", "unitless", &
+               -9999._r8, -9999._r8, varid)
+      call DefNcVariable(ncid, (/time_dimid, lake_dimid/), "TinDiff", &
+               "temperature difference between inflow and forebay", "K", &
+               -9999._r8, -9999._r8, varid)
+
+      ! End define mode.
+      call check( nf90mpi_enddef(ncid) )
+
+      ! Write the coordinate variable data. This will put our data grid 
+      ! into the netCDF file.
+
+      ! Close the file. This causes netCDF to flush all buffers and make
+      ! sure your data are really written to disk.
+      call check( nf90mpi_close(ncid) )
+
+      if (masterproc) then
+         print *, 'Create dynamic optimum parameter file ' // trim(fullname)
+      end if
+   end subroutine
+
 end module read_data_mod

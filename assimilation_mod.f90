@@ -72,6 +72,12 @@ contains
       time = SimTime(Start_Year, Start_Month, Start_Day, 0, &
                      End_Year, End_Month, End_Day, 0)
       if (masterproc) then
+         ! create restart file
+         call CreateRestartFile(time)
+
+         ! create optimized parameter file
+         call CreateDynOptParamFile(time)
+
          ! create output files
          call CreateOutputFile(time, NWLAYER+1, 'zw', 'Z', 'water layer depth', &
                               'm', -9999.0_r4) 
@@ -211,6 +217,10 @@ contains
       call EPFM_Initialize(lakeId, time) 
       call ModelRun(lakeId, partId, rank, time, otime, error)
       call ArchiveAsssimilationOutput(partId, otime)
+      call ArchiveRestartStates(partId, otime)
+      if (masterproc) then
+         call ArchiveDynOptParams(lakeId, otime)
+      end if
       call EPFM_Finalize()
       call FinalizeSimulation()
    end subroutine
@@ -245,7 +255,7 @@ contains
             window = SimTime(time%year0, time%month0, time%day0, time%hour0, &
                obs_c%year, obs_c%month, obs_c%day, obs_c%hour+1)
             call EvolveParameters(epfm_cfg_ini, obs_c%month)
-         else
+         else if (ii<=n_assim_times) then
             obs_c = epfm_obs4da(ii)
             obs_p = epfm_obs4da(ii-1)
             window = SimTime(obs_p%year, obs_p%month, obs_p%day, obs_p%hour, &
@@ -268,7 +278,23 @@ contains
             call ScatterParticlesFromRoot(rank)
          end if
          call SaveEPFMToLakeState()
+         ! Cache optimum parameters
+         if (masterproc) then
+            call CacheDynOptParams(time, window)
+         end if
       end do
+
+      ! time window between the last obs and the simulation end
+      if (error==0) then
+         obs_c = epfm_obs4da(n_assim_times)
+         window = SimTime(obs_c%year, obs_c%month, obs_c%day, obs_c%hour, &
+               time%year1, time%month1, time%day1, time%hour1)
+         call ModuleCoupler(partId, time, window, otime, .False., error) 
+         ! Cache optimum parameters
+         if (masterproc) then
+            call CacheDynOptParams(time, window)
+         end if
+      end if
 
       if (error/=0) then
          call InitializeModelOutputs()

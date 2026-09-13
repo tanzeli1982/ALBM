@@ -8,7 +8,7 @@ module io_utilities_mod
    use shr_kind_mod,       only : cs => SHR_KIND_CS, cx => SHR_KIND_CX, r8, r4
    use shr_typedef_mod,    only : SimTime
    use shr_ctrl_mod,       only : archive_dir, restart_file
-   use shr_ctrl_mod,       only : masterproc, DEBUG
+   use shr_ctrl_mod,       only : masterproc, DEBUG, run_mode
    use math_utilities_mod, only : Mean
    use pnetcdf
    use mpi
@@ -122,8 +122,30 @@ contains
       character(len=*), intent(out) :: fullname
       character(cx) :: filename
 
-      write(filename,"(A, I4, I2.2, I2.2, A)") './bLake.r.', time%year1, &
+      if (trim(run_mode)=='regular') then
+         write(filename,"(A, I4, I2.2, I2.2, A)") './bLake.r.', time%year1, &
             time%month1, time%day1, '.nc'
+      else if (trim(run_mode)=='assimilation') then
+         write(filename,"(A, I4, I2.2, I2.2, A)") './bLake.r.da.', time%year1, &
+            time%month1, time%day1, '.nc'
+      end if
+      call GetFullFileName(filename, fullname)
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: generate full file name for dynamic optimum parameter file
+   !
+   !------------------------------------------------------------------------------
+   subroutine GetDynOptParamFullname(time, fullname)
+      implicit none
+      type(SimTime), intent(in) :: time
+      character(len=*), intent(out) :: fullname
+      character(cx) :: filename
+
+      write(filename,"(A, I4, I2.2, I2.2, A, I4, I2.2, I2.2, A)") &
+         './bLake.optpar.', time%year0, time%month0, time%day0, '_', &
+         time%year1, time%month1, time%day1, '.nc'
       call GetFullFileName(filename, fullname)
    end subroutine
 
@@ -755,6 +777,35 @@ contains
       call check( nf90mpi_close(ncid) )
       if (masterproc .and. DEBUG) then
          print *, "Write restart 2-D variable " // trim(varname)
+      end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: write parameter data in self mode
+   !
+   !------------------------------------------------------------------------------
+   subroutine WriteParamData(lakeid, time, varname, odata)
+      implicit none
+      integer, intent(in) :: lakeid
+      type(SimTime), intent(in) :: time
+      character(len=*), intent(in) :: varname
+      real(r8), intent(inout) :: odata(:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
+      integer :: ncid, varid, nt, np
+
+      call GetDynOptParamFullname(time, fullname)
+      call check( nf90mpi_open(MPI_COMM_SELF, trim(fullname), NF90_WRITE, &
+                  MPI_INFO_NULL, ncid) )
+      nt = size(odata)
+      nstart = (/1, lakeid/)
+      ncount = (/nt, 1/)
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_put_var_all(ncid, varid, odata, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      if (masterproc .and. DEBUG) then
+         print *, "Write parameter variable " // trim(varname)
       end if
    end subroutine
 

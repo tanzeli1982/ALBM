@@ -30,8 +30,10 @@ module epfm_da_mod
    use shr_param_mod,      only : NPARAM, sa_params
    use shr_param_mod,      only : Param_Feta
    use shr_ctrl_mod,       only : NPART, WATER_LAYER, masterproc
+   use shr_ctrl_mod,       only : Use_Leap
    use data_buffer_mod,    only : m_waterTemp, m_mixTopIndex 
-   use math_utilities_mod, only : gaussian_randn
+   use phy_utilities_mod,  only : CalcRunningDays
+   use math_utilities_mod, only : gaussian_randn, Mean
    use math_utilities_mod, only : ClipArray, ReflectToBounds
    use read_data_mod,      only : ReadObservations4DA
    use thermal_mod,        only : EnforceThermalConsistency 
@@ -49,8 +51,10 @@ module epfm_da_mod
    public :: CopyLakeStateToEPFM, SaveEPFMToLakeState 
    public :: PerturbPositiveParameter, PerturbRealParameter
    public :: DefaultObsOperator
+   public :: CacheDynOptParams
    public :: epfm_cfg, epfm_cfg_ini
    public :: epfm_obs4da
+   public :: epfm_optpar_hist
 
    real(r8), parameter :: PI_R8 = 3.14159265358979323846_r8
    real(r8), parameter :: TINY_R8 = 1.0e-12_r8
@@ -115,6 +119,9 @@ module epfm_da_mod
    real(r8), allocatable :: global_params(:,:)     ! (NPARAM, npart)
    integer, allocatable  :: global_mixIndex(:)     ! (npart)
 
+   real(r8), allocatable :: epfm_optpar_hist(:,:)
+   real(r8), allocatable :: opt_params(:)
+
    type(EPFM_Particle), allocatable :: particles(:)
    type(EPFM_Particle), allocatable :: particles_old(:)
    type(EPFM_Particle), allocatable :: offspring(:)
@@ -132,6 +139,7 @@ contains
       type(SimTime), intent(in) :: time
       ! local variables
       integer :: ii, nparent, nmut
+      integer :: nday
 
       allocate(local_temp(WATER_LAYER+1,1))
       allocate(local_params(NPARAM,1))
@@ -161,6 +169,9 @@ contains
             allocate(offspring(ii)%tw(WATER_LAYER+1))
             allocate(offspring(ii)%params(NPARAM))
          end do
+         nday = CalcRunningDays(time, Use_Leap)
+         allocate(epfm_optpar_hist(NPARAM,nday))
+         allocate(opt_params(NPARAM))
       end if
       epfm_cfg_ini%feta_log_sd = 0.15_r8
       epfm_cfg_ini%hscale_log_sd = 0.15_r8
@@ -189,6 +200,8 @@ contains
          deallocate(particles)
          deallocate(particles_old)
          deallocate(offspring)
+         deallocate(epfm_optpar_hist)
+         deallocate(opt_params)
       end if
       deallocate(epfm_obs4da)
    end subroutine
@@ -292,6 +305,21 @@ contains
       epfm_cfg%kext_base = kext_base
    end subroutine
 
+   subroutine CacheDynOptParams(time, window)
+      type(SimTime), intent(in) :: time
+      type(SimTime), intent(in) :: window
+      type(SimTime) :: time0 
+      integer :: indx0, nday, ii
+
+      time0 = SimTime(time%year0, time%month0, time%day0, time%hour0, &
+                      window%year0, window%month0, window%day0, window%hour0)
+      indx0 = CalcRunningDays(time0, Use_Leap)
+      nday = CalcRunningDays(window, Use_Leap)
+      do ii = indx0+1, indx0+nday, 1
+         epfm_optpar_hist(:,ii) = opt_params 
+      end do
+   end subroutine
+
    !------------------------------------------------------------------------------
    !
    ! Purpose: The main subroutine for the workflow of data assimilation.
@@ -324,7 +352,13 @@ contains
       ! 2) EPFM GA-MCMC refinement of the state (m_waterTemp)
       call GA_MCMC_StateRefine(epfm_cfg, obs, obs_operator)
 
-      ! 3) Resample (may consider conditional resampling)
+      ! 3) Ensemble mean of parameters
+      opt_params = 0._r8
+      do ii = 1, NPART, 1
+         opt_params = opt_params + particles(ii)%params * particles(ii)%weight 
+      end do
+
+      ! 4) Resample (may consider conditional resampling)
       call EPFM_SystematicResample()
 
       ! 5) Set equal weights after analysis

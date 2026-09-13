@@ -3,19 +3,23 @@ module epfm_bridge_mod
    use shr_param_mod,      only : NPARAM, sa_params
    use shr_param_mod,      only : Param_Feta, Param_Hscale, Param_Dscale
    use shr_param_mod,      only : Param_TinDiff
+   use shr_typedef_mod,    only : SimTime
    use shr_ctrl_mod,       only : WATER_LAYER
    use math_utilities_mod, only : gaussian_randn 
+   use io_utilities_mod,   only : WriteParamData 
    use data_buffer_mod,    only : m_waterTemp, m_mixTopIndex, m_Zw
    use thermal_mod,        only : EnforceThermalConsistency 
    use epfm_da_mod,        only : DefaultObsOperator, EPFM_Config
    use epfm_da_mod,        only : PerturbPositiveParameter 
    use epfm_da_mod,        only : PerturbRealParameter
+   use epfm_da_mod,        only : epfm_optpar_hist 
 
    implicit none
    private
    public :: ObsOperator
    public :: PerturbTemperatureProfile
    public :: EvolveParameters 
+   public :: ArchiveDynOptParams 
 
 contains
    subroutine PerturbTemperatureProfile(cfg, partId)
@@ -106,6 +110,16 @@ contains
 
       ! Replace this with your native optics/Secchi diagnostic if available.
       call DefaultObsOperator(tw, params, sim_lwst, sim_secchi)
+   end subroutine
+
+   subroutine ArchiveDynOptParams(lakeId, time)
+      integer, intent(in) :: lakeId
+      type(SimTime), intent(in) :: time
+
+      call WriteParamData(lakeId, time, 'Feta', epfm_optpar_hist(Param_Feta,:))
+      call WriteParamData(lakeId, time, 'Hscale', epfm_optpar_hist(Param_Hscale,:))
+      call WriteParamData(lakeId, time, 'Dscale', epfm_optpar_hist(Param_Dscale,:))
+      call WriteParamData(lakeId, time, 'TinDiff', epfm_optpar_hist(Param_TinDiff,:))
    end subroutine
 
 end module epfm_bridge_mod
