@@ -3,7 +3,7 @@
 #SBATCH -J albm_init
 #SBATCH -N 4 
 ##SBATCH -n 1
-#SBATCH -t 03:00:00
+#SBATCH -t 24:00:00
 #SBATCH -A  rsvtmp 
 ##SBATCH  --exclusive
 #SBATCH -p slurm
@@ -13,13 +13,87 @@
 #SBATCH -o slurm.out
 #SBATCH -e slurm.out
 
+set -eo pipefail
+
+cd "${SLURM_SUBMIT_DIR:-$PWD}"
+
 module purge
 
 export NETCDF_HOME=/people/tanz151/packages/Pnetcdf_mvapich_2.3.7
-export LD_LIBRARY_PATH=$NETCDF_HOME/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$NETCDF_HOME/lib:${LD_LIBRARY_PATH:-}
 module load intel/2022.1.0 mvapich2/2.3.7
 
 export MV2_USE_SHMEM_COLL=0
 export MV2_HOMOGENEOUS_CLUSTER=1
 
-mpirun -np 200 ./ALBM.exe namelist.bLake.init
+# Activate the conda environment used for restart post-processing.
+export PATH=/share/apps/python/miniconda25.5.1/bin/:$PATH
+source activate /qfs/people/tanz151/.conda/envs/nework_env
+PYTHON=python
+
+namelist=namelist.bLake.init
+years=(2001 2002 2004 2005 2006 2008 2009 2010 2011 2013 2014 2015 2016 2017)
+months=(6 7 8)
+day=1
+
+mkdir -p Restart
+mkdir -p Tmp
+
+# Restore the original namelist on normal exit or a catchable failure/signal.
+backup=$(mktemp "${namelist}.backup.XXXXXX")
+cp -p -- "$namelist" "$backup"
+trap 'cp -p -- "$backup" "$namelist"; rm -f -- "$backup"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+for year in "${years[@]}"; do
+    for month in "${months[@]}"; do
+        printf -v stamp '%04d%02d%02d' "$year" "$month" "$day"
+        raw="bLake.r.da.${stamp}.nc"
+        output="Restart/bLake.r.${stamp}.nc"
+        echo "[$(date -Is)] Generating restart for ${stamp}"
+
+        # Replace only the three End_* values; preserve comments and other settings.
+        for key in End_Year End_Month End_Day; do
+            count=$(grep -Eic "^[[:blank:]]*${key}[[:blank:]]*=[[:blank:]]*[+-]?[0-9]+" "$namelist" || true)
+            if [[ "$count" -ne 1 ]]; then
+                echo "ERROR: Expected exactly one $key assignment; found $count." >&2
+                exit 1
+            fi
+        done
+        sed -E -i \
+            -e "s/^([[:blank:]]*End_Year[[:blank:]]*=[[:blank:]]*)[+-]?[0-9]+/\1${year}/I" \
+            -e "s/^([[:blank:]]*End_Month[[:blank:]]*=[[:blank:]]*)[+-]?[0-9]+/\1${month}/I" \
+            -e "s/^([[:blank:]]*End_Day[[:blank:]]*=[[:blank:]]*)[+-]?[0-9]+/\1${day}/I" \
+            "$namelist"
+
+        # Preserve any previous raw file so it cannot be mistaken for new output.
+        if [[ -e "$raw" ]]; then
+            previous=$(mktemp "${raw}.previous.XXXXXX")
+            mv -- "$raw" "$previous"
+            echo "Previous raw restart preserved as $previous"
+        fi
+        mpirun -np 200 ./ALBM.exe namelist.bLake.init
+        [[ -s "$raw" ]] || {
+            echo "ERROR: Simulation did not produce a nonempty $raw" >&2
+            exit 1
+        }
+
+        # Write to a temporary directory, then publish only a completed result.
+        staging=$(mktemp -d Restart/.processing.XXXXXX)
+        if "$PYTHON" /people/tanz151/scripts/simulation/make_albm_restart_fromda.py "$raw" "$staging/restart.nc"; then
+            mv -- "$staging/restart.nc" "$output"
+            rmdir -- "$staging"
+        else
+            rm -f -- "$staging/restart.nc"
+            rmdir -- "$staging"
+            echo "ERROR: Post-processing failed for $raw" >&2
+            exit 1
+        fi
+        echo "[$(date -Is)] Saved $output"
+    done
+done
+
+conda deactivate
+echo "Completed all 42 restart files."
+
