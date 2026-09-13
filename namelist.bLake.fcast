@@ -1,0 +1,84 @@
+&general
+ run_mode = 'regular'
+ lake_file = './Lakes_GrandCoulee.nc'
+ lake_range = 1, 1
+ bathy_file = './Lakes_GrandCoulee_bathymetry.nc'
+ restart_file = './Restart/bLake.r.20010601.nc'
+ opt_file = './optpar_jja_fcast.dat'
+/
+
+&simulation
+ Thermal_Module = .True.
+ Bubble_Module = .False.
+ Diagenesis_Module = .False.
+ Carbon_Module = .False.
+ Start_Year = 2001
+ Start_Month = 6
+ Start_Day = 1
+ End_Year = 2001
+ End_Month = 9
+ End_Day = 1
+ Spinup_Month = 7
+ Spinup_Day = 1
+ nSpinup = 5
+ Use_Leap = .True.
+/
+
+&resolution
+ NWLAYER = 50
+ NSLAYER = 20
+ NRLAYER = 10
+ NSCOL = 1
+/
+
+&bayesian
+ NMAXSAMPLE = 10000
+ sample_range = 1, 10000
+ mc_file = './model_parameters.dat'
+ SA_Start_Year = 2016
+ SA_Start_Month = 1
+ SA_Start_Day = 1
+ SA_End_Year = 2017
+ SA_End_Month = 1
+ SA_End_Day = 1
+/
+
+&assimilation
+ NPART = 100
+ obs_file = '/rcfs/projects/rsvtmp/tanz151/input_data/Lakes_GrandCoulee_landsat_obs.nc'
+/
+
+&radiation
+ solar_dir = './Solar/'
+ gas_dir = './Gases/'
+ albedo_dir = './Albedo/'
+ co2_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cmip5_co2.nc'
+ o3_file = '/rcfs/projects/rsvtmp/tanz151/input_data/o3_Amon_rcp45_r1i1p1_197801-210012.nc'
+ aod_file = '/rcfs/projects/rsvtmp/tanz151/input_data/aod550_Amon_rcp45_r1i1p1_197801-210012.nc'
+/
+
+&rundata
+ forcing_tstep = '6hour'
+ forcing_time = 'UTC'
+ tas_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cfsv2_6hrly/tas_cfsv2_6hrly_GrandCoulee_member01_20010601-20010902.nc'
+ hurs_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cfsv2_6hrly/hurs_cfsv2_6hrly_GrandCoulee_member01_20010601-20010902.nc'
+ ps_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cfsv2_6hrly/ps_cfsv2_6hrly_GrandCoulee_member01_20010601-20010902.nc'
+ pr_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cfsv2_6hrly/pr_cfsv2_6hrly_GrandCoulee_member01_20010601-20010902.nc'
+ rsds_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cfsv2_6hrly/rsds_cfsv2_6hrly_GrandCoulee_member01_20010601-20010902.nc'
+ rlds_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cfsv2_6hrly/rlds_cfsv2_6hrly_GrandCoulee_member01_20010601-20010902.nc'
+ wind_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cfsv2_6hrly/sfcwind_cfsv2_6hrly_GrandCoulee_member01_20010601-20010902.nc'
+ hydro_file = '/rcfs/projects/rsvtmp/tanz151/input_data/Lakes_GrandCoulee_hydro_cfsv2_ssn_19850101-20180823.nc'
+ tref_file = '/rcfs/projects/rsvtmp/tanz151/input_data/ecmwf_ref_1990s.nc'
+ soc_file = '/rcfs/projects/rsvtmp/tanz151/input_data/soc_005deg.nc'
+ veg_file = '/rcfs/projects/rsvtmp/tanz151/input_data/GLCFTreeCover.nc'
+ wlnd_file = '/rcfs/projects/rsvtmp/tanz151/input_data/glwd.nc'
+/
+
+&archive
+ archive_tstep = 'day'
+ archive_dir = './Forecast/'
+/
+
+&dbg
+ DEBUG = .False.
+/

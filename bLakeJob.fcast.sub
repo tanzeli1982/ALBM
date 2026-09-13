@@ -1,0 +1,85 @@
+#!/bin/bash -l
+
+#SBATCH -J albm_fcast
+#SBATCH -N 1 
+#SBATCH -n 1
+#SBATCH -t 03:00:00
+#SBATCH -A  rsvtmp 
+##SBATCH  --exclusive
+##SBATCH -p slurm
+#SBATCH -p short
+#SBATCH --mail-type=END
+#SBATCH --mail-user=zeli.tan@pnnl.gov
+#SBATCH -o slurm.out
+#SBATCH -e slurm.out
+
+set -eo pipefail
+
+cd "${SLURM_SUBMIT_DIR:-$PWD}"
+
+module purge
+
+export NETCDF_HOME=/people/tanz151/packages/Pnetcdf_mvapich_2.3.7
+export LD_LIBRARY_PATH=$NETCDF_HOME/lib:${LD_LIBRARY_PATH:-}
+module load intel/2022.1.0 mvapich2/2.3.7
+
+export MV2_USE_SHMEM_COLL=0
+
+# Seasonal forecasts: June 1 through September 1 of each selected year.
+namelist=namelist.bLake.fcast
+years=(2001 2002 2004 2005 2006 2008 2009 2010 2011 2013 2014 2015 2016 2017)
+
+[[ -x ./ALBM.exe && -f "$namelist" ]] || {
+    echo "ERROR: ALBM.exe or $namelist is missing/unusable." >&2
+    exit 1
+}
+
+# Validate the expected assignments and filename date formats before editing.
+for key in Start_Year End_Year restart_file tas_file hurs_file ps_file pr_file rsds_file rlds_file wind_file; do
+    case "$key" in
+        Start_Year|End_Year) value_pattern='[+-]?[0-9]+' ;;
+        restart_file) value_pattern="'[^']*bLake[.]r[.][0-9]{4}0601[.]nc'" ;;
+        *) value_pattern="'[^']*_[0-9]{4}0601-[0-9]{4}0902[.]nc'" ;;
+    esac
+    count=$(grep -Eic "^[[:blank:]]*${key}[[:blank:]]*=[[:blank:]]*${value_pattern}" "$namelist" || true)
+    if [[ "$count" -ne 1 ]]; then
+        echo "ERROR: Expected exactly one valid $key assignment; found $count." >&2
+        exit 1
+    fi
+done
+
+# The supplied namelist already specifies June 1 through September 1.
+# Require those dates while changing only the years below.
+for setting in Start_Month:6 Start_Day:1 End_Month:9 End_Day:1; do
+    key=${setting%:*}
+    value=${setting#*:}
+    grep -Eiq "^[[:blank:]]*${key}[[:blank:]]*=[[:blank:]]*${value}([[:space:],!]|$)" "$namelist" || {
+        echo "ERROR: $key must equal $value for a summer forecast." >&2
+        exit 1
+    }
+done
+
+mkdir -p Forecast
+backup=$(mktemp "${namelist}.backup.XXXXXX")
+cp -p -- "$namelist" "$backup"
+trap 'cp -p -- "$backup" "$namelist"; rm -f -- "$backup"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+for year in "${years[@]}"; do
+    echo "[$(date -Is)] Forecast: ${year}-06-01 to ${year}-09-01"
+
+    # GNU sed: preserve directories, filename prefixes, comments, and other fields.
+    # The forcing filename ends on September 2; the simulation ends September 1.
+    sed -E -i \
+        -e "s/^([[:blank:]]*Start_Year[[:blank:]]*=[[:blank:]]*)[+-]?[0-9]+/\1${year}/I" \
+        -e "s/^([[:blank:]]*End_Year[[:blank:]]*=[[:blank:]]*)[+-]?[0-9]+/\1${year}/I" \
+        -e "/^[[:blank:]]*restart_file[[:blank:]]*=/I s/(bLake[.]r[.])[0-9]{4}(0601[.]nc)/\1${year}\2/" \
+        -e "/^[[:blank:]]*(tas_file|hurs_file|ps_file|pr_file|rsds_file|rlds_file|wind_file)[[:blank:]]*=/I s/_[0-9]{4}0601-[0-9]{4}0902[.]nc/_${year}0601-${year}0902.nc/" \
+        "$namelist"
+
+    mpirun -np 1 ./ALBM.exe namelist.bLake.fcast
+    echo "[$(date -Is)] Completed forecast for $year"
+done
+
+echo "Completed all 14 seasonal forecasts."
