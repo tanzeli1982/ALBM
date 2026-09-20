@@ -64,7 +64,7 @@ contains
       ! Apply depth-dependent uncertainty.
       do kk = 1, WATER_LAYER+1, 1
          depth = m_Zw(1) - m_Zw(kk)
-         sigma_k = cfg%sigma_deep + (cfg%sigma_lwst - cfg%sigma_deep) * &
+         sigma_k = cfg%sigma_deep + (cfg%sigma_lswt - cfg%sigma_deep) * &
             exp( -depth/max(cfg%corr_len, 1.0e-6_r8))
 
          m_waterTemp(kk) = m_waterTemp(kk) + sigma_k * smooth_noise(kk)
@@ -102,14 +102,14 @@ contains
       end if
    end subroutine
 
-   subroutine ObsOperator(tw, params, sim_lwst, sim_secchi)
+   subroutine ObsOperator(tw, params, sim_lswt, sim_secchi)
       real(r8), intent(in)  :: tw(:)
       real(r8), intent(in)  :: params(:)
-      real(r8), intent(out) :: sim_lwst
+      real(r8), intent(out) :: sim_lswt
       real(r8), intent(out) :: sim_secchi
 
       ! Replace this with your native optics/Secchi diagnostic if available.
-      call DefaultObsOperator(tw, params, sim_lwst, sim_secchi)
+      call DefaultObsOperator(tw, params, sim_lswt, sim_secchi)
    end subroutine
 
    subroutine ArchiveDynOptParams(lakeId, time)

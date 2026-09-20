@@ -87,9 +87,9 @@ module shr_typedef_mod
       integer  :: month
       integer  :: day
       integer  :: hour
-      logical  :: has_lwst   = .False.
+      logical  :: has_lswt   = .False.
       logical  :: has_secchi = .False.
-      real(r8) :: lwst                 ! LWST (K)
+      real(r8) :: lswt                 ! LSWT (K)
       real(r8) :: secchi               ! secchi depth (m)
    end type
 

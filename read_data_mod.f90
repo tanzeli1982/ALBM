@@ -1369,14 +1369,14 @@ contains
       integer(kind=MPI_OFFSET_KIND) :: ntime
       character(cx) :: fullname
       integer :: ncid, dimid
-      integer :: date_varid, lwst_varid, secchi_varid
+      integer :: date_varid, lswt_varid, secchi_varid
       integer :: nobs, nobs_tot, indx0, indx1
       integer :: date0, date1, date_val, ii
       integer :: year, month, day, hour
       integer, allocatable :: date_tmp(:,:)
-      real(r8), allocatable :: lwst_tmp(:,:)
+      real(r8), allocatable :: lswt_tmp(:,:)
       real(r8), allocatable :: secchi_tmp(:,:)
-      real(r8) :: filled_lwst, filled_secchi
+      real(r8) :: filled_lswt, filled_secchi
 
       date0 = 1000000*time%year0 + 10000*time%month0 + &
          100*time%day0 + time%hour0
@@ -1389,10 +1389,10 @@ contains
       call check( fname, nf90mpi_inq_dimid(ncid, "time", dimid) )
       call check( fname, nf90mpi_inquire_dimension(ncid, dimid, len = ntime) )
       call check( fname, nf90mpi_inq_varid(ncid, "date", date_varid) )
-      call check( fname, nf90mpi_inq_varid(ncid, "LWST", lwst_varid) )
+      call check( fname, nf90mpi_inq_varid(ncid, "LSWT", lswt_varid) )
       call check( fname, nf90mpi_inq_varid(ncid, "Secchi", secchi_varid) )
-      call check( fname, nf90mpi_get_att(ncid, lwst_varid, "_FillValue", &
-                  filled_lwst) )
+      call check( fname, nf90mpi_get_att(ncid, lswt_varid, "_FillValue", &
+                  filled_lswt) )
       call check( fname, nf90mpi_get_att(ncid, secchi_varid, "_FillValue", &
                   filled_secchi) )
       nobs_tot = INT(ntime, i4)
@@ -1401,11 +1401,11 @@ contains
       indx0 = COUNT(date_tmp(1,:)<date0) + 1
       indx1 = COUNT(date_tmp(1,:)<date1)
       nobs = indx1 - indx0 + 1
-      allocate(lwst_tmp(1,nobs))
+      allocate(lswt_tmp(1,nobs))
       allocate(secchi_tmp(1,nobs))
       nstart = (/lakeId, indx0/)
       ncount = (/1, nobs/)
-      call check( fname, nf90mpi_get_var_all(ncid, lwst_varid, lwst_tmp, &
+      call check( fname, nf90mpi_get_var_all(ncid, lswt_varid, lswt_tmp, &
                   nstart, ncount) )
       call check( fname, nf90mpi_get_var_all(ncid, secchi_varid, secchi_tmp, &
                   nstart, ncount) ) 
@@ -1424,12 +1424,12 @@ contains
          obs4da(ii)%day = day
          obs4da(ii)%hour = hour
          ! values
-         obs4da(ii)%lwst = lwst_tmp(1,ii) + 273.15_r8
+         obs4da(ii)%lswt = lswt_tmp(1,ii) + 273.15_r8
          obs4da(ii)%secchi = secchi_tmp(1,ii)
-         if (obs4da(ii)%lwst <= filled_lwst) then
-            obs4da(ii)%has_lwst = .False.
+         if (obs4da(ii)%lswt <= filled_lswt) then
+            obs4da(ii)%has_lswt = .False.
          else
-            obs4da(ii)%has_lwst = .True.
+            obs4da(ii)%has_lswt = .True.
          end if
          if (obs4da(ii)%secchi <= filled_secchi) then
             obs4da(ii)%has_secchi = .False.
@@ -1438,7 +1438,7 @@ contains
          end if
       end do
 
-      deallocate(date_tmp, lwst_tmp, secchi_tmp)
+      deallocate(date_tmp, lswt_tmp, secchi_tmp)
       if (DEBUG .and. masterproc) then
          print *, "Read DA observations from " // trim(fullname)
       end if

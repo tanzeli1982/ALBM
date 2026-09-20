@@ -12,7 +12,7 @@ module epfm_da_mod
 !   - sa_params(Param_TinDiff)
 !
 ! Observations assimilated:
-!   - daily LWST
+!   - daily LSWT
 !   - occasional Secchi depth
 !
 ! Notes:
@@ -63,7 +63,7 @@ module epfm_da_mod
       real(r8) :: rho_c = 0.70_r8         ! crossover probability
       real(r8) :: rho_m = 0.10_r8         ! mutation probability
       real(r8) :: psi   = 2.0_r8         ! mutation variance multiplier (should be tuned)
-      real(r8) :: sigma_lwst = 0.5_r8     ! K
+      real(r8) :: sigma_lswt = 0.5_r8     ! K
       real(r8) :: sigma_log_secchi = 0.20_r8
       real(r8) :: sigma_deep = 0.1_r8     ! K
       real(r8) :: corr_len = 5._r8        ! m
@@ -83,7 +83,7 @@ module epfm_da_mod
    type :: EPFM_Particle
       real(r8), allocatable :: tw(:)       ! current prior / analysis water temp
       real(r8), allocatable :: params(:)   ! local sensitive parameter vector
-      real(r8) :: sim_lwst   = 0.0_r8
+      real(r8) :: sim_lswt   = 0.0_r8
       real(r8) :: sim_secchi = 0.0_r8
       real(r8) :: loglik     = 0.0_r8
       real(r8) :: weight     = 0.0_r8
@@ -91,12 +91,12 @@ module epfm_da_mod
    end type
 
    abstract interface
-      subroutine obs_operator_ifc(tw, params, sim_lwst, sim_secchi)
+      subroutine obs_operator_ifc(tw, params, sim_lswt, sim_secchi)
          import :: r8
          implicit none
          real(r8), intent(in)  :: tw(:)
          real(r8), intent(in)  :: params(:)
-         real(r8), intent(out) :: sim_lwst
+         real(r8), intent(out) :: sim_lswt
          real(r8), intent(out) :: sim_secchi
       end subroutine
    end interface
@@ -332,7 +332,7 @@ contains
       integer :: ii
       logical :: has_obs
 
-      has_obs = obs%has_lwst .or. obs%has_secchi
+      has_obs = obs%has_lswt .or. obs%has_secchi
       if (.not. has_obs) then
          do ii = 1, NPART, 1
             particles(ii)%weight = 1.0_r8 / real(NPART, r8)
@@ -343,9 +343,9 @@ contains
       ! 1) Evaluate prior likelihoods and weights
       do ii = 1, NPART, 1
          call obs_operator(particles(ii)%tw, particles(ii)%params, &
-                           particles(ii)%sim_lwst, particles(ii)%sim_secchi)
+                           particles(ii)%sim_lswt, particles(ii)%sim_secchi)
          particles(ii)%loglik = LogLikelihood(obs, epfm_cfg, &
-            particles(ii)%sim_lwst, particles(ii)%sim_secchi)
+            particles(ii)%sim_lswt, particles(ii)%sim_secchi)
       end do
       call NormalizeLogWeights(particles)
 
@@ -372,16 +372,16 @@ contains
 ! Default observation utilities
 !==============================================================================
 
-   real(r8) function LogLikelihood(obs, cfg, sim_lwst, sim_secchi) result(ll)
+   real(r8) function LogLikelihood(obs, cfg, sim_lswt, sim_secchi) result(ll)
       type(EPFM_Obs)   , intent(in) :: obs
       type(EPFM_Config), intent(in) :: cfg
-      real(r8), intent(in) :: sim_lwst, sim_secchi
+      real(r8), intent(in) :: sim_lswt, sim_secchi
       real(r8) :: z
 
       ll = 0.0_r8
 
-      if (obs%has_lwst) then
-         z  = (obs%lwst - sim_lwst) / max(cfg%sigma_lwst, TINY_R8)
+      if (obs%has_lswt) then
+         z  = (obs%lswt - sim_lswt) / max(cfg%sigma_lswt, TINY_R8)
          ll = ll - 0.5_r8 * z * z
       end if
 
@@ -392,14 +392,14 @@ contains
       end if
    end function
 
-   subroutine DefaultObsOperator(tw, params, sim_lwst, sim_secchi)
+   subroutine DefaultObsOperator(tw, params, sim_lswt, sim_secchi)
       real(r8), intent(in)  :: tw(:)
       real(r8), intent(in)  :: params(:)
-      real(r8), intent(out) :: sim_lwst
+      real(r8), intent(out) :: sim_lswt
       real(r8), intent(out) :: sim_secchi
       real(r8) :: kd
 
-      sim_lwst = tw(1)
+      sim_lswt = tw(1)
       kd = max(1.0e-6_r8, epfm_cfg%kext_base * params(Param_Feta))
       sim_secchi = 1.7_r8 / kd
    end subroutine
@@ -443,7 +443,7 @@ contains
       integer :: nn, nz, nsel, nmut 
       integer :: ii, ip1, ip2, imut, k
       real(r8) :: xi, alpha_log, u
-      real(r8) :: sim_lwst_p, sim_secchi_p
+      real(r8) :: sim_lswt_p, sim_secchi_p
       real(r8) :: logq_new, logq_old, loglik_p
 
       nn  = size(particles)
@@ -496,8 +496,8 @@ contains
          mcmc_prior    = particles(ii)%tw
 
          call obs_operator(mcmc_proposal, particles(ii)%params, &
-               sim_lwst_p, sim_secchi_p)
-         loglik_p = LogLikelihood(obs, cfg, sim_lwst_p, sim_secchi_p)
+               sim_lswt_p, sim_secchi_p)
+         loglik_p = LogLikelihood(obs, cfg, sim_lswt_p, sim_secchi_p)
 
          ! prior distribution
          logq_new = LogIndependentGaussian(mcmc_proposal, mcmc_mu, mcmc_varx)
@@ -508,7 +508,7 @@ contains
 
          if (log(u) <= min(0.0_r8, alpha_log)) then
             particles(ii)%tw         = mcmc_proposal
-            particles(ii)%sim_lwst   = sim_lwst_p
+            particles(ii)%sim_lswt   = sim_lswt_p
             particles(ii)%sim_secchi = sim_secchi_p
             particles(ii)%loglik     = loglik_p
          end if
@@ -590,7 +590,7 @@ contains
       do ii = 1, nn
          particles_old(ii)%tw         = particles(ii)%tw
          particles_old(ii)%params     = particles(ii)%params
-         particles_old(ii)%sim_lwst   = particles(ii)%sim_lwst
+         particles_old(ii)%sim_lswt   = particles(ii)%sim_lswt
          particles_old(ii)%sim_secchi = particles(ii)%sim_secchi
          particles_old(ii)%loglik     = particles(ii)%loglik
          particles_old(ii)%weight     = particles(ii)%weight
@@ -613,7 +613,7 @@ contains
          end do
          particles(ii)%tw         = particles_old(jj)%tw
          particles(ii)%params     = particles_old(jj)%params
-         particles(ii)%sim_lwst   = particles_old(jj)%sim_lwst
+         particles(ii)%sim_lswt   = particles_old(jj)%sim_lswt
          particles(ii)%sim_secchi = particles_old(jj)%sim_secchi
          particles(ii)%loglik     = particles_old(jj)%loglik
          particles(ii)%weight     = 1.0_r8 / real(nn, r8)
