@@ -92,6 +92,7 @@ contains
       real(r8), parameter :: rw_min = 0.2_r8
       real(r8), parameter :: dZw_min = 0.1_r8
       real(r8), parameter :: err_max = 1.0_r8
+      real(r8) :: d0, d1, di
       integer :: ii, jj, indx, top
       logical :: to_regrid
 
@@ -101,16 +102,32 @@ contains
       zVol0 = zVol
       Vtot0 = sum(zVol0)
       dV = m_hydroData%Qwi * dt
-      zVol(top) = zVol(top) + dV
+      !zVol(top) = zVol(top) + dV
       TinDiff = sa_params(Param_TinDiff)
       
       ! update state variables 
       if (Thermal_Module) then
          if (m_hydroData%WTi>-e8) then
             tw_inflow = m_hydroData%WTi + TinDiff
-            m_waterTemp(top) = (m_waterTemp(top)*zVol0(top) + &
-               tw_inflow*dV) / zVol(top)
+            indx = top
+            do while (indx<=WATER_LAYER)
+               d0 = CalcPureWaterDensity(m_waterTemp(indx)-T0)
+               d1 = CalcPureWaterDensity(m_waterTemp(indx+1)-T0)
+               di = CalcPureWaterDensity(tw_inflow-T0)
+               if (di>d0 .and. di<=d1) then
+                  exit
+               end if
+               indx = indx + 1
+            end do
+            indx = min(indx+1, WATER_LAYER+1)
+            zVol(indx) = zVol(indx) + dV
+            m_waterTemp(indx) = (m_waterTemp(indx)*zVol0(indx) + &
+               tw_inflow*dV) / zVol(indx)
+         else
+            zVol(top) = zVol(top) + dV
          end if
+      else
+         zVol(top) = zVol(top) + dV
       end if
       if (Carbon_Module) then
          m_waterSubCon(Wo2,top) = (m_waterSubCon(Wo2,top)*zVol0(top) + &

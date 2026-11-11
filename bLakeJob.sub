@@ -4,7 +4,7 @@
 #SBATCH -N 1 
 #SBATCH -n 1
 #SBATCH -t 03:00:00
-#SBATCH -A  rsvtmp 
+#SBATCH -A  nsf_dse 
 ##SBATCH  --exclusive
 ##SBATCH -p slurm
 #SBATCH -p short

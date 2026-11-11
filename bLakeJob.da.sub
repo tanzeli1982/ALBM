@@ -1,10 +1,10 @@
 #!/bin/bash -l
 
 #SBATCH -J albm_da
-#SBATCH -N 4 
+#SBATCH -N 4
 ##SBATCH -n 1
 #SBATCH -t 03:00:00
-#SBATCH -A  rsvtmp 
+#SBATCH -A  nsf_dse 
 ##SBATCH  --exclusive
 #SBATCH -p slurm
 ##SBATCH -p short

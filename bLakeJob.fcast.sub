@@ -4,10 +4,10 @@
 #SBATCH -N 1 
 #SBATCH -n 1
 #SBATCH -t 03:00:00
-#SBATCH -A  rsvtmp 
+#SBATCH -A  nsf_dse 
 ##SBATCH  --exclusive
-##SBATCH -p slurm
-#SBATCH -p short
+#SBATCH -p slurm
+##SBATCH -p short
 #SBATCH --mail-type=END
 #SBATCH --mail-user=zeli.tan@pnnl.gov
 #SBATCH -o slurm.out
@@ -28,6 +28,7 @@ export MV2_USE_SHMEM_COLL=0
 # Seasonal forecasts: June 1 through September 1 of each selected year.
 namelist=namelist.bLake.fcast
 years=(2001 2002 2004 2005 2006 2008 2009 2010 2011 2013 2014 2015 2016 2017)
+member="04"    # Examples: "01", "02", "03", "04"
 
 [[ -x ./ALBM.exe && -f "$namelist" ]] || {
     echo "ERROR: ALBM.exe or $namelist is missing/unusable." >&2
@@ -76,10 +77,11 @@ for year in "${years[@]}"; do
         -e "s/^([[:blank:]]*End_Year[[:blank:]]*=[[:blank:]]*)[+-]?[0-9]+/\1${year}/I" \
         -e "/^[[:blank:]]*restart_file[[:blank:]]*=/I s/(bLake[.]r[.])[0-9]{4}(0601[.]nc)/\1${year}\2/" \
         -e "/^[[:blank:]]*(tas_file|hurs_file|ps_file|pr_file|rsds_file|rlds_file|wind_file)[[:blank:]]*=/I s/_[0-9]{4}0601-[0-9]{4}0902[.]nc/_${year}0601-${year}0902.nc/" \
+        -e "/^[[:blank:]]*(tas_file|hurs_file|ps_file|pr_file|rsds_file|rlds_file|wind_file|hydro_file)[[:blank:]]*=/I s/member[0-9]+/member${member}/g" \
         "$namelist"
 
-    mpirun -np 1 ./ALBM.exe namelist.bLake.fcast
-    echo "[$(date -Is)] Completed forecast for $year"
+    mpirun -np 1 ./ALBM.exe $namelist 
+    echo "[$(date -Is)] Completed forecast member${member} for $year"
 done
 
 echo "Completed all 14 seasonal forecasts."

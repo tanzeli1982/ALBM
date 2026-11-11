@@ -89,8 +89,11 @@ module shr_typedef_mod
       integer  :: hour
       logical  :: has_lswt   = .False.
       logical  :: has_secchi = .False.
-      real(r8) :: lswt                 ! LSWT (K)
-      real(r8) :: secchi               ! secchi depth (m)
+      integer  :: n_temp = 0
+      real(r8) :: lswt                       ! LSWT (K)
+      real(r8) :: secchi                     ! secchi depth (m)
+      real(r8), allocatable :: temp_obs(:)   ! water temperature (K)
+      real(r8), allocatable :: temp_depth(:) ! m
    end type
 
    !-------------------------------------------------------------------------

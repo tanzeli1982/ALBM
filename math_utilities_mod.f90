@@ -892,20 +892,34 @@ contains
       real(r8), optional, intent(in) :: vmin
       real(r8), optional, intent(in) :: vmax
       integer :: ii, ntgt, ndef, idx
+      logical :: ascend
       real(r8) :: par
 
       ntgt = size(xi)
       ndef = size(xx)
+      ascend = (xx(1)<xx(ndef))
       do ii = 1, ntgt, 1
-         if (xi(ii)<=xx(1)) then
+         if (ascend .and. xi(ii)<=xx(1)) then
             if (present(vmin)) then
                yi(ii) = vmin
             else
                yi(ii) = yy(1)
             end if
-         else if (xi(ii)>=xx(ndef)) then
+         else if (ascend .and. xi(ii)>=xx(ndef)) then
             if (present(vmax)) then
                yi(ii) = vmax
+            else
+               yi(ii) = yy(ndef)
+            end if
+         else if ((.not. ascend) .and. xi(ii)>=xx(1)) then
+            if (present(vmax)) then
+               yi(ii) = vmax
+            else
+               yi(ii) = yy(1)
+            end if
+         else if ((.not. ascend) .and. xi(ii)<=xx(ndef)) then
+            if (present(vmin)) then
+               yi(ii) = vmin
             else
                yi(ii) = yy(ndef)
             end if
@@ -926,20 +940,34 @@ contains
       real(r8), optional, intent(in) :: vmin
       real(r8), optional, intent(in) :: vmax
       integer :: ii, ntgt, ndef, idx
+      logical :: ascend
       real(r8) :: par
 
       ntgt = size(xi)
       ndef = size(xx)
+      ascend = (xx(1)<xx(ndef))
       do ii = 1, ntgt, 1
-         if (xi(ii)<=xx(1)) then
+         if (ascend .and. xi(ii)<=xx(1)) then
             if (present(vmin)) then
                yi(ii,:) = vmin
             else
                yi(ii,:) = yy(1,:)
             end if
-         else if (xi(ii)>=xx(ndef)) then
+         else if (ascend .and. xi(ii)>=xx(ndef)) then
             if (present(vmax)) then
                yi(ii,:) = vmax
+            else
+               yi(ii,:) = yy(ndef,:)
+            end if
+         else if ((.not. ascend) .and. xi(ii)>=xx(1)) then
+            if (present(vmax)) then
+               yi(ii,:) = vmax
+            else
+               yi(ii,:) = yy(1,:)
+            end if
+         else if ((.not. ascend) .and. xi(ii)<=xx(ndef)) then
+            if (present(vmin)) then
+               yi(ii,:) = vmin
             else
                yi(ii,:) = yy(ndef,:)
             end if
@@ -964,6 +992,10 @@ contains
 
       ntgt = size(xi)
       ndef = size(xx)
+      if (xx(1)>=xx(ndef)) then
+         print *, "xx must be in the ascending order!!"
+         stop
+      end if
       do ii = 1, ntgt, 1
          if (xi(ii)<=xx(1)) then
             yi(ii) = yy(1)

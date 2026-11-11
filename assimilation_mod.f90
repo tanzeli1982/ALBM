@@ -268,7 +268,7 @@ contains
          end if
          call CopyLakeStateToEPFM() 
          ! assimilation
-         if (obs_c%has_lswt .or. obs_c%has_secchi) then
+         if (obs_c%has_lswt .or. obs_c%has_secchi .or. obs_c%n_temp>=1) then
             call GatherParticlesToRoot(rank)
             if (masterproc) then
                call ArraysToEPFMParticles() 

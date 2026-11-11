@@ -4,7 +4,7 @@
 #SBATCH -N 4 
 ##SBATCH -n 1
 #SBATCH -t 24:00:00
-#SBATCH -A  rsvtmp 
+#SBATCH -A  nsf_dse 
 ##SBATCH  --exclusive
 #SBATCH -p slurm
 ##SBATCH -p short
@@ -73,7 +73,7 @@ for year in "${years[@]}"; do
             mv -- "$raw" "$previous"
             echo "Previous raw restart preserved as $previous"
         fi
-        mpirun -np 200 ./ALBM.exe namelist.bLake.init
+        mpirun -np 200 ./ALBM.exe $namelist
         [[ -s "$raw" ]] || {
             echo "ERROR: Simulation did not produce a nonempty $raw" >&2
             exit 1
@@ -93,6 +93,8 @@ for year in "${years[@]}"; do
         echo "[$(date -Is)] Saved $output"
     done
 done
+
+mv bLake.r.da.*.nc Restart/
 
 conda deactivate
 echo "Completed all 42 restart files."

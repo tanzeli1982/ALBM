@@ -31,9 +31,9 @@ module epfm_da_mod
    use shr_param_mod,      only : Param_Feta
    use shr_ctrl_mod,       only : NPART, WATER_LAYER, masterproc
    use shr_ctrl_mod,       only : Use_Leap
-   use data_buffer_mod,    only : m_waterTemp, m_mixTopIndex 
+   use data_buffer_mod,    only : m_waterTemp, m_Zw, m_mixTopIndex 
    use phy_utilities_mod,  only : CalcRunningDays
-   use math_utilities_mod, only : gaussian_randn, Mean
+   use math_utilities_mod, only : gaussian_randn, Mean, Interp1d
    use math_utilities_mod, only : ClipArray, ReflectToBounds
    use read_data_mod,      only : ReadObservations4DA
    use thermal_mod,        only : EnforceThermalConsistency 
@@ -58,31 +58,35 @@ module epfm_da_mod
 
    real(r8), parameter :: PI_R8 = 3.14159265358979323846_r8
    real(r8), parameter :: TINY_R8 = 1.0e-12_r8
+   integer,  parameter :: NOBS_MAX = 100
 
    type :: EPFM_Config
       real(r8) :: rho_c = 0.70_r8         ! crossover probability
       real(r8) :: rho_m = 0.10_r8         ! mutation probability
-      real(r8) :: psi   = 2.0_r8         ! mutation variance multiplier (should be tuned)
+      real(r8) :: psi   = 2.0_r8          ! mutation variance multiplier (should be tuned)
       real(r8) :: sigma_lswt = 0.5_r8     ! K
+      real(r8) :: sigma_wt = 1.0_r8       ! K
       real(r8) :: sigma_log_secchi = 0.20_r8
-      real(r8) :: sigma_deep = 0.1_r8     ! K
-      real(r8) :: corr_len = 5._r8        ! m
+      real(r8) :: sigma_deep = 0.3_r8     ! K
+      real(r8) :: corr_len = 50._r8       ! m
       real(r8) :: temp_min = 273.15_r8    ! K
       real(r8) :: temp_max = 313.15_r8    ! K
       real(r8) :: feta_bounds(2)   = (/ 0.10_r8, 10.00_r8 /)
       real(r8) :: hscale_bounds(2) = (/ 0.50_r8, 2.00_r8 /)
       real(r8) :: dscale_bounds(2) = (/ 0.10_r8, 10.00_r8 /)
       real(r8) :: tindiff_bounds(2) = (/ -5._r8, 5._r8 /)
-      real(r8) :: feta_log_sd   = 0.03_r8 ! log-space RW std
-      real(r8) :: hscale_log_sd = 0.03_r8
-      real(r8) :: dscale_log_sd = 0.03_r8
-      real(r8) :: tindiff_sd = 0.02_r8    ! fractional std
-      real(r8) :: kext_base = 0.50_r8           ! baseline extinction for Secchi operator
+      real(r8) :: feta_log_sd   = 0.1_r8 ! log-space RW std
+      real(r8) :: hscale_log_sd = 0.1_r8
+      real(r8) :: dscale_log_sd = 0.1_r8
+      real(r8) :: tindiff_sd = 0.1_r8    ! fractional std
+      real(r8) :: kext_base = 0.50_r8     ! baseline extinction for Secchi operator
    end type
 
    type :: EPFM_Particle
       real(r8), allocatable :: tw(:)       ! current prior / analysis water temp
       real(r8), allocatable :: params(:)   ! local sensitive parameter vector
+      real(r8), allocatable :: zw(:)       ! current water layer elevation
+      real(r8), allocatable :: sim_wt(:)
       real(r8) :: sim_lswt   = 0.0_r8
       real(r8) :: sim_secchi = 0.0_r8
       real(r8) :: loglik     = 0.0_r8
@@ -91,13 +95,18 @@ module epfm_da_mod
    end type
 
    abstract interface
-      subroutine obs_operator_ifc(tw, params, sim_lswt, sim_secchi)
+      subroutine obs_operator_ifc(tw, params, zw, obs_depth, n_temp, &
+                                  sim_lswt, sim_secchi, sim_wt)
          import :: r8
          implicit none
          real(r8), intent(in)  :: tw(:)
          real(r8), intent(in)  :: params(:)
+         real(r8), intent(in)  :: zw(:)
+         real(r8), intent(in)  :: obs_depth(:)
+         integer, intent(in)   :: n_temp
          real(r8), intent(out) :: sim_lswt
          real(r8), intent(out) :: sim_secchi
+         real(r8), intent(out) :: sim_wt(:)
       end subroutine
    end interface
 
@@ -112,10 +121,12 @@ module epfm_da_mod
    real(r8), allocatable :: mcmc_prior(:)
    
    real(r8), allocatable :: local_temp(:,:)        ! (nz, nlocal)
+   real(r8), allocatable :: local_zw(:,:)          ! (nz, nlocal)
    real(r8), allocatable :: local_params(:,:)      ! (NPARAM, nlocal)
    integer, allocatable  :: local_mixIndex(:)      ! (nlocal)
 
    real(r8), allocatable :: global_temp(:,:)       ! (nz, npart)
+   real(r8), allocatable :: global_zw(:,:)         ! (nz, npart)
    real(r8), allocatable :: global_params(:,:)     ! (NPARAM, npart)
    integer, allocatable  :: global_mixIndex(:)     ! (npart)
 
@@ -142,6 +153,7 @@ contains
       integer :: nday
 
       allocate(local_temp(WATER_LAYER+1,1))
+      allocate(local_zw(WATER_LAYER+1,1))
       allocate(local_params(NPARAM,1))
       allocate(local_mixIndex(1))
       if (masterproc) then
@@ -156,6 +168,7 @@ contains
          allocate(mcmc_proposal(WATER_LAYER+1))
          allocate(mcmc_prior(WATER_LAYER+1))
          allocate(global_temp(WATER_LAYER+1,NPART))
+         allocate(global_zw(WATER_LAYER+1,NPART))
          allocate(global_params(NPARAM,NPART))
          allocate(global_mixIndex(NPART))
          allocate(particles(NPART))
@@ -163,7 +176,9 @@ contains
          allocate(offspring(NPART))
          do ii = 1, NPART, 1
             allocate(particles(ii)%tw(WATER_LAYER+1))
+            allocate(particles(ii)%zw(WATER_LAYER+1))
             allocate(particles(ii)%params(NPARAM))
+            allocate(particles(ii)%sim_wt(NOBS_MAX))
             allocate(particles_old(ii)%tw(WATER_LAYER+1))
             allocate(particles_old(ii)%params(NPARAM))
             allocate(offspring(ii)%tw(WATER_LAYER+1))
@@ -184,6 +199,7 @@ contains
    subroutine EPFM_Finalize()
       
       deallocate(local_temp)
+      deallocate(local_zw)
       deallocate(local_params)
       deallocate(local_mixIndex)
       if (masterproc) then
@@ -195,6 +211,7 @@ contains
          deallocate(mcmc_proposal)
          deallocate(mcmc_prior)
          deallocate(global_temp)
+         deallocate(global_zw)
          deallocate(global_params)
          deallocate(global_mixIndex)
          deallocate(particles)
@@ -224,6 +241,13 @@ contains
          global_temp, nz*nlocal, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
       if (ierr /= MPI_SUCCESS) then
          write(*,*) "MPI_Gather local_temp failed on rank ", rank
+         call MPI_Abort(MPI_COMM_WORLD, ierr, ierr_abort)
+      end if
+
+      call MPI_Gather(local_zw, nz*nlocal, MPI_REAL8, &
+         global_zw, nz*nlocal, MPI_REAL8, 0, MPI_COMM_WORLD, ierr)
+      if (ierr /= MPI_SUCCESS) then
+         write(*,*) "MPI_Gather local_zw failed on rank ", rank
          call MPI_Abort(MPI_COMM_WORLD, ierr, ierr_abort)
       end if
 
@@ -271,6 +295,7 @@ contains
 
       do ii = 1, NPART, 1
          particles(ii)%tw        = global_temp(:,ii)
+         particles(ii)%zw        = global_zw(:,ii)
          particles(ii)%params    = global_params(:,ii)
          particles(ii)%mixIndex  = global_mixIndex(ii)
       end do
@@ -288,6 +313,7 @@ contains
    subroutine CopyLakeStateToEPFM()
 
       local_temp(:,1) = m_waterTemp
+      local_zw(:,1) = m_Zw
       local_params(:,1) = sa_params
       local_mixIndex(1) = m_mixTopIndex 
    end subroutine
@@ -296,7 +322,7 @@ contains
 
       m_waterTemp = local_temp(:,1)
       sa_params = local_params(:,1)
-      call EnforceThermalConsistency()
+      !call EnforceThermalConsistency()
    end subroutine
 
    subroutine UpdateEPFMConfig(kext_base)
@@ -332,7 +358,7 @@ contains
       integer :: ii
       logical :: has_obs
 
-      has_obs = obs%has_lswt .or. obs%has_secchi
+      has_obs = obs%has_lswt .or. obs%has_secchi .or. obs%n_temp>=1
       if (.not. has_obs) then
          do ii = 1, NPART, 1
             particles(ii)%weight = 1.0_r8 / real(NPART, r8)
@@ -343,9 +369,12 @@ contains
       ! 1) Evaluate prior likelihoods and weights
       do ii = 1, NPART, 1
          call obs_operator(particles(ii)%tw, particles(ii)%params, &
-                           particles(ii)%sim_lswt, particles(ii)%sim_secchi)
+                           particles(ii)%zw, obs%temp_depth, obs%n_temp, &
+                           particles(ii)%sim_lswt, particles(ii)%sim_secchi, &
+                           particles(ii)%sim_wt(1:obs%n_temp))
          particles(ii)%loglik = LogLikelihood(obs, epfm_cfg, &
-            particles(ii)%sim_lswt, particles(ii)%sim_secchi)
+            particles(ii)%sim_lswt, particles(ii)%sim_secchi, &
+            particles(ii)%sim_wt(1:obs%n_temp))
       end do
       call NormalizeLogWeights(particles)
 
@@ -372,36 +401,57 @@ contains
 ! Default observation utilities
 !==============================================================================
 
-   real(r8) function LogLikelihood(obs, cfg, sim_lswt, sim_secchi) result(ll)
+   real(r8) function LogLikelihood(obs, cfg, sim_lswt, sim_secchi, sim_wt) result(ll)
       type(EPFM_Obs)   , intent(in) :: obs
       type(EPFM_Config), intent(in) :: cfg
-      real(r8), intent(in) :: sim_lswt, sim_secchi
+      real(r8), intent(in) :: sim_lswt
+      real(r8), intent(in) :: sim_secchi
+      real(r8), intent(in) :: sim_wt(:)
       real(r8) :: z
+      integer :: ii
 
       ll = 0.0_r8
 
       if (obs%has_lswt) then
          z  = (obs%lswt - sim_lswt) / max(cfg%sigma_lswt, TINY_R8)
-         ll = ll - 0.5_r8 * z * z
+         ll = ll - 0.5_r8 * z**2
       end if
+
+      do ii = 1, obs%n_temp, 1
+         z = (obs%temp_obs(ii) - sim_wt(ii)) / max(cfg%sigma_wt, TINY_R8)
+         ll = ll - 0.5_r8 * z**2
+      end do
 
       if (obs%has_secchi) then
          z  = (log(max(obs%secchi, 1.0e-6_r8)) - log(max(sim_secchi, &
             1.0e-6_r8))) / max(cfg%sigma_log_secchi, TINY_R8)
-         ll = ll - 0.5_r8 * z * z
+         ll = ll - 0.5_r8 * z**2
       end if
    end function
 
-   subroutine DefaultObsOperator(tw, params, sim_lswt, sim_secchi)
+   subroutine DefaultObsOperator(tw, params, zw, obs_depth, n_temp, &
+                                 sim_lswt, sim_secchi, sim_wt)
       real(r8), intent(in)  :: tw(:)
       real(r8), intent(in)  :: params(:)
+      real(r8), intent(in)  :: zw(:)
+      real(r8), intent(in)  :: obs_depth(:)
+      integer, intent(in)   :: n_temp
       real(r8), intent(out) :: sim_lswt
       real(r8), intent(out) :: sim_secchi
+      real(r8), intent(out) :: sim_wt(:)
       real(r8) :: kd
 
+      ! LSWT
       sim_lswt = tw(1)
+      
+      ! Secchi depth
       kd = max(1.0e-6_r8, epfm_cfg%kext_base * params(Param_Feta))
       sim_secchi = 1.7_r8 / kd
+
+      ! water temperature
+      if (n_temp>=1) then
+         call Interp1d(zw, tw, obs_depth, sim_wt)
+      end if
    end subroutine
 
 !==============================================================================
@@ -445,6 +495,7 @@ contains
       real(r8) :: xi, alpha_log, u
       real(r8) :: sim_lswt_p, sim_secchi_p
       real(r8) :: logq_new, logq_old, loglik_p
+      real(r8) :: sim_wt_p(NOBS_MAX)
 
       nn  = size(particles)
       nz = size(mcmc_mu)
@@ -496,8 +547,10 @@ contains
          mcmc_prior    = particles(ii)%tw
 
          call obs_operator(mcmc_proposal, particles(ii)%params, &
-               sim_lswt_p, sim_secchi_p)
-         loglik_p = LogLikelihood(obs, cfg, sim_lswt_p, sim_secchi_p)
+               particles(ii)%zw, obs%temp_depth, obs%n_temp, &
+               sim_lswt_p, sim_secchi_p, sim_wt_p(1:obs%n_temp))
+         loglik_p = LogLikelihood(obs, cfg, sim_lswt_p, sim_secchi_p, &
+                                  sim_wt_p(1:obs%n_temp))
 
          ! prior distribution
          logq_new = LogIndependentGaussian(mcmc_proposal, mcmc_mu, mcmc_varx)

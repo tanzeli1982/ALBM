@@ -72,7 +72,7 @@ contains
 
       ! Enforce broad physical bounds.
       m_waterTemp = min(max(m_waterTemp, cfg%temp_min), cfg%temp_max)
-      call EnforceThermalConsistency()
+      !call EnforceThermalConsistency()
    end subroutine
 
    subroutine EvolveParameters(cfg, month)
@@ -93,7 +93,7 @@ contains
       sa_params(Param_Dscale) = PerturbPositiveParameter(base_value, &
          cfg%dscale_log_sd, cfg%dscale_bounds(1), cfg%dscale_bounds(2))
 
-      if (month>=5 .and. month<=9) then
+      if (month>=5 .and. month<=11) then
          base_value = sa_params(Param_TinDiff)
          sa_params(Param_TinDiff) = PerturbRealParameter(base_value, &
             cfg%tindiff_sd, cfg%tindiff_bounds(1), cfg%tindiff_bounds(2))
@@ -102,14 +102,20 @@ contains
       end if
    end subroutine
 
-   subroutine ObsOperator(tw, params, sim_lswt, sim_secchi)
+   subroutine ObsOperator(tw, params, zw, obs_depth, n_temp, &
+                          sim_lswt, sim_secchi, sim_wt)
       real(r8), intent(in)  :: tw(:)
       real(r8), intent(in)  :: params(:)
+      real(r8), intent(in)  :: zw(:)
+      real(r8), intent(in)  :: obs_depth(:)
+      integer, intent(in)   :: n_temp
       real(r8), intent(out) :: sim_lswt
       real(r8), intent(out) :: sim_secchi
+      real(r8), intent(out) :: sim_wt(:)
 
       ! Replace this with your native optics/Secchi diagnostic if available.
-      call DefaultObsOperator(tw, params, sim_lswt, sim_secchi)
+      call DefaultObsOperator(tw, params, zw, obs_depth, n_temp, sim_lswt, &
+                              sim_secchi, sim_wt)
    end subroutine
 
    subroutine ArchiveDynOptParams(lakeId, time)

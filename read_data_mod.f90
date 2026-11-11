@@ -1366,17 +1366,24 @@ contains
       type(EPFM_Obs), allocatable, intent(out) :: obs4da(:)
       character(len=32) :: fname = "ReadObservations4DA"
       integer(kind=MPI_OFFSET_KIND) :: nstart(2), ncount(2)
-      integer(kind=MPI_OFFSET_KIND) :: ntime
+      integer(kind=MPI_OFFSET_KIND) :: nstart2(3), ncount2(3)
+      integer(kind=MPI_OFFSET_KIND) :: ntime, nlevel
       character(cx) :: fullname
       integer :: ncid, dimid
-      integer :: date_varid, lswt_varid, secchi_varid
-      integer :: nobs, nobs_tot, indx0, indx1
-      integer :: date0, date1, date_val, ii
+      integer :: date_varid, level_varid
+      integer :: lswt_varid, secchi_varid, wt_varid
+      integer :: nobs, nobs_tot, n_temp 
+      integer :: nlev_tot, ii, jj
+      integer :: indx0, indx1, indx
+      integer :: date0, date1, date_val
       integer :: year, month, day, hour
       integer, allocatable :: date_tmp(:,:)
+      real(r8), allocatable :: level_tmp(:,:)
       real(r8), allocatable :: lswt_tmp(:,:)
       real(r8), allocatable :: secchi_tmp(:,:)
+      real(r8), allocatable :: wt_tmp(:,:,:)
       real(r8) :: filled_lswt, filled_secchi
+      real(r8) :: filled_wt, filled_level
 
       date0 = 1000000*time%year0 + 10000*time%month0 + &
          100*time%day0 + time%hour0
@@ -1388,19 +1395,33 @@ contains
                   NF90_NOWRITE, MPI_INFO_NULL, ncid) )
       call check( fname, nf90mpi_inq_dimid(ncid, "time", dimid) )
       call check( fname, nf90mpi_inquire_dimension(ncid, dimid, len = ntime) )
+      call check( fname, nf90mpi_inq_dimid(ncid, "level", dimid) )
+      call check( fname, nf90mpi_inquire_dimension(ncid, dimid, len = nlevel) )
       call check( fname, nf90mpi_inq_varid(ncid, "date", date_varid) )
+      call check( fname, nf90mpi_inq_varid(ncid, "elevation", level_varid) )
       call check( fname, nf90mpi_inq_varid(ncid, "LSWT", lswt_varid) )
       call check( fname, nf90mpi_inq_varid(ncid, "Secchi", secchi_varid) )
+      call check( fname, nf90mpi_inq_varid(ncid, "WT", wt_varid) )
       call check( fname, nf90mpi_get_att(ncid, lswt_varid, "_FillValue", &
                   filled_lswt) )
       call check( fname, nf90mpi_get_att(ncid, secchi_varid, "_FillValue", &
                   filled_secchi) )
+      call check( fname, nf90mpi_get_att(ncid, wt_varid, "_FillValue", &
+                  filled_wt) )
+      call check( fname, nf90mpi_get_att(ncid, level_varid, "_FillValue", &
+                  filled_level) )
+      ! read obs dates
       nobs_tot = INT(ntime, i4)
       allocate(date_tmp(1,nobs_tot))
       call check( fname, nf90mpi_get_var_all(ncid, date_varid, date_tmp) )
       indx0 = COUNT(date_tmp(1,:)<date0) + 1
       indx1 = COUNT(date_tmp(1,:)<date1)
       nobs = indx1 - indx0 + 1
+      ! read water temperature obs elevation
+      nlev_tot = INT(nlevel, i4)
+      allocate(level_tmp(nlev_tot,1))
+      call check( fname, nf90mpi_get_var_all(ncid, level_varid, level_tmp) )
+      ! read observations
       allocate(lswt_tmp(1,nobs))
       allocate(secchi_tmp(1,nobs))
       nstart = (/lakeId, indx0/)
@@ -1409,6 +1430,11 @@ contains
                   nstart, ncount) )
       call check( fname, nf90mpi_get_var_all(ncid, secchi_varid, secchi_tmp, &
                   nstart, ncount) ) 
+      allocate(wt_tmp(nlev_tot,1,nobs))
+      nstart2 = (/1, lakeId, indx0/)
+      ncount2 = (/nlev_tot, 1, nobs/)
+      call check( fname, nf90mpi_get_var_all(ncid, wt_varid, wt_tmp, &
+                  nstart2, ncount2) )
       call check( fname, nf90mpi_close(ncid) )
       
       allocate(obs4da(nobs))
@@ -1424,17 +1450,36 @@ contains
          obs4da(ii)%day = day
          obs4da(ii)%hour = hour
          ! values
-         obs4da(ii)%lswt = lswt_tmp(1,ii) + 273.15_r8
-         obs4da(ii)%secchi = secchi_tmp(1,ii)
-         if (obs4da(ii)%lswt <= filled_lswt) then
+         if (lswt_tmp(1,ii) <= filled_lswt) then
             obs4da(ii)%has_lswt = .False.
+            obs4da(ii)%lswt = lswt_tmp(1,ii)
          else
             obs4da(ii)%has_lswt = .True.
+            obs4da(ii)%lswt = lswt_tmp(1,ii) + T0
          end if
-         if (obs4da(ii)%secchi <= filled_secchi) then
+         if (secchi_tmp(1,ii) <= filled_secchi) then
             obs4da(ii)%has_secchi = .False.
+            obs4da(ii)%secchi = secchi_tmp(1,ii)
          else
             obs4da(ii)%has_secchi = .True.
+            obs4da(ii)%secchi = secchi_tmp(1,ii)
+         end if
+         n_temp = COUNT(wt_tmp(:,1,ii)>filled_wt) 
+         obs4da(ii)%n_temp = n_temp
+         if (n_temp>=1) then
+            allocate(obs4da(ii)%temp_obs(n_temp))
+            allocate(obs4da(ii)%temp_depth(n_temp))
+            indx = 1
+            do jj = 1, nlev_tot, 1
+               if (indx>n_temp) then
+                  exit
+               end if
+               if (wt_tmp(jj,1,ii)>filled_wt) then
+                  obs4da(ii)%temp_obs(indx) = wt_tmp(jj,1,ii) + T0
+                  obs4da(ii)%temp_depth(indx) = level_tmp(jj,1) 
+                  indx = indx + 1
+               end if
+            end do
          end if
       end do
 

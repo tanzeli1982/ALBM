@@ -45,33 +45,33 @@
 
 &assimilation
  NPART = 100
- obs_file = '/rcfs/projects/rsvtmp/tanz151/input_data/Lakes_GrandCoulee_landsat_obs_corr.nc'
+ obs_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/Lakes_GrandCoulee_landsat_obs_new.nc'
 /
 
 &radiation
  solar_dir = './Solar/'
  gas_dir = './Gases/'
  albedo_dir = './Albedo/'
- co2_file = '/rcfs/projects/rsvtmp/tanz151/input_data/cmip5_co2.nc'
- o3_file = '/rcfs/projects/rsvtmp/tanz151/input_data/o3_Amon_rcp45_r1i1p1_197801-210012.nc'
- aod_file = '/rcfs/projects/rsvtmp/tanz151/input_data/aod550_Amon_rcp45_r1i1p1_197801-210012.nc'
+ co2_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/cmip5_co2.nc'
+ o3_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/o3_Amon_rcp45_r1i1p1_197801-210012.nc'
+ aod_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/aod550_Amon_rcp45_r1i1p1_197801-210012.nc'
 /
 
 &rundata
  forcing_tstep = '1hour'
  forcing_time = 'UTC'
- tas_file = '/rcfs/projects/rsvtmp/tanz151/input_data/era5_hrly/tas_era5_hrly_GrandCoulee_19790101-20241231.nc'
- hurs_file = '/rcfs/projects/rsvtmp/tanz151/input_data/era5_hrly/hurs_era5_hrly_GrandCoulee_19790101-20241231.nc'
- ps_file = '/rcfs/projects/rsvtmp/tanz151/input_data/era5_hrly/ps_era5_hrly_GrandCoulee_19790101-20241231.nc'
- pr_file = '/rcfs/projects/rsvtmp/tanz151/input_data/era5_hrly/pr_era5_hrly_GrandCoulee_19790101-20241231.nc'
- rsds_file = '/rcfs/projects/rsvtmp/tanz151/input_data/era5_hrly/rsds_era5_hrly_GrandCoulee_19790101-20241231.nc'
- rlds_file = '/rcfs/projects/rsvtmp/tanz151/input_data/era5_hrly/rlds_era5_hrly_GrandCoulee_19790101-20241231.nc'
- wind_file = '/rcfs/projects/rsvtmp/tanz151/input_data/era5_hrly/sfcwind_era5_hrly_GrandCoulee_19790101-20241231.nc'
- hydro_file = '/rcfs/projects/rsvtmp/tanz151/input_data/Lakes_GrandCoulee_hydro_19850101-20180823.nc'
- tref_file = '/rcfs/projects/rsvtmp/tanz151/input_data/ecmwf_ref_1990s.nc'
- soc_file = '/rcfs/projects/rsvtmp/tanz151/input_data/soc_005deg.nc'
- veg_file = '/rcfs/projects/rsvtmp/tanz151/input_data/GLCFTreeCover.nc'
- wlnd_file = '/rcfs/projects/rsvtmp/tanz151/input_data/glwd.nc'
+ tas_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/era5_hrly/tas_era5_hrly_GrandCoulee_19790101-20241231.nc'
+ hurs_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/era5_hrly/hurs_era5_hrly_GrandCoulee_19790101-20241231.nc'
+ ps_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/era5_hrly/ps_era5_hrly_GrandCoulee_19790101-20241231.nc'
+ pr_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/era5_hrly/pr_era5_hrly_GrandCoulee_19790101-20241231.nc'
+ rsds_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/era5_hrly/rsds_era5_hrly_GrandCoulee_19790101-20241231.nc'
+ rlds_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/era5_hrly/rlds_era5_hrly_GrandCoulee_19790101-20241231.nc'
+ wind_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/era5_hrly/sfcwind_era5_hrly_GrandCoulee_19790101-20241231.nc'
+ hydro_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/Lakes_GrandCoulee_hydro_19850101-20180823.nc'
+ tref_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/ecmwf_ref_1990s.nc'
+ soc_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/soc_005deg.nc'
+ veg_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/GLCFTreeCover.nc'
+ wlnd_file = '/rcfs/projects/nsf_dse/rsvtmp/tanz151/input_data/glwd.nc'
 /
 
 &archive
