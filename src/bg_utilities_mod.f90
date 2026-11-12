@@ -127,46 +127,32 @@ contains
       real(r8), intent(in) :: Dco2              ! CO2 (mol/m3)
       real(r8), intent(in) :: Dsrp              ! soluble reactive P (mol m-3)
       real(r8), intent(in) :: Ipar              ! mol m-2 s-1
-      real(r8), intent(out) :: PCO2(NPOC)       ! CO2 fixation rate (s-1)
-      real(r8) :: fpar(NPOC), ftemp(NPOC)
-      real(r8) :: fsrp(NPOC), fco2(NPOC)
-      real(r8) :: Ksrp(NPOC), Vm0(NPOC)
+      real(r8), intent(out) :: PCO2(NPTK)       ! CO2 fixation rate (s-1)
+      real(r8) :: fpar(NPTK), ftemp(NPTK)
+      real(r8) :: fsrp(NPTK), fco2(NPTK)
       
       ! temperature factor
-      call PhotosynTempFactor(temp-T0, ftemp)
+      call PhytoGrowthTempFactor(temp, ftemp)
       ! CO2 factor
       fco2 = Dco2 / (Dco2 + Kco2)
       ! nutrient limitation factor
-      Ksrp = (/sa_params(Param_Ksrps), sa_params(Param_Ksrpl)/)
-      fsrp = Dsrp / (Dsrp + Ksrp)
+      fsrp = Dsrp / (Dsrp + PAR_Ksrp)
       ! light factor
-      Vm0 = (/sa_params(Param_Vm0s), sa_params(Param_Vm0l)/)
-      fpar =  (1.0 - exp(-phAlpha*Ipar/(Vm0+e8))) * exp(-phBeta*Ipar/(Vm0+e8))
+      fpar =  (1.0 - exp(-phAlpha*Ipar/VmaxConst)) * exp(-phBeta*Ipar/VmaxConst)
 
-      PCO2 = Vm0 * fpar * ftemp * min(fsrp,fco2) / SECOND_OF_DAY
+      PCO2 = PAR_Vmax * fpar * ftemp * min(fsrp,fco2) / SECOND_OF_DAY
    end subroutine
 
-   subroutine PhotosynTempFactor(temp, ftemp)
+   subroutine PhytoGrowthTempFactor(temp, ftemp)
       implicit none
-      real(r8), intent(in) :: temp           ! celsius
-      real(r8), intent(out) :: ftemp(NPOC)
-      real(r8) :: thetaH, tfrac
-      integer :: kk
-      
-      ! maximum temperature factor is 3.0
-      do kk = 1, NPOC, 1
-         if (temp<0._r8) then
-            ftemp(kk) = 0._r8
-         else if (temp<=Topt_ppk(kk)) then
-            ftemp(kk) = fTmax_ppk(kk) * ( ThetaG**(temp-Topt_ppk(kk)) - &
-               ThetaG**(-Topt_ppk(kk)) ) + 1._r8
-         else
-            thetaH = 2._r8 - ThetaG**(-Topt_ppk(kk))
-            tfrac = (temp - Topt_ppk(kk)) / (Tmax_ppk(kk) - Topt_ppk(kk))
-            ftemp(kk) = fTmax_ppk(kk) * ( thetaH - thetaH**tfrac ) + 1._r8
-            ftemp(kk) = max(ftemp(kk), 0._r8)
-         end if
-      end do
+      real(r8), intent(in) :: temp              ! water temperature (K)
+      real(r8), intent(out) :: ftemp(NPTK)      ! unitless
+      real(r8), parameter :: Tref = 20._r8      ! reference temperature
+      real(r8) :: Tm
+
+      Tm = temp - T0    ! celsius
+      ftemp = exp( -0.5_r8/PAR_SigT**2 * ( (Tm-PAR_Topt)**2 - &
+               (TRef-PAR_Topt)**2) )
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -175,9 +161,9 @@ contains
    !           1) Chla:C vs depth "Regulation of phytoplankton carbon to 
    !           chlorophyll ratio by light, nutrients and temperature in the
    !           equatorial Pacific Ocean: a basin-scale model" (Wang et al., 2009)
-   !           2) Dynamic model ofphytoplankton growth and acclimation: Response
-   !           of the balanced growthrate and the chlorophylla: Carbon ratio to
-   !           light, nutrient‐limitation andtemperature (Geider et al., 1996)
+   !           2) Dynamic model of phytoplankton growth and acclimation: Response
+   !           of the balanced growth rate and the chlorophyll a: Carbon ratio to
+   !           light, nutrient‐limitation and temperature (Geider et al., 1996)
    !
    !------------------------------------------------------------------------------
    subroutine CalcChl2CRatio(Ipar, temp, Dsrp, Dco2, topIndx, Chl2C)
@@ -188,27 +174,24 @@ contains
       real(r8), intent(in) :: Dco2(:)        ! CO2 (mol/m3)
       integer, intent(in) :: topIndx         ! top water layer index
       real(r8), intent(out) :: Chl2C(:,:)    ! g Chl gC-1
-      real(r8) :: fsrp(NPOC), ftemp(NPOC)
-      real(r8) :: Vm0(NPOC), Ksrp(NPOC)
-      real(r8) :: Pmc(NPOC), fco2(NPOC)
-      real(r8) :: fnutri(NPOC)
-      real(r8) :: omega, Ipar0
+      real(r8) :: fsrp(NPTK), ftemp(NPTK)
+      real(r8) :: Pmc(NPTK), fco2(NPTK)
+      real(r8) :: fnutri(NPTK)
+      real(r8) :: omega, Ipar0, Tm
       integer :: ii, kk, nz
 
       nz = size(Ipar)
       Ipar0 = Ipar(topIndx)
       if (Ipar0>e8) then
-         Vm0 = (/sa_params(Param_Vm0s), sa_params(Param_Vm0l)/)
-         Ksrp = (/sa_params(Param_Ksrps), sa_params(Param_Ksrpl)/)
-         Pmc = Vm0 * (phAlpha/(phAlpha+phBeta)) * (phBeta/(phAlpha+phBeta))** &
-            (phBeta/phAlpha)
+         Pmc = PAR_Vmax * (phAlpha/(phAlpha+phBeta)) * &
+            (phBeta/(phAlpha+phBeta))**(phBeta/phAlpha)
          do ii = 1, nz, 1
             if (ii>=topIndx) then
-               fsrp = Dsrp(ii) / (Dsrp(ii) + Ksrp)
+               fsrp = Dsrp(ii) / (Dsrp(ii) + PAR_Ksrp)
                fco2 = Dco2(ii) / (Dco2(ii) + Kco2) 
                fnutri = min(fsrp,fco2)
-               call PhotosynTempFactor(temp(ii)-T0, ftemp)
-               do kk = 1, NPOC, 1
+               call PhytoGrowthTempFactor(temp(ii), ftemp)
+               do kk = 1, NPTK, 1
                   if (ftemp(kk)<e8 .or. fnutri(kk)<e8) then
                      Chl2C(kk,ii) = Chl2Cmin(kk) 
                   else
@@ -231,6 +214,97 @@ contains
 
    !------------------------------------------------------------------------------
    !
+   ! Purpose: Calculate algae metabolic loss, including autotrophic
+   !          respiration (DIC), mortality (detritus) and excretion (DOC).
+   !
+   !------------------------------------------------------------------------------
+   subroutine AutotrophicR(temp, rresp, rmort)
+      implicit none
+      real(r8), intent(in) :: temp           ! water temperature (K)
+      real(r8), intent(out) :: rresp(NPTK)   ! repsiration (s-1) 
+      real(r8), intent(out) :: rmort(NPTK)   ! mortality (s-1)
+      real(r8) :: ftemp(NPTK)
+
+      call PhytoGrowthTempFactor(temp, ftemp)
+      rresp = PAR_Klr * ftemp / SECOND_OF_DAY
+      rmort = KMort / SECOND_OF_DAY
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Deposition-induced phytoplankton mortality rate.
+   !
+   !------------------------------------------------------------------------------
+   subroutine DepositionMortality(Vs, lensink, fsed, rmort)
+      implicit none
+      real(r8), intent(in) :: Vs(NPTK)       ! sink velocity (m/s)
+      real(r8), intent(in) :: lensink        ! sinking length to sediment bed (m)
+      real(r8), intent(in) :: fsed           ! ratio of water-sediment interface to cross section
+      real(r8), intent(out) :: rmort(NPTK)   ! mortality rate (s-1)
+      integer :: ii
+
+      do ii = 1, NPTK, 1
+         rmort(ii) = fsed * max(Vs(ii),0._r8) / lensink * PAR_fDepMort(ii)
+      end do
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Zooplankton grazing induced phytoplankton mortality rate based on
+   !          Lotka–Volterra predator–prey model.
+   !
+   !------------------------------------------------------------------------------
+   subroutine GrazingMortality(temp, Do2, zooC, phytoC, rmort)
+      implicit none
+      real(r8), intent(in) :: temp           ! water temperature (K)
+      real(r8), intent(in) :: Do2            ! dissolved O2 (mol/m3)
+      real(r8), intent(in) :: zooC           ! zooplankton C (gC/m3)
+      real(r8), intent(in) :: phytoC(NPTK)   ! phytoplankton C (gC/m3)
+      real(r8), intent(out) :: rmort(NPTK)   ! mortality (s-1)
+      real(r8) :: ftemp, fo2, ffood
+
+      call ZooGrowthTempFactor(temp, ftemp)
+      ! grazing reduced at hypoxia conditions
+      fo2 = (Do2/(Do2+Ko2AR))
+      ! food saturation factor
+      ffood = 1._r8 !hFoodZoo / (hFoodZoo + sum(phytoC))
+      rmort = PrefZoo * PAR_Gmax * ftemp * fo2 * ffood * max(zooC,0._r8) &
+         / SECOND_OF_DAY
+   end subroutine
+
+   subroutine ZooGrowthTempFactor(temp, ftemp)
+      implicit none
+      real(r8), intent(in) :: temp              ! water temperature (K)
+      real(r8), intent(out) :: ftemp            ! unitless
+      real(r8), parameter :: Tref = 20._r8      ! reference temperature
+      real(r8) :: Tm
+
+      Tm = temp - T0    ! celsius
+      ftemp = exp( -0.5_r8/PAR_zSigT**2 * ( (Tm-PAR_zTopt)**2 - &
+               (TRef-PAR_zTopt)**2) )
+   end subroutine
+
+   subroutine ZooplanktonLoss(temp, Do2, rresp, rmort)
+      implicit none
+      real(r8), intent(in) :: temp           ! water temperature (K)
+      real(r8), intent(in) :: Do2            ! dissolved O2 (mol/m3)
+      real(r8), intent(out) :: rresp         ! respiration rate (s-1)
+      real(r8), intent(out) :: rmort         ! mortality rate (s-1)
+      real(r8) :: ftemp, fo2, fo2r
+
+      call ZooGrowthTempFactor(temp, ftemp)
+      fo2 = (Do2/(Do2+Ko2AR))
+      rresp = PAR_kDRespZoo * ftemp * fo2 / SECOND_OF_DAY
+      if (Do2 < Ko2AR) then
+         fo2r = 1._r8 + Ko2AR / (Do2+0.1_r8*Ko2AR)
+         rmort = PAR_kMortZoo * fo2r / SECOND_OF_DAY 
+      else
+         rmort = PAR_kMortZoo / SECOND_OF_DAY
+      end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
    ! Purpose: Calculate CH4 oxidation rate. 
    !
    !------------------------------------------------------------------------------
@@ -240,14 +314,29 @@ contains
       real(r8), intent(in) :: Do2      ! O2 concentration (mol/m3)
       real(r8), intent(in) :: temp     ! water temperature (K)
       real(r8), intent(out) :: oCH4    ! mol CH4 m-3 s-1
-      real(r8) :: Qch4, OQ10, betaCH4, lamdaO2
+      real(r8) :: lamdaO2
 
-      Qch4 = sa_params(Param_Qch4)
-      OQ10 = sa_params(Param_OQ10)
-      betaCH4 = sa_params(Param_betaCH4)
-      lamdaO2 = sa_params(Param_lamdaO2) / (1._r8 + Dch4/Dch4_cr)
-      oCH4 = Qch4 * (OQ10**(0.1*(temp-Tor))) * (Dch4**betaCH4) * &
-         exp(-lamdaO2*Do2) * (1.0 - exp(-betaO2*Do2))
+      lamdaO2 = PAR_lamdaO2 / (1._r8 + Dch4/Dch4_cr)
+      oCH4 = PAR_Qch4 * (PAR_OQ10**(0.1*(temp-Tor))) * &
+         (Dch4**PAR_betaCH4) * exp(-lamdaO2*Do2) * (1.0 - exp(-betaO2*Do2))
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Calculate microbial mineralization rate in water column.
+   !
+   !------------------------------------------------------------------------------
+   subroutine HeterotrophicR(temp, Do2, trophic, rCO2)
+      implicit none
+      real(r8), intent(in) :: temp        ! water temperature (K)
+      real(r8), intent(in) :: Do2         ! dissolved O2 (mol/m3)
+      integer, intent(in) :: trophic      ! trophic class
+      real(r8), intent(out) :: rCO2       ! mol m-3 s-1
+      real(r8) :: rRDOM(2), ftemp, fo2
+
+      ftemp = ThetaCM**(temp-T0-20.0)
+      fo2 = Do2 / (Do2 + Ko2CM)
+      rCO2 = rCO2_BOD(trophic) * ftemp * fo2
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -259,14 +348,16 @@ contains
    !------------------------------------------------------------------------------
    subroutine Methanogenesis(carb, temp, sal, eHL, rCH4, rCO2)
       implicit none
-      real(r8), intent(in) :: carb(:)     ! unfrozen carbon pool (gC/m3)
-      real(r8), intent(in) :: temp        ! sediment temperature (K)
-      real(r8), intent(in) :: sal         ! porewater salinity (g/kg)
-      real(r8), intent(in) :: eHL         ! redox potential (mV)
-      real(r8), intent(out) :: rCH4(:)    ! mol CH4 m-3 s-1
-      real(r8), intent(out) :: rCO2(:)    ! mol CO2 m-3 s-1
+      real(r8), intent(in) :: carb(NSEDC)    ! unfrozen carbon pool (gC/m3)
+      real(r8), intent(in) :: temp           ! sediment temperature (K)
+      real(r8), intent(in) :: sal            ! porewater salinity (g/kg)
+      real(r8), intent(in) :: eHL            ! redox potential (mV)
+      real(r8), intent(out) :: rCH4(NSEDC)   ! mol CH4 m-3 s-1
+      real(r8), intent(out) :: rCO2(NSEDC)   ! mol CO2 m-3 s-1
+      real(r8), parameter :: frcCH4(NSEDC) = (/0.25, 0.5, 0.5/)
+      real(r8), parameter :: frcCO2(NSEDC) = (/1.0, 4.0, 4.0/)
       real(r8) :: fRx, ftemp, fph, fsal
-      real(r8) :: Rc, PQ10
+      integer :: ii
 
       ! pH factor (borrowed from ELM wetland CH4 model)
       !if (pH>pHmin .and. pH<pHmax) then
@@ -290,147 +381,47 @@ contains
       end if
 
       ! passive C mainly through hydrogenotrophic methanogenesis
-      if (carb(pasC)>e8) then
-         Rc = sa_params(Param_Rcpas) 
-         PQ10 = sa_params(Param_PQ10pas)
-         ftemp = PQ10**(0.1*(temp-Tpr(pasC)))
-         rCH4(pasC) = 0.25 * Rc * carb(pasC) * ftemp * fRx * fsal / MasC
-         rCO2(pasC) = rCH4(pasC)
-      else
-         rCH4(pasC) = 0.0_r8
-         rCO2(pasC) = 0.0_r8
-      end if
+      ! active and old C mainly through acetoclastic methanogenesis
+      do ii = 1, NSEDC, 1
+         if (carb(ii)>e8) then
+            ftemp = PAR_PQ10(ii)**(0.1*(temp-Tpr(ii)))
+            rCH4(ii) = frcCH4(ii) * PAR_Rc_ch4(ii) * carb(ii) * &
+               ftemp * fRx * fsal / MasC
+            rCO2(ii) = frcCO2(ii) * rCH4(ii)
+         else
+            rCH4(ii) = 0._r8
+            rCO2(ii) = 0._r8
+         end if
+      end do
 
-      ! active C mainly through acetoclastic methanogenesis
-      if (carb(actC)>e8) then
-         Rc = sa_params(Param_Rcact)
-         PQ10 = sa_params(Param_PQ10act)
-         ftemp = PQ10**(0.1*(temp-Tpr(actC)))
-         rCH4(actC) = 0.5 * Rc * carb(actC) * ftemp * fRx * fsal / MasC
-         rCO2(actC) = 4.0 * rCH4(actC)
-      else
-         rCH4(actC) = 0.0_r8
-         rCO2(actC) = 0.0_r8
-      end if
-
-      ! yedoma old C mainly through acetoclastic methanogenesis
-      if (carb(oldC)>e8) then
-         Rc = sa_params(Param_Rcold)
-         PQ10 = sa_params(Param_PQ10old)
-         ftemp = PQ10**(0.1*(temp-Tpr(oldC)))
-         rCH4(oldC) = 0.5 * Rc * carb(oldC) * ftemp * fRx * fsal / MasC
-         rCO2(oldC) = 4.0 * rCH4(oldC)
-      else
-         rCH4(oldC) = 0.0_r8
-         rCO2(oldC) = 0.0_r8
-      end if
    end subroutine
 
    subroutine OxicMethanogenesis(gpp, rCH4)
       implicit none
       real(r8), intent(in) :: gpp(:)   ! GPP (gC/m3/s)
       real(r8), intent(out) :: rCH4    ! oxic methane production (mol/m3/s)
-      real(r8) :: Rc 
 
-      Rc = sa_params(Param_RcOMP)
-      rCH4 = Rc * sum(gpp)
+      rCH4 = PAR_RcOMP * sum(gpp)
    end subroutine
 
    subroutine AerobicRespiration(carb, temp, Do2, rCO2)
       implicit none
-      real(r8), intent(in) :: carb(:)     ! unfrozen carbon pool (gC/m3)
-      real(r8), intent(in) :: temp        ! K
-      real(r8), intent(in) :: Do2         ! mol/m3
-      real(r8), intent(out) :: rCO2(:)    ! mol/m3/s
+      real(r8), intent(in) :: carb(NSEDC)    ! unfrozen carbon pool (gC/m3)
+      real(r8), intent(in) :: temp           ! K
+      real(r8), intent(in) :: Do2            ! mol/m3
+      real(r8), intent(out) :: rCO2(NSEDC)   ! mol/m3/s
       real(r8) :: Rca, ftemp, fo2
-     
-      if (carb(pasC)>e8) then
-         Rca = sa_params(Param_Rcapas)
-         ftemp = ThetaCM**(temp-T0-20.0)
-         fo2 = Do2 / (Do2 + Ko2CM)
-         rCO2(pasC) = Rca * ftemp * fo2 * carb(pasC) / MasC
-      else
-         rCO2(pasC) = 0.0_r8
-      end if
-
-      if (carb(actC)>e8) then
-         Rca = sa_params(Param_Rcaact)
-         ftemp = ThetaCM**(temp-T0-20.0)
-         fo2 = Do2 / (Do2 + Ko2CM)
-         rCO2(actC) = Rca * ftemp * fo2 * carb(actC) / MasC
-      else
-         rCO2(actC) = 0.0_r8
-      end if
-
-      rCO2(oldC) = 0.0_r8
-   end subroutine
-
-   !------------------------------------------------------------------------------
-   !
-   ! Purpose: Calculate algae metabolic loss, including autotrophic
-   !          respiration (DIC), mortality (detritus) and excretion (DOC).
-   !
-   !------------------------------------------------------------------------------
-   subroutine AutotrophicR(temp, Do2, rloss, rresp, rdoc, rmort)
-      implicit none
-      real(r8), intent(in) :: temp           ! water temperature (K)
-      real(r8), intent(in) :: Do2            ! dissolved O2 (mol/m3)
-      real(r8), intent(out) :: rloss(NPOC)   ! metabolic loss rate (s-1)
-      real(r8), intent(out) :: rresp(NPOC)   ! repsiration (s-1) 
-      real(r8), intent(out) :: rdoc(NPOC)    ! excretion (s-1)
-      real(r8), intent(out) :: rmort(NPOC)   ! mortality (s-1)
-      real(r8) :: Klr(NPOC)
-      real(r8) :: fo2AR, fo2HR
-
-      Klr = (/sa_params(Param_Klrs), sa_params(Param_Klrl)/)
-      if (Do2<Ko2AR) then
-         fo2AR = 0._r8
-         fo2HR = 0._r8
-      else
-         fo2AR = Do2 / (Do2 + Ko2AR)
-         fo2HR = Do2 / (Do2 + Ko2CM)
-      end if
-      rloss = Klr * (ThetaML**(temp-T0-20.)) / SECOND_OF_DAY
-      rresp = Fres * fo2AR * rloss
-      rdoc = Fdom * (1._r8 - Fres) * fo2HR * rloss
-      rmort = rloss - rresp - rdoc
-   end subroutine
-
-   !------------------------------------------------------------------------------
-   !
-   ! Purpose: Deposition-induced phytoplankton mortality rate.
-   !
-   !------------------------------------------------------------------------------
-   subroutine DepositionMortality(dist, hhyp, rmort)
-      implicit none
-      real(r8), intent(in) :: dist           ! sinking path to bottom (m)
-      real(r8), intent(in) :: hhyp           ! hypolimnion thickness (m)
-      real(r8), intent(out) :: rmort(NPOC)   ! mortality rate (s-1)
-      real(r8) :: fDepMort(NPOC)
-
-      fDepMort = (/sa_params(Param_fDepMorts), sa_params(Param_fDepMortl)/)
-      if (dist>hhyp .or. hhyp<e8) then
-         rmort = 0._r8
-      else
-         rmort = Vs0 / hhyp * fDepMort 
-      end if
-   end subroutine
-
-   !------------------------------------------------------------------------------
-   !
-   ! Purpose: Calculate microbial mineralization rate.
-   !
-   !------------------------------------------------------------------------------
-   subroutine HeterotrophicR(temp, Do2, rCO2)
-      implicit none
-      real(r8), intent(in) :: temp        ! water temperature (K)
-      real(r8), intent(in) :: Do2         ! dissolved O2 (mol/m3)
-      real(r8), intent(out) :: rCO2       ! mol m-3 s-1
-      real(r8) :: rRDOM(2), ftemp, fo2
+      integer :: ii
 
       ftemp = ThetaCM**(temp-T0-20.0)
       fo2 = Do2 / (Do2 + Ko2CM)
-      rCO2 = rCO2_BOD * ftemp * fo2
+      do ii = 1, NSEDC, 1
+         if (carb(ii)>e8) then
+            rCO2(ii) = PAR_Rc_ar(ii) * ftemp * fo2 * carb(ii) / MasC 
+         else
+            rCO2(ii) = 0._r8 
+         end if
+      end do
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -527,7 +518,7 @@ contains
          bkMortVeg = kMortVegSum
       end if
 
-      cMuMaxVeg = sa_params(Param_MuMaxVeg)
+      cMuMaxVeg = PAR_MuMaxVeg
       if (phenol==dormant_season) then
          aMuVeg = 0._r8
          tDEnvVeg = 0._r8

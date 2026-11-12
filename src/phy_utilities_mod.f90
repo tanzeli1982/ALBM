@@ -7,9 +7,10 @@ module phy_utilities_mod
 !---------------------------------------------------------------------------------
    use shr_kind_mod,          only: r8, i8
    use shr_ctrl_mod,          only: e8 => SHR_CTRL_E8, inf => INFINITE_E8, &
-                                    inft => INFINITESIMAL_E8
+                                    inft => INFINITESIMAL_E8, HSED
    use phy_const_mod
-   use shr_typedef_mod,       only: SimTime, LakeInfo
+   use shr_typedef_mod,       only: SimTime, LakeInfo, HypsometricCurve
+   use math_utilities_mod
 
    interface CalcPistonVelocity
       module procedure CalcPistonVelocitySR
@@ -360,7 +361,7 @@ contains
       if (Tw>e8) then
          CalcWaterHeatDiffusivity = (0.558 + 2.223d-3*Tw - 1.797d-5*(Tw**2)) / 4.2d6
       else if (Tw<e8 .and. Tw>-5._r8) then
-         param = Tw / (-5._r8)
+         param = Tw / (-5._r8) 
          CalcWaterHeatDiffusivity = Ktw_ref*(1.0 - param) + Kti_ref*param 
       else
          CalcWaterHeatDiffusivity = 1.16 * (1.91 - 8.66d-3*Tw + &
@@ -1408,10 +1409,10 @@ contains
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Construct depth and area grids
+   ! Purpose: Build the depth grids for water and sediment columns.
    !
    !------------------------------------------------------------------------------
-   subroutine ConstructDepthVector(info, Zw, dZw, Zs, dZs)
+   subroutine BuildDepthVector(info, Zw, dZw, Zs, dZs)
       implicit none
       type(LakeInfo), intent(in) :: info     ! lake information object
       real(r8), intent(out) :: Zw(:)         ! water layer depth vector
@@ -1460,8 +1461,8 @@ contains
       end do
       ! for sediment column
       ns = size(Zs) - 1
-      K2 = 0.05_r8
-      denom = info%hsed / (exp(K2*ns) - 1)
+      K2 = 0.3_r8 * (20._r8/ns)**1.3
+      denom = HSED / (exp(K2*ns) - 1)
       do ii = 1, ns+1, 1
          Zs(ii) = (exp(K2*(ii-1)) - 1) * denom
       end do
@@ -1475,6 +1476,76 @@ contains
          end if
       end do
    end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Build the lake structure (e.g., shape).
+   !
+   !------------------------------------------------------------------------------
+   subroutine BuildLakeStructure(info, hypsocurve, Zw, dZw, Az, dAz, &
+                                 SAL, soilColInd, colAz)
+      implicit none
+      type(LakeInfo), intent(in) :: info
+      type(HypsometricCurve), intent(in) :: hypsocurve
+      real(r8), intent(in) :: Zw(:)
+      real(r8), intent(in) :: dZw(:)
+      real(r8), intent(out) :: Az(:)
+      real(r8), intent(out) :: dAz(:)
+      real(r8), intent(out) :: SAL(:)
+      integer, intent(out) :: soilColInd(:)
+      real(r8), intent(out) :: colAz(:)
+      integer :: nz, ii, nscol
+      integer :: icol, indx, indx0
+      real(r8), allocatable :: tmpZw(:)
+      real(r8), allocatable :: tmpAz(:)
+      real(r8), allocatable :: tmpSAL(:)
+
+      ! interpolate and link soil column
+      nz = size(Zw)
+      allocate(tmpZw(nz+1))
+      allocate(tmpAz(nz+1))
+      allocate(tmpSAL(nz+1))
+      do ii = 1, nz+1, 1
+         if (ii==1) then
+            tmpZw(ii) = Zw(ii)
+         else if (ii==nz) then
+            tmpZw(ii) = Zw(ii) - dZw(ii)
+         else if (ii==nz+1) then
+            tmpZw(ii) = Zw(ii-1)
+         else
+            tmpZw(ii) = Zw(ii) - 0.5*dZw(ii)
+         end if
+      end do
+
+      call Interp1d(hypsocurve%h, sqrt(hypsocurve%A), tmpZw, tmpAz)
+      call Interp1d(hypsocurve%h, hypsocurve%S, tmpZw, tmpSAL)
+      tmpAz = 1.d6 * tmpAz**2 ! km^2 > m^2
+      Az = tmpAz(1:nz)
+      SAL = tmpSAL(1:nz)
+      nscol = size(colAz)
+      do ii = 1, nz, 1
+         if (ii<nz) then
+            dAz(ii) = max( Az(ii)-Az(ii+1), 0._r8 )
+         else
+            dAz(ii) = max( Az(ii), 0._r8 )
+         end if
+         indx = nscol - INT(nscol*Az(ii)/Az(1))
+         indx = max(min(indx,nscol),1)
+         soilColInd(ii) = indx
+      end do
+
+      do icol = 1, nscol, 1
+         indx = COUNT(soilColInd<=icol)
+         indx0 = COUNT(soilColInd<=icol-1) + 1
+         if (indx0<=indx) then
+            colAz(icol) = sum(dAz(indx0:indx))
+         else
+            colAz(icol) = 0._r8
+         end if
+      end do
+
+      deallocate(tmpZw, tmpAz, tmpSAL)
+   end subroutine 
 
    !------------------------------------------------------------------------------
    !
@@ -1527,14 +1598,18 @@ contains
       real(r8), intent(out) :: tsb        ! units: K
       real(r8) :: tgw, zl, geom
 
-      if (info%thrmkst>0 .and. margin) then
-         tgw = t2mref - T0 - 0.5_r8       ! ground water temperature
+      if (t2mref>T0+10._r8) then
+         tsb = t2mref
       else
-         tgw = t2mref - T0 + 2.0_r8       ! ground water temperature
+         if (info%thrmkst>0 .and. margin) then
+            tgw = t2mref - T0 - 0.5_r8       ! ground water temperature
+         else
+            tgw = t2mref - T0 + 2.0_r8       ! ground water temperature
+         end if
+         geom = (info%Asurf)**0.25 / info%depth    ! lake geometry ratio 
+         geom = max( min(geom,4.0), 0.8 )    ! Fig. 9
+         tsb = T0 + 0.5 * (tgw - 2) + 0.5 * (tgw + 6) * log(geom)
       end if
-      geom = (info%Asurf)**0.25 / info%depth    ! lake geometry ratio 
-      geom = max( min(geom,4.0), 0.8 )    ! Fig. 9
-      tsb = T0 + 0.5 * (tgw - 2) + 0.5 * (tgw + 6) * log(geom)
    end subroutine
 
    function CalcGreatCircleDistance(lon0, lat0, lon1, lat1)

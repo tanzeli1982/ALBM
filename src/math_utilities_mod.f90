@@ -1185,8 +1185,8 @@ contains
          do jj = 1, nsample, 1
             xsum2 = xsum2 + samples(jj,ii)*samples(jj,ii)
          end do
-         xmean(ii) = xsum1 / dble(nsample)
-         xstd(ii) = xsum2 / dble(nsample) - xmean(ii)*xmean(ii)
+         xmean(ii) = xsum1 / DBLE(nsample)
+         xstd(ii) = xsum2 / DBLE(nsample) - xmean(ii)*xmean(ii)
          if (xstd(ii)<delta) then
             xstd(ii) = delta
          end if
@@ -1194,7 +1194,7 @@ contains
          xstd(ii) = xstd(ii) / bound(ii)
          gsum = gsum + log( delta + (xmax(ii)-xmin(ii))/bound(ii) )
       end do
-      gnrng = exp(gsum/dble(nparam))
+      gnrng = exp(gsum/DBLE(nparam))
       if (gnrng<=criteria) then
          IsPopulationConverged = .True.
       else
@@ -1224,8 +1224,8 @@ contains
          do jj = 1, nsample, 1
             xsum2 = xsum2 + samples(jj,ii)*samples(jj,ii)
          end do
-         xmean = xsum1 / dble(nsample)
-         std(ii) = xsum2 / dble(nsample) - xmean*xmean
+         xmean = xsum1 / DBLE(nsample)
+         std(ii) = xsum2 / DBLE(nsample) - xmean*xmean
          if (std(ii)<delta) then
             std(ii) = delta
          end if

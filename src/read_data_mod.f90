@@ -7,12 +7,11 @@ module read_data_mod
 !
 !---------------------------------------------------------------------------------
    use shr_kind_mod,       only : cs => SHR_KIND_CS, cx => SHR_KIND_CX, &
-                                  r8, r4, i8, i4, i1
+                                  cl => SHR_KIND_CL, r8, r4, i8, i4, i1
    use shr_typedef_mod,    only : LakeInfo, SimTime
    use shr_ctrl_mod
    use shr_param_mod
    use io_utilities_mod
-   use math_utilities_mod
    use phy_utilities_mod
    use bg_const_mod
 
@@ -61,17 +60,15 @@ contains
       call ReadLakeInfoData(lake_file, 'alt', lakeId, elev)    ! m
       call ReadLakeInfoData(lake_file, 'wrt', lakeId, lake_info%wrt)    ! day
       call ReadLakeInfoData(lake_file, 'pH', lakeId, lake_info%pH)      !
-      call ReadLakeInfoData(lake_file, 'sal', lakeId, lake_info%sal)    !
       call ReadLakeInfoData(lake_file, 'SRP', lakeId, lake_info%srp)    ! g/m^3
       call ReadLakeInfoData(lake_file, 'Fe', lakeId, lake_info%sedFe)   ! g/m^3
       call ReadLakeInfoData(lake_file, 'csed', lakeId, lake_info%csed)  ! kgC/m^3
       call ReadLakeInfoData(lake_file, 'cdep', lakeId, lake_info%cdep)  ! gC/m^2/yr
       call ReadLakeInfoData(lake_file, 'ice', lakeId, lake_info%excice) ! fraction
-      call ReadLakeInfoData(lake_file, 'hsed', lakeId, lake_info%hsed)  ! m
       call ReadLakeInfoData(lake_file, 'bfdep', lakeId, lake_info%bfdep)  ! m
-      call ReadLakeInfoData(lake_file, 'thrmkst', lakeId, lake_info%thrmkst)
       call ReadLakeInfoData(lake_file, 'eta', lakeId, eta) ! m^-1
-      call ReadLakeInfoData(lake_file, 'refPOC', lakeId, lake_info%refPOC) ! gC/m3
+      call ReadLakeInfoData(lake_file, 'thrmkst', lakeId, lake_info%thrmkst)
+      call ReadLakeInfoData(lake_file, 'trophic', lakeId, lake_info%trophic)
       lake_info%id = lakeId
       lake_info%sampleId = sampleId
       lake_info%Asurf = 1.d6 * area  ! m^2
@@ -83,13 +80,12 @@ contains
       else
          WATER_LAYER = NWLAYER
       end if
-      if (NINT(lake_info%hsed)==10) then
-         SED_LAYER = 20
-      else
-         SED_LAYER = NSLAYER
-      end if
-      if (lake_info%itype==yedoma .and. lake_info%thrmkst/=2) then
+      SED_LAYER = NSLAYER
+      if (lake_info%itype==yedoma_lake .and. lake_info%thrmkst/=2) then
          call Endrun('lake_info%itype and lake_info%thrmkst must be both yedoma') 
+      end if
+      if (lake_info%thrmkst>0 .and. lake_info%excice<e8) then
+         call Endrun('thermokarst lakes must have positive lake_info%excice')
       end if
       if (DEBUG) then
          print *, "Lake information: ", lake_info
@@ -128,46 +124,13 @@ contains
 
    !------------------------------------------------------------------------------
    !
-   ! Purpose: Read soil column active flags for ebullition
+   ! Purpose: Read lake hypsometric curve. 
    !
    !------------------------------------------------------------------------------
-   !subroutine ReadSoilColBubFlag(soilColBub)
-   !   implicit none
-   !   integer, intent(out) :: soilColBub(:)
-   !   integer :: nflag
-   !   integer :: pos2, pos1
-   !
-   !   soilColBub = 1 ! default values
-   !   nflag = 0
-   !   pos1 = 1
-   !   do while (.True.)
-   !      pos2 = index(Bubble_Cols(pos1:), ",")
-   !      nflag = nflag + 1
-   !      if (pos2==0) then
-   !         exit
-   !      end if
-   !      pos1 = pos2 + pos1
-   !   end do
-   !   if (nflag>NSCOL) then
-   !      call Endrun("The size of Bubble_Cols cannot exceed NSCOL")
-   !   end if
-   !   read(Bubble_Cols,fmt=*) soilColBub(1:nflag)
-   !end subroutine
-
-   !------------------------------------------------------------------------------
-   !
-   ! Purpose: Read lake bathymetry 
-   !
-   !------------------------------------------------------------------------------
-   subroutine ReadLakeBathymetry(info, Zw, dZw, Az, dAz, SAL, soilColInd)
+   subroutine ReadLakeHypsography(info, hypsocurve)
       implicit none
       type(LakeInfo), intent(inout) :: info
-      real(r8), intent(in) :: Zw(:)
-      real(r8), intent(in) :: dZw(:)
-      real(r8), intent(out) :: Az(:)
-      real(r8), intent(out) :: dAz(:)
-      real(r8), intent(out) :: SAL(:)
-      integer, intent(out) :: soilColInd(:)
+      type(HypsometricCurve), intent(out) :: hypsocurve
       character(len=32) :: fname = "ReadLakeBathymetry"
       character(cx) :: fullname
       integer(kind=MPI_OFFSET_KIND) :: nstart(2)
@@ -175,18 +138,12 @@ contains
       integer(kind=MPI_OFFSET_KIND) :: nlevel
       integer :: ncid, dimid
       integer :: h_varid, A_varid, S_varid
-      integer :: ii, nz, indx, nLvalid
+      integer :: ii, nLvalid
       real(r8), allocatable :: tmph(:,:)
       real(r8), allocatable :: tmpA(:,:)
       real(r8), allocatable :: tmpS(:,:)
-      real(r8), allocatable :: tmph_corr(:)
-      real(r8), allocatable :: tmpA_corr(:)
-      real(r8), allocatable :: tmpS_corr(:)
-      real(r8), allocatable :: tmpZw(:)
-      real(r8), allocatable :: tmpAz(:)
-      real(r8), allocatable :: tmpSAL(:)
-
-      call GetFullFileName(bathy_file, fullname) 
+      
+      call GetFullFileName(bathy_file, fullname)
       call check( fname, nf90mpi_open(MPI_COMM_WORLD, trim(fullname), &
                   NF90_NOWRITE, MPI_INFO_NULL, ncid) )
       call check( fname, nf90mpi_inq_dimid(ncid, 'level', dimid) )
@@ -203,60 +160,31 @@ contains
       call check( nf90mpi_get_var_all(ncid, A_varid, tmpA, nstart, ncount) )
       call check( nf90mpi_get_var_all(ncid, S_varid, tmpS, nstart, ncount) )
       call check( nf90mpi_close(ncid) )
-
+ 
       ! remove all zero area above the maximum depth
-      allocate(tmph_corr(nlevel))
-      allocate(tmpA_corr(nlevel))
-      allocate(tmpS_corr(nlevel))
       nLvalid = 0
       do ii = 1, nlevel, 1
          if (tmpA(ii,1)>e8 .or. abs(tmph(ii,1)-info%maxdepth)<e8) then
             nLvalid = nLvalid + 1
-            tmph_corr(nLvalid) = tmph(ii,1)
-            tmpA_corr(nLvalid) = tmpA(ii,1)
-            tmpS_corr(nLvalid) = tmpS(ii,1)
          end if
       end do
+      allocate(hypsocurve%h(nLvalid))
+      allocate(hypsocurve%A(nLvalid))
+      allocate(hypsocurve%S(nLvalid))
 
-      ! interpolate and link soil column
-      nz = size(Zw)
-      allocate(tmpZw(nz+1))
-      allocate(tmpAz(nz+1))
-      allocate(tmpSAL(nz+1))
-      do ii = 1, nz+1, 1
-         if (ii==1) then
-            tmpZw(ii) = Zw(ii)
-         else if (ii==nz) then
-            tmpZw(ii) = Zw(ii) - dZw(ii)
-         else if (ii==nz+1) then
-            tmpZw(ii) = Zw(ii-1)
-         else
-            tmpZw(ii) = Zw(ii) - 0.5*dZw(ii)
+      nLvalid = 0
+      do ii = 1, nlevel, 1
+         if (tmpA(ii,1)>e8 .or. abs(tmph(ii,1)-info%maxdepth)<e8) then
+            nLvalid = nLvalid + 1
+            hypsocurve%h(nLvalid) = tmph(ii,1)
+            hypsocurve%A(nLvalid) = tmpA(ii,1)
+            hypsocurve%S(nLvalid) = tmpS(ii,1)
          end if
-      end do
-
-      call Interp1d(tmph_corr(1:nLvalid), sqrt(tmpA_corr(1:nLvalid)), &
-               tmpZw, tmpAz)
-      call Interp1d(tmph_corr(1:nLvalid), tmpS_corr(1:nLvalid), tmpZw, tmpSAL)
-      tmpAz = 1.d6 * tmpAz**2 ! km^2 > m^2
-      Az = tmpAz(1:nz)
-      SAL = tmpSAL(1:nz)
-      do ii = 1, nz, 1
-         if (ii<nz) then
-            dAz(ii) = max( Az(ii)-Az(ii+1), 0._r8 )
-         else
-            dAz(ii) = max( Az(ii), 0._r8 )
-         end if
-         indx = NSCOL - INT(NSCOL*Az(ii)/Az(1))
-         indx = max(min(indx,NSCOL),1)
-         soilColInd(ii) = indx
       end do
 
       deallocate(tmph, tmpA, tmpS)
-      deallocate(tmph_corr, tmpA_corr, tmpS_corr)
-      deallocate(tmpZw, tmpAz, tmpSAL)
       if (DEBUG .and. masterproc) then
-         print *, "Read bathymetry from " // trim(fullname)
+         print *, "Read hypsography from " // trim(fullname)
       end if
    end subroutine
 
@@ -272,17 +200,18 @@ contains
       integer :: error
       namelist /general/ run_mode, lake_file, lake_range, bathy_file, opt_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
-                            Carbon_Module, Start_Year, Start_Month,  &
-                            Start_Day, End_Year, End_Month, End_Day, &
-                            Spinup_Month, Spinup_Day, nSpinup, Use_Leap
+                            Carbon_Module, Hydro_Module, Start_Year, &
+                            Start_Month, Start_Day, End_Year, End_Month, &
+                            End_Day, Spinup_Month, Spinup_Day, nSpinup, Use_Leap
       namelist /resolution/ NWLAYER, NSLAYER, NRLAYER, NSCOL 
       namelist /bayesian/ NMAXSAMPLE, sample_range, mc_file, SA_Start_Year, &
                           SA_Start_Month, SA_Start_Day, SA_End_Year, &
                           SA_End_Month, SA_End_Day
       namelist /radiation/ solar_dir, gas_dir, albedo_dir, co2_file, &
                            o3_file, aod_file
-      namelist /rundata/ forcing_tstep, forcing_time, tas_file, tasmax_file, &
-                         tasmin_file, hurs_file, ps_file, pr_file, prsn_file, &
+      namelist /rundata/ forcing_type, forcing_tstep, forcing_time, &
+                         tas_file, tasmax_file, tasmin_file, hurs_file, &
+                         ps_file, pr_file, prsn_file, &
                          rsds_file, rlds_file, wind_file, hydro_file, &
                          tref_file, soc_file, veg_file, wlnd_file
       namelist /archive/ archive_tstep, archive_dir
@@ -362,6 +291,7 @@ contains
       call MPI_BCAST(Bubble_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Diagenesis_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Carbon_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
+      call MPI_BCAST(Hydro_Module, 1, MPI_LOGICAL, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Start_Year, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Start_Month, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
       call MPI_BCAST(Start_Day, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, err)
@@ -403,6 +333,8 @@ contains
       call MPI_BCAST(aod_file, len(aod_file), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
       ! rundata group
+      call MPI_BCAST(forcing_type, len(forcing_type), MPI_CHARACTER, 0, &
+                     MPI_COMM_WORLD, err)
       call MPI_BCAST(forcing_tstep, len(forcing_tstep), MPI_CHARACTER, 0, &
                      MPI_COMM_WORLD, err)
       call MPI_BCAST(forcing_time, len(forcing_time), MPI_CHARACTER, 0, &
@@ -458,17 +390,18 @@ contains
       integer :: error
       namelist /general/ run_mode, lake_file, lake_range, opt_file
       namelist /simulation/ Thermal_Module, Bubble_Module, Diagenesis_Module, &
-                            Carbon_Module, Start_Year, Start_Month,  &
-                            Start_Day, End_Year, End_Month, End_Day, &
-                            Spinup_Month, Spinup_Day, nSpinup, Use_Leap
+                            Carbon_Module, Hydro_Module, Start_Year, &
+                            Start_Month, Start_Day, End_Year, End_Month, &
+                            End_Day, Spinup_Month, Spinup_Day, nSpinup, Use_Leap
       namelist /resolution/ NWLAYER, NSLAYER, NRLAYER, NSCOL 
       namelist /bayesian/ NMAXSAMPLE, sample_range, mc_file, SA_Start_Year, &
                           SA_Start_Month, SA_Start_Day, SA_End_Year, &
                           SA_End_Month, SA_End_Day
       namelist /radiation/ solar_dir, gas_dir, albedo_dir, co2_file, &
                            o3_file, aod_file
-      namelist /rundata/ forcing_tstep, forcing_time, tas_file, tasmax_file, &
-                         tasmin_file, hurs_file, ps_file, pr_file, prsn_file, &
+      namelist /rundata/ forcing_type, forcing_tstep, forcing_time, &
+                         tas_file, tasmax_file, tasmin_file, hurs_file, &
+                         ps_file, pr_file, prsn_file, &
                          rsds_file, rlds_file, wind_file, hydro_file, &
                          tref_file, soc_file, veg_file, wlnd_file
       namelist /archive/ archive_tstep, archive_dir
@@ -543,7 +476,7 @@ contains
       call check( nf90mpi_inq_dimid(ncid, "lake", dimid) )
       call check( nf90mpi_inquire_dimension(ncid, dimid, len=ncohort) )
       call check( nf90mpi_close(ncid) )
-      nlake = INT(ncohort)
+      nlake = INT(ncohort, i4)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -555,32 +488,38 @@ contains
       implicit none
       real(r8), intent(out) :: OptParams(NPARAM)
       character(len=32) :: fname = "ReadOptimumParameters"
-      character(cx) :: fullname, tempstr
+      character(cx) :: fullname, line
+      character(cl) :: keyword, valstr
+      character(cs) :: trimmed_value
       character(len=15) :: delimstr
-      integer :: error, indx, ii
+      integer, parameter :: NLINE = 31    ! # of parameter value lines
+      integer :: error, indx, nindx
+      integer :: ii, ncount, ios
+      integer :: eq_pos, end_pos
 
+      ! retrieve parameter file
       if (len_trim(opt_file)==0) then
-         if (lake_info%itype==temperate) then
+         if (lake_info%itype==temperate_lake) then
             opt_file = './Parameters/optpar_temperate.dat'
-         else if (lake_info%itype==boreal) then
+         else if (lake_info%itype==boreal_lake) then
             opt_file = './Parameters/optpar_boreal.dat'
-         else if (lake_info%itype==tundra) then
+         else if (lake_info%itype==tundra_lake) then
             opt_file = './Parameters/optpar_tundra.dat'
-         else if (lake_info%itype==yedoma) then
+         else if (lake_info%itype==yedoma_lake) then
             opt_file = './Parameters/optpar_yedoma.dat'
-         else if (lake_info%itype==arctic) then
+         else if (lake_info%itype==arctic_lake) then
             opt_file = './Parameters/optpar_arctic.dat'
-         else if (lake_info%itype==alpine) then
+         else if (lake_info%itype==alpine_lake) then
             opt_file = './Parameters/optpar_alpine.dat'
-         else if (lake_info%itype==eutrophic) then
+         else if (lake_info%itype==eutrophic_lake) then
             opt_file = './Parameters/optpar_eutrophic.dat'
-         else if (lake_info%itype==subtropic) then
+         else if (lake_info%itype==subtropic_lake) then
             opt_file = './Parameters/optpar_subtropic.dat'
-         else if (lake_info%itype==amazon) then
+         else if (lake_info%itype==amazon_lake) then
             opt_file = './Parameters/optpar_amazon.dat'
-         else if (lake_info%itype==rift) then
+         else if (lake_info%itype==rift_lake) then
             opt_file = './Parameters/optpar_rift.dat'
-         else if (lake_info%itype==saline) then
+         else if (lake_info%itype==saline_lake) then
             opt_file = './Parameters/optpar_saline.dat'
          else
             call Endrun('Invalid lake_info%itype')
@@ -589,26 +528,189 @@ contains
       else
          call GetFullFileName(opt_file, fullname)
       end if
+      
+      ! read parameter values
       open(unit=fid, file=fullname, status="old", action="read", &
          iostat=error)
       if (error/=0) then
          close(unit=fid)
          call Endrun(fname, 'Cannot open file ' // trim(fullname))
       end if
-      read(fid, "(A512)", iostat=error) tempstr
-      if (error/=0) then
-         close(unit=fid)
-         call Endrun(fname, 'reading ' // trim(fullname))
-      end if
-      do ii = 1, NPARAM, 1
-         read(unit=fid, fmt='(I2, A2, E14.6)', iostat=error) &
-            indx, delimstr, OptParams(ii)
-         if (error/=0) then
-            close(unit=fid)
-            call Endrun(fname, 'reading ' // trim(fullname))
+      ncount = 0
+      do
+         read(fid, '(A)', iostat=ios) line
+         if (ios/=0) exit
+
+         ! skip comment lines
+         if (trim(adjustl(line(1:1))) == "/") cycle
+
+         ! find the position of "=" and "/"
+         eq_pos = INDEX(line, "=")
+         if (eq_pos>0) then
+            ncount = ncount + 1
+
+            ! extract keyword
+            keyword = trim(adjustl(line(1:eq_pos-1)))
+            call To_upper(keyword, keyword)
+
+            ! extract value component
+            valstr = trim(adjustl(line(eq_pos+1:))) 
+
+            end_pos = INDEX(valstr, "/")
+            if (end_pos>0) then
+               valstr = trim(adjustl(valstr(1:end_pos-1)))
+            else
+               valstr = trim(adjustl(valstr))
+            end if
+
+            select case(trim(keyword))
+               case("SNOW DENSITY")
+                  indx = 1; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1) 
+               case("LIGHT ATTENUATION CORRECTION FACTOR")
+                  indx = 2; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("WIND SHIELDING CORRECTION FACTOR")
+                  indx = 3; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("HEAT TRANSFER SCALING FACTOR")
+                  indx = 4; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("TURBULENT DIFFUSIVITY SCALING FACTOR")
+                  indx = 5; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("MAXIMUM GROWTH RATE AT 20 CELSIUS")
+                  indx = NPARAM_temp + 1; nindx = NPTK 
+                  call ExtractValuesFromStr(valstr, NPTK, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("HALF-SATURATION CONCENTRATION OF P LIMITATION")
+                  indx = NPARAM_temp + NPTK + 1; nindx = NPTK
+                  call ExtractValuesFromStr(valstr, NPTK, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("METABOLIC LOSS RATE AT 20 CELSIUS")
+                  indx = NPARAM_temp + 2*NPTK + 1; nindx = NPTK
+                  call ExtractValuesFromStr(valstr, NPTK, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("SETTLED FRACTION OF DEPOSITED PHYTOPLANKTON")
+                  indx = NPARAM_temp + 3*NPTK + 1; nindx = NPTK
+                  call ExtractValuesFromStr(valstr, NPTK, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("TEMPERATURE PARAMETER SIGMA FOR PHYTOPLANKTON")
+                  indx = NPARAM_temp + 4*NPTK + 1; nindx = NPTK
+                  call ExtractValuesFromStr(valstr, NPTK, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("TEMPERATURE PARAMETER OPT FOR PHYTOPLANKTON")
+                  indx = NPARAM_temp + 5*NPTK + 1; nindx = NPTK
+                  call ExtractValuesFromStr(valstr, NPTK, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("MAXIMUM GRAZING RATE AT 20 CELSIUS")
+                  indx = NPARAM_temp + NPARAM_phyto + 1; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("TEMPERATURE PARAMETER SIGMA FOR ZOOPLANKTON")
+                  indx = NPARAM_temp + NPARAM_phyto + 2; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("TEMPERATURE PARAMETER OPT FOR ZOOPLANKTON")
+                  indx = NPARAM_temp + NPARAM_phyto + 3; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("ZOOPLANKTON MORTALITY RATE")
+                  indx = NPARAM_temp + NPARAM_phyto + 4; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("ZOOPLANKTON MAINTENANCE RESPIRATION RATE AT 20 CELSIUS")
+                  indx = NPARAM_temp + NPARAM_phyto + 5; nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("EBULLITION RATE")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + 1
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("RELATIVE CONCENTRATION FOR EBULLITION")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + 2
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("ICE-TRAPPED BUBBLE FLUX RATE")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + 3
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("ICE-TRAPPED BUBBLE DISSOLUTION RATE")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + 4
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("E-FOLDING VERTICAL DAMPENING RATE OF PASSIVE OC")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + 1
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("AEROBIC DECOMPOSITION RATE AT 20 CELSIUS")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + 2
+                  nindx = NSEDC
+                  call ExtractValuesFromStr(valstr, NSEDC, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("CH4 PRODUCTION RATE AT REFERENCE TEMPERATURE")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + 2 + NSEDC
+                  nindx = NSEDC
+                  call ExtractValuesFromStr(valstr, NSEDC, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("CH4 PRODUCTION Q10")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + 2 + 2*NSEDC
+                  nindx = NSEDC
+                  call ExtractValuesFromStr(valstr, NSEDC, &
+                        OptParams(indx:indx+nindx-1), ios)
+               case("REDOX POTENTIAL CHANGE RATE")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + 3*NSEDC + 2
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("CH4 OXIDATION POTENTIAL")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + NPARAM_cpool + 1
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("CH4 OXIDATION Q10")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + NPARAM_cpool + 2
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("CH4 CONCENTRATION EXPONENT COEFFICIENT FOR OXIDATION")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + NPARAM_cpool + 3
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("O2 INHIBITION COEFFICIENT FOR OXIDATION")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + NPARAM_cpool + 4
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("OXIC CH4 PRODUCTION RATE")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + NPARAM_cpool + 5
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+               case("MACROPHYTE MAXIMUM GROWTH RATE AT 20 CELSIUS")
+                  indx = NPARAM_temp + NPARAM_phyto + NPARAM_zoo + &
+                     NPARAM_ebu + NPARAM_cpool + NPARAM_ch4 + 1
+                  nindx = 1
+                  read(valstr, fmt=*) OptParams(indx:indx+nindx-1)
+            end select
+            if (masterproc .and. DEBUG) then
+               print *, trim(keyword), OptParams(indx:indx+nindx-1)
+            end if
+         else
+            ios = -99
          end if
+
+         if (ios/=0) exit
       end do
       close(unit=fid)
+      if (ncount/=NLINE) ios = -97
+      if (ios==-99) then
+         call Endrun(fname, "No '=' before parameter values " // trim(fullname))
+      else if (ios==-98) then
+         call Endrun(fname, "Not enough parameters after '=' " // trim(fullname))
+      else if (ios==-97) then
+         call Endrun(fname, "Not enough parameter lines " // trim(fullname))
+      end if
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -665,6 +767,101 @@ contains
                   nstart, ncount) )
       call check( fname, nf90mpi_close(ncid) )
       odata = val(1)
+      if (DEBUG .and. masterproc) then
+         print *, "Read " // trim(varname) // " from " // trim(fullname)
+      end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Read site-level time-variant data 
+   !
+   !------------------------------------------------------------------------------
+   subroutine ReadSiteTSData(filename, varname, info, time, nstep, odata)
+      implicit none
+      character(len=*), intent(in) :: filename
+      character(len=*), intent(in) :: varname
+      type(LakeInfo), intent(in) :: info
+      type(SimTime), intent(in) :: time
+      integer, intent(in) :: nstep     ! in hours
+      real(r8), intent(out) :: odata(:)
+      character(cx) :: fullname
+      integer(kind=MPI_OFFSET_KIND) :: nstart(2)
+      integer(kind=MPI_OFFSET_KIND) :: ncount(2)
+      integer(kind=MPI_OFFSET_KIND) :: ntottime
+      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
+      integer :: ncid, varid, date_varid
+      integer :: time_dimid, t0, t1, indx
+      integer :: h0, h1, hindx0, hindx1
+      integer :: JDN0, JDN1, JDNb, date(1)
+      integer :: year, month, day, ii
+      integer :: noutval
+      real(r8), allocatable :: tmpArr(:,:)
+      real(r8) :: filled_value
+
+      ! Units: air temperature (K), relative humidity (%),
+      ! wind (m/s), air pressure (Pa), solar radiation (W/m2)
+      ! precipitation (kg/m2/s),
+      ! atmospheric radiation (W/m2)
+
+      ! inquire data info
+      call GetFullFileName(filename, fullname)
+      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
+                  MPI_INFO_NULL, ncid) )
+      call check( nf90mpi_inq_dimid(ncid, "time", time_dimid) )
+      call check( nf90mpi_inquire_dimension(ncid, time_dimid, len = ntottime) )
+      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
+      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
+      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
+
+      ! read data start and end date
+      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
+                  (/1_i8/), (/1_i8/)) )
+      call YYMMDD2Date(date(1), year, month, day)
+      call Date2JDN(year, month, day, JDNb)
+      if (Use_Leap) then
+         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
+         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
+      else
+         JDN0 = JDNb + 365*(time%year0-year-1) + sum(ndays(month:12)) + &
+            sum(ndays(1:time%month0-1)) - day + time%day0
+         JDN1 = JDNb + 365*(time%year1-year-1) + sum(ndays(month:12)) + &
+            sum(ndays(1:time%month1-1)) - day + time%day1
+      end if
+
+      ! read data set
+      t0 = max(JDN0 - JDNb + 1, 1)
+      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
+      nstart = (/info%id, 24 / nstep * (t0-1) + 1/)
+      ncount = (/1, 24 / nstep * (t1-t0+1)/)
+      allocate(tmpArr(1, ncount(2)))
+      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
+      call check( nf90mpi_close(ncid) )
+      noutval = 0
+      do ii = 1, JDN1-JDN0, 1
+         indx = JDN0 + ii - JDNb
+         h0 = 24 / nstep * (ii-1) + 1
+         h1 = 24 / nstep * ii
+         if (indx>=1 .and. indx<=ntottime) then
+            if (JDN0>=JDNb) then
+               hindx0 = 24 / nstep * (ii-1) + 1
+               hindx1 = 24 / nstep * ii
+            else
+               hindx0 = 24 / nstep * (indx-1) + 1
+               hindx1 = 24 / nstep * indx
+            end if
+            odata(h0:h1) = tmpArr(1,hindx0:hindx1)
+         else
+            odata(h0:h1) = filled_value
+            noutval = noutval + 1
+         end if
+      end do
+      deallocate(tmpArr)
+
+      if (noutval>0) then
+         call Endrun("Out of valid time period " // trim(varname))
+      end if
+
       if (DEBUG .and. masterproc) then
          print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
@@ -769,166 +966,6 @@ contains
          b3count = (/nrange, nrange + latindx - nreslat/)
          b4start = (/lonindx + 1, 2*nreslat - nrange - latindx + 1/)
          b4count = (/nrange, nrange + latindx - nreslat/)
-      end if
-   end subroutine
-
-   subroutine ReadSiteTSData(filename, varname, info, time, odata)
-      implicit none
-      character(len=*), intent(in) :: filename
-      character(len=*), intent(in) :: varname
-      type(LakeInfo), intent(in) :: info 
-      type(SimTime), intent(in) :: time
-      real(r8), intent(out) :: odata(:)
-      character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(2)
-      integer(kind=MPI_OFFSET_KIND) :: ncount(2)
-      integer(kind=MPI_OFFSET_KIND) :: ntottime
-      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
-      integer :: ncid, varid, date_varid
-      integer :: time_dimid, t0, t1, indx
-      integer :: h0, h1, hindx0, hindx1
-      integer :: JDN0, JDN1, JDNb, date(1)
-      integer :: year, month, day, ii
-      integer :: noutval
-      real(r8), allocatable :: tmpArr(:,:)
-      real(r8) :: filled_value
-
-      ! Units: air temperature (K), relative humidity (%),
-      ! wind (m/s), air pressure (Pa), solar radiation (W/m2)
-      ! precipitation (kg/m2/s),
-      ! atmospheric radiation (W/m2)
-
-      ! inquire data info
-      call GetFullFileName(filename, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
-                  MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_inq_dimid(ncid, "time", time_dimid) )
-      call check( nf90mpi_inquire_dimension(ncid, time_dimid, len = ntottime) )
-      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
-      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
-
-      ! read data start and end date
-      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
-                  (/1_i8/), (/1_i8/)) )
-      call YYMMDD2Date(date(1), year, month, day)
-      call Date2JDN(year, month, day, JDNb)
-      if (Use_Leap) then
-         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
-         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
-      else
-         JDN0 = JDNb + 365*(time%year0-year-1) + sum(ndays(month:12)) + &
-            sum(ndays(1:time%month0-1)) - day + time%day0
-         JDN1 = JDNb + 365*(time%year1-year-1) + sum(ndays(month:12)) + &  
-            sum(ndays(1:time%month1-1)) - day + time%day1
-      end if
-
-      ! read data set
-      t0 = max(JDN0 - JDNb + 1, 1)
-      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
-      nstart = (/info%id, 24 / forcing_nhour * (t0-1) + 1/)
-      ncount = (/1, 24 / forcing_nhour * (t1-t0+1)/)
-      allocate(tmpArr(1, ncount(2)))
-      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
-      call check( nf90mpi_close(ncid) )
-      noutval = 0
-      do ii = 1, JDN1-JDN0, 1
-         indx = JDN0 + ii - JDNb
-         h0 = 24 / forcing_nhour * (ii-1) + 1
-         h1 = 24 / forcing_nhour * ii
-         if (indx>=1 .and. indx<=ntottime) then
-            if (JDN0>=JDNb) then
-               hindx0 = 24 / forcing_nhour * (ii-1) + 1
-               hindx1 = 24 / forcing_nhour * ii
-            else
-               hindx0 = 24 / forcing_nhour * (indx-1) + 1
-               hindx1 = 24 / forcing_nhour * indx
-            end if
-            odata(h0:h1) = tmpArr(1,hindx0:hindx1)
-         else
-            odata(h0:h1) = filled_value
-            noutval = noutval + 1
-         end if
-      end do
-      deallocate(tmpArr)
-
-      if (noutval>0) then
-         call Endrun("Out of valid time period " // trim(varname))
-      end if
-
-      if (DEBUG .and. masterproc) then
-         print *, "Read " // trim(varname) // " from " // trim(fullname)
-      end if
-   end subroutine
-
-   subroutine ReadSiteHydroTSData(filename, varname, info, time, odata)
-      implicit none
-      character(len=*), intent(in) :: filename
-      character(len=*), intent(in) :: varname
-      type(LakeInfo), intent(in) :: info
-      type(SimTime), intent(in) :: time
-      real(r8), intent(out) :: odata(:)
-      character(cx) :: fullname
-      integer(kind=MPI_OFFSET_KIND) :: nstart(2)
-      integer(kind=MPI_OFFSET_KIND) :: ncount(2)
-      integer(kind=MPI_OFFSET_KIND) :: ntottime
-      integer, parameter :: ndays(12) = (/31,28,31,30,31,30,31,31,30,31,30,31/)
-      integer :: ncid, varid, date_varid
-      integer :: time_dimid, t0, t1, indx
-      integer :: JDN0, JDN1, JDNb, date(1)
-      integer :: year, month, day, ii
-      real(r8), allocatable :: tmpArr(:,:)
-      real(r8) :: filled_value
-
-      ! inquire data info
-      call GetFullFileName(filename, fullname)
-      call check( nf90mpi_open(MPI_COMM_WORLD, trim(fullname), NF90_NOWRITE, &
-                  MPI_INFO_NULL, ncid) )
-      call check( nf90mpi_inq_dimid(ncid, "time", time_dimid) )
-      call check( nf90mpi_inquire_dimension(ncid, time_dimid, len = ntottime) )
-      call check( nf90mpi_inq_varid(ncid, "date", date_varid) )
-      call check( nf90mpi_inq_varid(ncid, trim(varname), varid) )
-      call check( nf90mpi_get_att(ncid, varid, "_FillValue", filled_value) )
-
-      ! read data start and end date
-      call check( nf90mpi_get_var_all(ncid, date_varid, date, &
-                  (/1_i8/), (/1_i8/)) )
-      call YYMMDD2Date(date(1), year, month, day)
-      call Date2JDN(year, month, day, JDNb)
-      if (Use_Leap) then
-         call Date2JDN(time%year0, time%month0, time%day0, JDN0)
-         call Date2JDN(time%year1, time%month1, time%day1, JDN1)
-      else
-         JDN0 = JDNb + 365*(time%year0-year-1) + sum(ndays(month:12)) + &
-            sum(ndays(1:time%month0-1)) - day + time%day0
-         JDN1 = JDNb + 365*(time%year1-year-1) + sum(ndays(month:12)) + &
-            sum(ndays(1:time%month1-1)) - day + time%day1
-      end if
-
-      ! read data set
-      t0 = max(JDN0 - JDNb + 1, 1)
-      t1 = min(max(JDN1 - JDNb, 1), INT(ntottime, i4))
-      nstart = (/info%id, t0/)
-      ncount = (/1, t1-t0+1/)
-      allocate(tmpArr(1, ncount(2)))
-      call check( nf90mpi_get_var_all(ncid, varid, tmpArr, nstart, ncount) )
-      call check( nf90mpi_close(ncid) )
-      do ii = 1, JDN1-JDN0, 1
-         indx = JDN0 + ii - JDNb 
-         if (indx>=1 .and. indx<=ntottime) then
-            if (JDN0>=JDNb) then
-               odata(ii) = tmpArr(1,ii)
-            else
-               odata(ii) = tmpArr(1,indx)
-            end if
-         else
-            odata(ii) = filled_value
-         end if
-      end do
-
-      deallocate(tmpArr)
-      if (DEBUG .and. masterproc) then
-         print *, "Read " // trim(varname) // " from " // trim(fullname)
       end if
    end subroutine
 
@@ -1253,7 +1290,7 @@ contains
    !------------------------------------------------------------------------------
    subroutine CreateOutputFile0d(time, nz, varname, longname, units)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       integer, intent(in) :: nz
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: longname
@@ -1270,7 +1307,7 @@ contains
          write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
                gmtime(3)
          write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"
          histstr = trim(str1) // trim(str2)
       end if
       !call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
@@ -1311,7 +1348,7 @@ contains
 
    subroutine CreateOutputFile1d(time, varname, longname, units, defval)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: longname
       character(len=*), intent(in) :: units
@@ -1329,7 +1366,7 @@ contains
          write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
                gmtime(3)
          write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"         
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"         
          histstr = trim(str1) // trim(str2)
       end if
       !call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
@@ -1382,7 +1419,7 @@ contains
    subroutine CreateOutputFile2d(time, ndim, varname, dimname, longname, &
                   units, defval)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       integer, intent(in) :: ndim
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: dimname
@@ -1402,7 +1439,7 @@ contains
          write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
                gmtime(3)
          write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"
          histstr = trim(str1) // trim(str2)
       end if
       !call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &
@@ -1457,7 +1494,7 @@ contains
    subroutine CreateOutputFile3d(time, ndim1, ndim2, varname, &
                   dimname1, dimname2, longname, units, defval)
       implicit none
-      Type(SimTime), intent(in)  :: time
+      type(SimTime), intent(in)  :: time
       integer, intent(in) :: ndim1
       integer, intent(in) :: ndim2
       character(len=*), intent(in) :: varname
@@ -1479,7 +1516,7 @@ contains
          write(str1,"(I4, '-', I2.2, '-', I2.2)") gmtime(1), gmtime(2), &
                gmtime(3)
          write(str2,"(' ', I2.2, ':', I2.2, ':', I2.2, A)") gmtime(4), &
-               gmtime(5), gmtime(6), " GMT from ALBM v2.0 by Zeli Tan"
+               gmtime(5), gmtime(6), " GMT from ALBM v3.0 by Zeli Tan"
          histstr = trim(str1) // trim(str2)
       end if
       !call MPI_BCAST(histstr, len(histstr), MPI_CHARACTER, 0, &

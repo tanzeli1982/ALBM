@@ -1,33 +1,72 @@
-Parameter_Id: Parameter_Value
- 1: 2.0e+02
- 2: 1.0
- 3: 1.0
- 4: 0.8
- 5: 0.26
- 6: 0.26
- 7: 1.2e-04
- 8: 2.0e-05
- 9: 0.08
-10: 0.1
-11: 9.0e-01
-12: 1.3e-01
-13: 2.061998e-04
-14: 0.8
-15: 1.7e-06
-16: 3.8e-06
-17: 10.0
-18: 1.7e-10
-19: 1.0e-08
-20: 4.0e-13
-21: 1.2e-11
-22: 3.64e-10
-23: 15.0
-24: 1.0
-25: 1.2
-26: 0.0
-27: 2.0e-6
-28: 2.0
-29: 0.79
-30: 8.0
-31: 0.0
-32: 0.05
+/-------------------------------------------------------------------/
+/ ALBM calibrated parameter file                                    /
+/ Author: Zeli Tan (tanzeli1982@gmail.com)
+/-------------------------------------------------------------------/
+/
+/----------------------------------------------
+/  thermal related parameters
+/----------------------------------------------
+/
+SNOW DENSITY                           = 200.0 / units: kg/m3
+LIGHT ATTENUATION CORRECTION FACTOR    = 1.0
+WIND SHIELDING CORRECTION FACTOR       = 1.0
+HEAT TRANSFER SCALING FACTOR           = 0.8
+TURBULENT DIFFUSIVITY SCALING FACTOR   = 1.0
+/
+/----------------------------------------------
+/  phytoplankton related parameters
+/  for small phytoplankton, large phytoplankton, diatom
+/----------------------------------------------
+/
+MAXIMUM GROWTH RATE AT 20 CELSIUS               = 2.4,0.8,1.8 / units: d^-1
+HALF-SATURATION CONCENTRATION OF P LIMITATION   = 1.0E-3,5.0E-4,7.5E-4 / units: mol/m3
+METABOLIC LOSS RATE AT 20 CELSIUS               = 0.1,0.03,0.075 / units: d^-1
+SETTLED FRACTION OF DEPOSITED PHYTOPLANKTON     = 0.2,0.2,0.8
+TEMPERATURE PARAMETER SIGMA FOR PHYTOPLANKTON   = 15.0,11.5,16.0 / units: celsius
+TEMPERATURE PARAMETER OPT FOR PHYTOPLANKTON     = 22.0,28.0,18.0 / units: celsius
+/
+/----------------------------------------------
+/  zooplankton related parameters
+/----------------------------------------------
+/
+MAXIMUM GRAZING RATE AT 20 CELSIUS                       = 1.2 / units: d^-1
+TEMPERATURE PARAMETER SIGMA FOR ZOOPLANKTON              = 13.0 / units: celsius
+TEMPERATURE PARAMETER OPT FOR ZOOPLANKTON                = 28.0 / units: celsius
+ZOOPLANKTON MORTALITY RATE                               = 0.04 / units: d^-1
+ZOOPLANKTON MAINTENANCE RESPIRATION RATE AT 20 CELSIUS   = 0.10 / units: d^-1
+/
+/----------------------------------------------
+/  ebullition related parameters
+/----------------------------------------------
+/
+EBULLITION RATE                        = 2.06E-4 / units: s^-1
+RELATIVE CONCENTRATION FOR EBULLITION  = 0.8
+ICE-TRAPPED BUBBLE FLUX RATE           = 1.7E-6 / units: s^-1
+ICE-TRAPPED BUBBLE DISSOLUTION RATE    = 3.8E-6 / units: s^-1
+/
+/----------------------------------------------
+/  sediment C pool related parameters
+/  for passive, active, old pools
+/----------------------------------------------
+/
+E-FOLDING VERTICAL DAMPENING RATE OF PASSIVE OC    = 4.479 / units: m^-1
+AEROBIC DECOMPOSITION RATE AT 20 CELSIUS           = 1.7E-10,1.0E-8,2.38E-9 / units: s^-1
+CH4 PRODUCTION RATE AT REFERENCE TEMPERATURE       = 4.15E-12,1.32E-11,3.64E-10 / units: s^-1
+CH4 PRODUCTION Q10                                 = 6.187,1.685,1.2
+REDOX POTENTIAL CHANGE RATE                        = 0.0 / units: mV/d
+/
+/----------------------------------------------
+/  methane oxidation and OMP related parameters
+/----------------------------------------------
+/
+CH4 OXIDATION POTENTIAL                               = 6.962E-5 / units: mol/m3/s
+CH4 OXIDATION Q10                                     = 2.92
+CH4 CONCENTRATION EXPONENT COEFFICIENT FOR OXIDATION  = 0.977
+O2 INHIBITION COEFFICIENT FOR OXIDATION               = 8.0
+OXIC CH4 PRODUCTION RATE                              = 0.00868 / units: mol CH4/m3/s (gC/m3/s)^-1
+/
+/----------------------------------------------
+/  submerged macrophytes parameters
+/----------------------------------------------
+/
+MACROPHYTE MAXIMUM GROWTH RATE AT 20 CELSIUS          = 0.05 / units: d^-1

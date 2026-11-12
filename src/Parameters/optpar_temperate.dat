@@ -1,33 +1,72 @@
-Parameter_Id: Parameter_Value
- 1: 2.0e+02
- 2: 2.0
- 3: 0.3
- 4: 1.0
- 5: 0.49
- 6: 0.1085296630859375
- 7: 6.209088513243852e-05
- 8: 0.00011895948292388852
- 9: 0.04
-10: 0.11431671142578125
-11: 1.3e-01
-12: 1.3e-01
-13: 8.46264494342248e-05
-14: 0.626416015625
-15: 1.7e-06
-16: 3.8e-06
-17: 8.951629638671875
-18: 6.0e-11
-19: 8.0e-10
-20: 5.153201846163549e-11
-21: 2.0e-11
-22: 3.64e-10
-23: 13.160772705078125
-24: 1.2
-25: 1.2
-26: 20.0
-27: 1.6508682014050226e-07
-28: 2.5858642578125
-29: 1.16424560546875
-30: 10.0
-31: 0.000194549560546875
-32: 0.12
+/-------------------------------------------------------------------/
+/ ALBM calibrated parameter file                                    /
+/ Author: Zeli Tan (tanzeli1982@gmail.com)
+/-------------------------------------------------------------------/
+/
+/----------------------------------------------
+/  thermal related parameters
+/----------------------------------------------
+/
+SNOW DENSITY                           = 200.0 / units: kg/m3
+LIGHT ATTENUATION CORRECTION FACTOR    = 2.0
+WIND SHIELDING CORRECTION FACTOR       = 0.15
+HEAT TRANSFER SCALING FACTOR           = 1.0
+TURBULENT DIFFUSIVITY SCALING FACTOR   = 1.0
+/
+/----------------------------------------------
+/  phytoplankton related parameters
+/  for small phytoplankton, large phytoplankton, diatom
+/----------------------------------------------
+/
+MAXIMUM GROWTH RATE AT 20 CELSIUS               = 0.6,0.65,0.6 / units: d^-1
+HALF-SATURATION CONCENTRATION OF P LIMITATION   = 6.0E-5,1.0E-4,4.0E-4 / units: mol/m3
+METABOLIC LOSS RATE AT 20 CELSIUS               = 0.027,0.02,0.05 / units: d^-1
+SETTLED FRACTION OF DEPOSITED PHYTOPLANKTON     = 0.2,0.2,0.8
+TEMPERATURE PARAMETER SIGMA FOR PHYTOPLANKTON   = 13.0,11.5,16.0 / units: celsius
+TEMPERATURE PARAMETER OPT FOR PHYTOPLANKTON     = 21.0,28.0,18.0 / units: celsius
+/
+/----------------------------------------------
+/  zooplankton related parameters
+/----------------------------------------------
+/
+MAXIMUM GRAZING RATE AT 20 CELSIUS                       = 0.3 / units: d^-1
+TEMPERATURE PARAMETER SIGMA FOR ZOOPLANKTON              = 13.0 / units: celsius
+TEMPERATURE PARAMETER OPT FOR ZOOPLANKTON                = 22.0 / units: celsius
+ZOOPLANKTON MORTALITY RATE                               = 0.06 / units: d^-1
+ZOOPLANKTON MAINTENANCE RESPIRATION RATE AT 20 CELSIUS   = 0.12 / units: d^-1
+/
+/----------------------------------------------
+/  ebullition related parameters
+/----------------------------------------------
+/
+EBULLITION RATE                        = 3.64E-4 / units: s^-1
+RELATIVE CONCENTRATION FOR EBULLITION  = 0.96
+ICE-TRAPPED BUBBLE FLUX RATE           = 1.7E-6 / units: s^-1
+ICE-TRAPPED BUBBLE DISSOLUTION RATE    = 3.8E-6 / units: s^-1
+/
+/----------------------------------------------
+/  sediment C pool related parameters
+/  for passive, active, old pools
+/----------------------------------------------
+/
+E-FOLDING VERTICAL DAMPENING RATE OF PASSIVE OC    = 5.066 / units: m^-1
+AEROBIC DECOMPOSITION RATE AT 20 CELSIUS           = 6.0E-11,8.0E-10,2.38E-9 / units: s^-1
+CH4 PRODUCTION RATE AT REFERENCE TEMPERATURE       = 6.58E-12,1.45E-11,3.64E-10 / units: s^-1
+CH4 PRODUCTION Q10                                 = 13.44,4.02,1.2
+REDOX POTENTIAL CHANGE RATE                        = 20.0 / units: mV/d
+/
+/----------------------------------------------
+/  methane oxidation and OMP related parameters
+/----------------------------------------------
+/
+CH4 OXIDATION POTENTIAL                               = 1.773E-6 / units: mol/m3/s
+CH4 OXIDATION Q10                                     = 2.59
+CH4 CONCENTRATION EXPONENT COEFFICIENT FOR OXIDATION  = 0.918
+O2 INHIBITION COEFFICIENT FOR OXIDATION               = 10.0
+OXIC CH4 PRODUCTION RATE                              = 5.84E-4 / units: mol CH4/m3/s (gC/m3/s)^-1
+/
+/----------------------------------------------
+/  submerged macrophytes parameters
+/----------------------------------------------
+/
+MACROPHYTE MAXIMUM GROWTH RATE AT 20 CELSIUS          = 0.12 / units: d^-1

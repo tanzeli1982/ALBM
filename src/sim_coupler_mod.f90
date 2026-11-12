@@ -43,7 +43,7 @@ contains
       end if
 
       if (error==1) then
-         call SetNullModelOutputs()
+         call InitializeModelOutputs()
       end if
    end subroutine
 
@@ -62,7 +62,7 @@ contains
       real(r8) :: curstep3, nextstep3
       real(r8) :: curstep4, nextstep4
       real(r8) :: t, t_old, tf
-      integer(i8) :: simhour, hindx, hindx_utc
+      integer(i8) :: simhour, hindx
       integer(i8) :: ohindx0, ohindx1
       integer :: simday, ncount, ndayout
       integer :: year, month, day
@@ -99,8 +99,6 @@ contains
       isSubHourNode = .True.        ! sub-hourly node flag
 
       STtol_col = STtol
-      hindx_utc = GetUTCHourIndex(hindx, lake_info%longitude)
-
       do while(t<tf .and. error==0)
          if(t>=3.6d+3*DBLE(hindx) .and. hindx<simhour) then
             if (DEBUG) then
@@ -114,7 +112,6 @@ contains
             end if
             isHourNode = .True.
             hindx = hindx + 1
-            hindx_utc = GetUTCHourIndex(hindx, lake_info%longitude)
          end if
 
          if (t-t_old>=TSTEP_SUB .or. isHourNode) then
@@ -123,11 +120,7 @@ contains
          end if
 
          if (isHourNode) then
-            if (trim(forcing_time)=='UTC') then
-               call GetBoundaryConditions(time, hindx_utc, isspinup)
-            else
-               call GetBoundaryConditions(time, hindx, isspinup)
-            end if
+            call GetBoundaryConditions(time, hindx, isspinup)
             call GetSolarConditions(hindx)
          end if
 
@@ -195,6 +188,7 @@ contains
          end if
          if (Carbon_Module) then
             call PhytoplanktonDynamics(curstep)
+            call ZooplanktonDynamics(curstep)
             call BedVegetationDynamics(curstep)
             call CarbonModuleCallback(curstep)
          end if
@@ -250,47 +244,6 @@ contains
    subroutine InitializeModelOutputs()
       implicit none
 
-      m_tempwHist = 0.0_r4
-      m_tempsHist = 0.0_r4
-      m_snowHist = 0.0_r4
-      m_iceHist = 0.0_r4
-      m_shHist = 0.0_r4
-      m_lhHist = 0.0_r4
-      m_fmmHist = 0.0_r4
-      m_lwHist = 0.0_r4
-      m_hnetHist = 0.0_r4
-      m_fsedHist = 0.0_r4
-      m_swdwHist = 0.0_r4
-      m_swupHist = 0.0_r4
-      m_fturbHist = 0.0_r4
-      m_dfch4airHist = 0.0_r4
-      m_ebch4airHist = 0.0_r4
-      m_dfch4sedHist = 0.0_r4
-      m_ebch4sedHist = 0.0_r4
-      m_totGPPHist = 0.0_r4
-      m_totNPPHist = 0.0_r4
-      m_totpch4sedHist = 0.0_r4
-      m_pch4watHist = 0.0_r4
-      m_och4watHist = 0.0_r4
-      m_depAtCHist = 0.0_r4
-      m_ch4concHist = 0.0_r4
-      m_o2concHist = 0.0_r4
-      m_n2concHist = 0.0_r4
-      m_co2concHist = 0.0_r4
-      m_srpconcHist = 0.0_r4
-      m_icebch4Hist = 0.0_r4
-      m_bvegHist = 0.0_r4
-      m_biomassHist = 0.0_r4
-      m_chlaHist = 0.0_r4
-      m_pascarbHist = 0.0_r4
-      m_actcarbHist = 0.0_r4
-      m_oldcarbHist = 0.0_r4
-      m_sedEHLHist = 0.0_r4
-   end subroutine
-
-   subroutine SetNullModelOutputs()
-      implicit none
-
       m_tempwHist = -9999.0_r4
       m_tempsHist = -9999.0_r4
       m_snowHist = -9999.0_r4
@@ -321,7 +274,8 @@ contains
       m_srpconcHist = -9999.0_r4
       m_icebch4Hist = -9999.0_r4
       m_bvegHist = -9999.0_r4
-      m_biomassHist = -9999.0_r4
+      m_bphytoHist = -9999.0_r4
+      m_bzooHist = -9999.0_r4
       m_chlaHist = -9999.0_r4
       m_pascarbHist = -9999.0_r4
       m_actcarbHist = -9999.0_r4
@@ -372,7 +326,8 @@ contains
          m_co2concHist(:,hindx) = REAL(m_waterSubCon(Wco2,:))
          m_srpconcHist(:,hindx) = REAL(m_waterSubCon(Wsrp,:))
          m_chlaHist(:,hindx) = REAL(m_chla)
-         m_biomassHist(:,:,hindx) = REAL(m_waterPOC)
+         m_bphytoHist(:,:,hindx) = REAL(m_phytoC)
+         m_bzooHist(:,hindx) = REAL(m_zooC)
          m_bvegHist(:,hindx) = REAL(cCPerDW * m_bedVegDW)
          m_depAtCHist(:,hindx) = REAL(m_aqDepAtCarb + m_trDepAtCarb + &
             m_vegDepAtCarb)
@@ -435,7 +390,8 @@ contains
          call WriteData(lakeId, time, 'srp', archive_tstep, m_srpconcHist)
          call WriteData(lakeId, time, 'chla', archive_tstep, m_chlaHist)
          call WriteData(lakeId, time, 'cdep', archive_tstep, m_depAtCHist)
-         call WriteData(lakeId, time, 'biomass', archive_tstep, m_biomassHist)
+         call WriteData(lakeId, time, 'bphyto', archive_tstep, m_bphytoHist)
+         call WriteData(lakeId, time, 'bzoo', archive_tstep, m_bzooHist)
          call WriteData(lakeId, time, 'bveg', archive_tstep, m_bvegHist)
       end if
       if (Diagenesis_Module) then
@@ -477,7 +433,8 @@ contains
          call WriteData(sampleId, time, 'o2conc', archive_tstep, m_o2concHist)
          call WriteData(sampleId, time, 'chla', archive_tstep, m_chlaHist)
          call WriteData(sampleId, time, 'cdep', archive_tstep, m_depAtCHist)
-         call WriteData(sampleId, time, 'biomass', archive_tstep, m_biomassHist)
+         call WriteData(sampleId, time, 'bphyto', archive_tstep, m_bphytoHist)
+         call WriteData(sampleId, time, 'bzoo', archive_tstep, m_bzooHist)
          call WriteData(sampleId, time, 'bveg', archive_tstep, m_bvegHist)
       end if
       if (Diagenesis_Module) then

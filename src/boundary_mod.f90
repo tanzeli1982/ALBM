@@ -8,8 +8,8 @@ module boundary_mod
    use radiation_mod
 
    private
-   public :: GetBoundaryConditions, GetSolarConditions 
-   public :: UpdateCatchmentThermalRegime
+   public :: GetBoundaryConditions
+   public :: GetSolarConditions 
 
 contains
    !------------------------------------------------------------------------------
@@ -17,17 +17,22 @@ contains
    ! Purpose: get lake model boundary conditions
    !
    !------------------------------------------------------------------------------
-   subroutine GetBoundaryConditions(time, hindx, isspinup)
+   subroutine GetBoundaryConditions(time, hindx_raw, isspinup)
       implicit none
       type(SimTime), intent(in) :: time
-      integer(i8), intent(in) :: hindx
+      integer(i8), intent(in) :: hindx_raw
       logical, intent(in) :: isspinup
-      integer :: nyr, nmon, nday
+      integer :: hindx, nyr, nmon, nday
       integer :: year, month, day
       integer :: nt, ntot, nt_day
       integer :: nytot, nmtot, ndtot
       integer :: JDN0, JDN1, doy
-      real(r8) :: Roun
+
+      if (trim(forcing_time)=='UTC') then
+         hindx = GetUTCHourIndex(hindx_raw, lake_info%longitude)
+      else
+         hindx = hindx_raw
+      end if
 
       ! Get the model running date
       if (.NOT. isspinup) then
@@ -47,9 +52,11 @@ contains
 
       ntot = size(m_airTemp)
       if (hindx>0) then
-         nt = int(24/forcing_nhour)*(nday-1) + int(mod(hindx-1,24)/forcing_nhour) + 1
+         nt = int(24/forcing_nhour)*(nday-1) + &
+            int(mod(hindx-1,24)/forcing_nhour) + 1
       else
-         nt = int(24/forcing_nhour)*(nday-1) + int((mod(hindx-1,24)+24)/forcing_nhour) + 1
+         nt = int(24/forcing_nhour)*(nday-1) + &
+            int((mod(hindx-1,24)+24)/forcing_nhour) + 1
       end if
       if (nt<=0) then
          nt = nt + int(24/forcing_nhour)
@@ -63,7 +70,6 @@ contains
       nmon = max(min(nmon, nmtot), 1)
       
       ! air conditions
-      Roun = sa_params(Param_Roun)
       m_surfData%temp = m_airTemp(nt)
       m_surfData%RH = m_airRH(nt)
       m_surfData%wind = max(m_airWind(nt), 0.1_r8)
@@ -72,7 +78,7 @@ contains
          m_surfData%snowfall = 0.0_r8
       else
          m_surfData%rainfall = 0.0_r8
-         m_surfData%snowfall = max(0.0_r8, Roul/Roun*m_airPr(nt))
+         m_surfData%snowfall = max(0.0_r8, Roul/PAR_Roun*m_airPr(nt))
       end if
       m_surfData%pressure = m_airPs(nt) 
       m_surfData%sw = m_airSWRad(nt)
@@ -86,9 +92,9 @@ contains
       nday = max(min(nday, ndtot), 1)
       m_surfData%dzsurf = m_dzsurf(nday)
       if (m_srp(nday)>e8) then
-         m_surfData%srp = m_srp(nday) 
+         m_surfData%srp = m_srp(nday) / MasP 
       else
-         m_surfData%srp = lake_info%srp
+         m_surfData%srp = lake_info%srp / MasP
       end if
 
       call Date2JDN(2001, 1, 1, JDN0)
@@ -136,6 +142,7 @@ contains
       real(r8) :: Iab0, Iab1, zenith, srd_daily
       real(r8) :: tcc, tair, chla, kext
       real(r8), save :: rTot = 0.0_r8
+      real(r8), save :: sw_data = 0.0_r8
       integer :: ii, hour0, top
 
       ! correct solar radiation by measured solar radiation
@@ -151,12 +158,13 @@ contains
             rTot = rTot + rhour
          end do
          rTot = rTot / float(forcing_nhour)
+         sw_data = m_surfData%sw
       end if
-      if (rTot>e8 .and. m_surfData%sw>e8) then
+      if (rTot>e8 .and. sw_data>e8) then
          hour = DBLE( hour0 ) + 0.5
          call CalcClearSkyIrradiance(hour, fgphot, frdif, zenith)
          !call CorrIrradianceByCloud(zenith, tcc, fgphot, frdif)
-         fgphot = (m_surfData%sw/rTot) * fgphot
+         fgphot = (sw_data/rTot) * fgphot
          call GetIncidentSRD(m_wvln, fgphot, m_surfData%sw_sim)
       else
          m_fsphot = 0.0_r8
@@ -194,7 +202,7 @@ contains
 
       m_Idw(1) = Iab0
       top = m_lakeWaterTopIndex
-      kext = sa_params(Param_Feta) * lake_info%kext
+      kext = PAR_Feta * lake_info%kext
       do ii = 1, WATER_LAYER+1, 1
          dzi = m_waterIce(ii) * m_dZw(ii)
          dzw = m_dZw(ii) - dzi

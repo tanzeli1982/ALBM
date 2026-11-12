@@ -4,6 +4,7 @@ module shr_typedef_mod
 !----------------------------------------------------------------------------
    use shr_kind_mod,          only: r8, r4
    public
+   
    type SurfaceData
       real(r8) :: temp                 ! 2-m air temperature (K)
       real(r8) :: RH                   ! 2-m relative humidity (%)
@@ -16,8 +17,9 @@ module shr_typedef_mod
       real(r8) :: srd                  ! simulated net SW irradiance (W/m2)
       real(r8) :: lw                   ! incoming long-wave radiation (W/m2)
       real(r8) :: dzsurf               ! lake water level decrease (m)
-      real(r8) :: srp                  ! lake epilimnion SRP (gP/m3)
+      real(r8) :: srp                  ! lake epilimnion SRP (mol/m3)
    end type
+   
    type LakeInfo
       integer  :: id                   ! lake id
       integer  :: itype                ! lake type identifier
@@ -30,18 +32,17 @@ module shr_typedef_mod
       real(r8) :: zalt                 ! lake altitude (km)
       real(r8) :: wrt                  ! lake water residence time (day)
       real(r8) :: excice               ! land excessive ice fraction
-      real(r8) :: hsed                 ! sediment column thickness (m)
       real(r8) :: kext                 ! background light attenuation coef (m^-1)
-      real(r8) :: cdep                 ! OC deposition rate (gC/m2/yr)
-      real(r8) :: csed                 ! sediment OC density (kgC/m3)
+      real(r8) :: cdep                 ! terrigenous OC deposition rate (gC/m2/yr)
+      real(r8) :: csed                 ! surface sediment OC density (kgC/m3)
       real(r8) :: pH                   ! lake pH
-      real(r8) :: sal                  ! sediment porewater salinity (g/kg)
       real(r8) :: srp                  ! lake epilimnion SRP (gP/m3)
       real(r8) :: sedFe                ! lake sediment iron (gFe/m3)
       real(r8) :: bfdep                ! bankfull depth of inflow (m)
-      real(r8) :: refPOC               ! reference phytoplankton biomass (gC/m3)
       integer  :: thrmkst              ! 1=thermokarst, 2=yedoma, 0=vice
+      integer  :: trophic              ! 1=oligotrophic, 2=mesotrophic, 3=eutrophic, 4=hypertrophic
    end type
+   
    type SimTime
       integer :: year0                 ! the starting year
       integer :: month0                ! the starting month
@@ -50,6 +51,7 @@ module shr_typedef_mod
       integer :: month1                ! the ending month
       integer :: day1                  ! the ending day
    end type
+   
    type RadParaData
       real(r8) :: spr                  ! surface air pressure (mb)
       real(r8) :: tair                 ! air temperature (K)
@@ -64,6 +66,16 @@ module shr_typedef_mod
       integer  :: year, month, day     ! local time date
       integer  :: season               ! 0: winter or fall; 1: summer or spring
    end type
+   
+   !-------------------------------------------------------------------------
+   !  memory caches for lake hypsometric curve
+   !-------------------------------------------------------------------------
+   type HypsometricCurve
+      real(r8), allocatable :: h(:)        ! elevation (m)
+      real(r8), allocatable :: A(:)        ! cross section (m^2)
+      real(r8), allocatable :: S(:)        ! salinity (ppt)
+   end type
+   
    !-------------------------------------------------------------------------
    !  memory caches for Runge-Kutta methods
    !     K1-K6: Runge-Kutta parameters for 4th Runge-Kutta Method
@@ -73,39 +85,41 @@ module shr_typedef_mod
    !     rerr: relative error between nxt4th and nxt5th
    !-------------------------------------------------------------------------
    type RungeKuttaCache1D
-      real(r8), pointer :: K1(:)
-      real(r8), pointer :: K2(:)
-      real(r8), pointer :: K3(:)
-      real(r8), pointer :: K4(:)
-      real(r8), pointer :: K5(:)
-      real(r8), pointer :: K6(:)
-      real(r8), pointer :: nxt4th(:)
-      real(r8), pointer :: nxt5th(:)
-      real(r8), pointer :: interim(:)
-      real(r8), pointer :: rerr(:)
+      real(r8), allocatable :: K1(:)
+      real(r8), allocatable :: K2(:)
+      real(r8), allocatable :: K3(:)
+      real(r8), allocatable :: K4(:)
+      real(r8), allocatable :: K5(:)
+      real(r8), allocatable :: K6(:)
+      real(r8), allocatable :: nxt4th(:)
+      real(r8), allocatable :: nxt5th(:)
+      real(r8), allocatable :: interim(:)
+      real(r8), allocatable :: rerr(:)
    end type
+   
    type RungeKuttaCache2D
-      real(r8), pointer :: K1(:,:)
-      real(r8), pointer :: K2(:,:)
-      real(r8), pointer :: K3(:,:)
-      real(r8), pointer :: K4(:,:)
-      real(r8), pointer :: K5(:,:)
-      real(r8), pointer :: K6(:,:)
-      real(r8), pointer :: nxt4th(:,:)
-      real(r8), pointer :: nxt5th(:,:)
-      real(r8), pointer :: interim(:,:)
-      real(r8), pointer :: rerr(:,:)
+      real(r8), allocatable :: K1(:,:)
+      real(r8), allocatable :: K2(:,:)
+      real(r8), allocatable :: K3(:,:)
+      real(r8), allocatable :: K4(:,:)
+      real(r8), allocatable :: K5(:,:)
+      real(r8), allocatable :: K6(:,:)
+      real(r8), allocatable :: nxt4th(:,:)
+      real(r8), allocatable :: nxt5th(:,:)
+      real(r8), allocatable :: interim(:,:)
+      real(r8), allocatable :: rerr(:,:)
    end type
+   
    type RungeKuttaCache3D
-      real(r8), pointer :: K1(:,:,:)
-      real(r8), pointer :: K2(:,:,:)
-      real(r8), pointer :: K3(:,:,:)
-      real(r8), pointer :: K4(:,:,:)
-      real(r8), pointer :: K5(:,:,:)
-      real(r8), pointer :: K6(:,:,:)
-      real(r8), pointer :: nxt4th(:,:,:)
-      real(r8), pointer :: nxt5th(:,:,:)
-      real(r8), pointer :: interim(:,:,:)
-      real(r8), pointer :: rerr(:,:,:)
+      real(r8), allocatable :: K1(:,:,:)
+      real(r8), allocatable :: K2(:,:,:)
+      real(r8), allocatable :: K3(:,:,:)
+      real(r8), allocatable :: K4(:,:,:)
+      real(r8), allocatable :: K5(:,:,:)
+      real(r8), allocatable :: K6(:,:,:)
+      real(r8), allocatable :: nxt4th(:,:,:)
+      real(r8), allocatable :: nxt5th(:,:,:)
+      real(r8), allocatable :: interim(:,:,:)
+      real(r8), allocatable :: rerr(:,:,:)
    end type
 end module shr_typedef_mod

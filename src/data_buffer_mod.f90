@@ -44,7 +44,8 @@ module data_buffer_mod
    real(r4), allocatable :: m_icebch4Hist(:)
    ! simulated hourly unfrozen C budgets
    real(r4), allocatable :: m_bvegHist(:,:)
-   real(r4), allocatable :: m_biomassHist(:,:,:) 
+   real(r4), allocatable :: m_bphytoHist(:,:,:) 
+   real(r4), allocatable :: m_bzooHist(:,:)
    real(r4), allocatable :: m_chlaHist(:,:)
    real(r4), allocatable :: m_pascarbHist(:,:,:)
    real(r4), allocatable :: m_actcarbHist(:,:,:)
@@ -76,11 +77,11 @@ module data_buffer_mod
    real(r8), allocatable :: m_Iab(:)
    real(r8), allocatable :: m_Idw(:)
    ! phytoplankton biomass (gC/m3)
-   real(r8), allocatable :: m_waterPOC(:,:)
-   ! Chl : C ratio profile (g Chl gC-1)
-   real(r8), allocatable :: m_rChl2C(:,:)
+   real(r8), allocatable :: m_phytoC(:,:)
    ! Chla concentration (gchl/m3)
    real(r8), allocatable :: m_chla(:)
+   ! zooplankton biomass (gC/m3) 
+   real(r8), allocatable :: m_zooC(:)
    ! submerged macrophyte biomass (gDW/m2)
    real(r8), allocatable :: m_bedVegDW(:)
    ! bed vegetation cover fraction
@@ -88,7 +89,7 @@ module data_buffer_mod
    ! vegetation P uptake (gP/m2/s)
    real(r8), allocatable :: m_vegPUptake(:)
    ! gas exchange amount from bubble to water (mol/m3/s)
-   real(r8), allocatable :: m_gasExchange(:,:)
+   real(r8), allocatable :: m_gasExch(:,:)
    ! gas pools for bubbles trapped in the ice (mol) 
    real(r8), allocatable :: m_iceBubblePool(:)
    ! sediment carbon pools (gC/m3)
@@ -144,15 +145,15 @@ module data_buffer_mod
    integer, allocatable :: m_sedWaterBtmIndex(:)
    ! sediment column index
    integer, allocatable :: m_soilColInd(:)
-   !integer, allocatable :: m_soilColBub(:)
+   real(r8), allocatable :: m_colAz(:)
+   ! hypsometric curve 
+   type(HypsometricCurve) :: m_hypsocurve
    ! lake ice, gray ice and snow thickness (m)
    real(r8) :: m_Hice, m_Hsnow, m_Hgrayice 
    ! areal forest fraction
    real(r8) :: m_ftree, m_fwlnd
    ! SOC density (kg/m2)
    real(r8) :: m_soc
-   ! initial DOC (mol/m3), SRP (mmol/m3) and algae (mg/m3)
-   real(r8) :: m_chla0, m_DOC0, m_DOC1, m_SRP0
    ! mixing layer thickness (m)
    real(r8) :: m_Hmix(2)
    ! surface and bottom boundary layer thickness (m)
@@ -246,7 +247,8 @@ contains
       allocate(m_srpconcHist(WATER_LAYER+1,ntout))
       allocate(m_icebch4Hist(ntout))
       allocate(m_bvegHist(WATER_LAYER+1,ntout))
-      allocate(m_biomassHist(NPOC,WATER_LAYER+1,ntout))
+      allocate(m_bphytoHist(NPTK,WATER_LAYER+1,ntout))
+      allocate(m_bzooHist(WATER_LAYER+1,ntout))
       allocate(m_chlaHist(WATER_LAYER+1,ntout))
       allocate(m_pascarbHist(NSCOL,SED_LAYER+1,ntout))
       allocate(m_actcarbHist(NSCOL,SED_LAYER+1,ntout))
@@ -262,7 +264,7 @@ contains
       allocate(m_iceBubblePool(NGAS))
       allocate(m_waterSubCon(NWSUB,WATER_LAYER+1))
       allocate(m_tmpWaterSubCon(NWSUB,WATER_LAYER+1))
-      allocate(m_gasExchange(NGAS,WATER_LAYER+1))
+      allocate(m_gasExch(NGAS,WATER_LAYER+1))
       allocate(m_sedSubCon(NSSUB,NSCOL,SED_LAYER+1))
       allocate(m_tmpSedSubCon(NSSUB,NSCOL,SED_LAYER+1)) 
       allocate(m_sedSRPCon(NSCOL))
@@ -274,14 +276,14 @@ contains
       allocate(m_sedpor(NSCOL,SED_LAYER+1))
       allocate(m_Iab(WATER_LAYER+1))
       allocate(m_Idw(WATER_LAYER+2))
-      allocate(m_waterPOC(NPOC,WATER_LAYER+1))
-      allocate(m_rChl2C(NPOC,WATER_LAYER+1))
+      allocate(m_phytoC(NPTK,WATER_LAYER+1))
       allocate(m_chla(WATER_LAYER+1))
+      allocate(m_zooC(WATER_LAYER+1))
       allocate(m_bedVegDW(WATER_LAYER+1))
       allocate(m_fcovBedVeg(WATER_LAYER+1))
       allocate(m_vegPUptake(WATER_LAYER+1))
-      allocate(m_frzCarbPool(NPOOL,NSCOL,SED_LAYER+1))
-      allocate(m_unfrzCarbPool(NPOOL,NSCOL,SED_LAYER+1))
+      allocate(m_frzCarbPool(NSEDC,NSCOL,SED_LAYER+1))
+      allocate(m_unfrzCarbPool(NSEDC,NSCOL,SED_LAYER+1))
       allocate(m_aqDepAtCarb(NSCOL))
       allocate(m_trDepAtCarb(NSCOL))
       allocate(m_vegDepAtCarb(NSCOL))
@@ -313,6 +315,7 @@ contains
       allocate(m_dAz(WATER_LAYER+1))
       allocate(m_SAL(WATER_LAYER+1))
       allocate(m_soilColInd(WATER_LAYER+1))
+      allocate(m_colAz(NSCOL))
       allocate(m_Rb0(NRLAYER+1))
       ! allocate intermediate vector
       allocate(m_Ktb(WATER_LAYER+1))
@@ -324,10 +327,11 @@ contains
       allocate(m_sedWaterBtmIndex(NSCOL))
 
       ! initialize depth vectors
-      call ConstructDepthVector(lake_info, m_Zw, m_dZw, m_Zs, m_dZs)
-      call ReadLakeBathymetry(lake_info, m_Zw, m_dZw, m_Az, m_dAz, &
-               m_SAL, m_soilColInd)
-      !call ReadSoilColBubFlag(m_soilColBub)
+      call BuildDepthVector(lake_info, m_Zw, m_dZw, m_Zs, m_dZs)
+      call ReadLakeHypsography(lake_info, m_hypsocurve)
+      call BuildLakeStructure(lake_info, m_hypsocurve, m_Zw, m_dZw, &
+               m_Az, m_dAz, m_SAL, m_soilColInd, m_colAz)
+      ! read inputs
       call SetSedPorosity(m_Zs, m_dZs, m_sedpor)
       call ReadStaticData(veg_file, 'ftree', 'longitude', 'latitude', &
                loc180, m_ftree)
@@ -338,21 +342,40 @@ contains
       call ReadStaticData(tref_file, "t2m", 'longitude', 'latitude', &
                loc180, (/5.d-1,5.d-1/), Ncorigin, m_radPars%tref)
       ! initialize formal air forcing data
-      call ReadSiteTSData(tas_file, 'tas', lake_info, time, m_airTemp)
-      call ReadSiteTSData(hurs_file, 'hurs', lake_info, time, m_airRH)
-      call ReadSiteTSData(pr_file, 'pr', lake_info, time, m_airPr)
-      call ReadSiteTSData(ps_file, 'ps', lake_info, time, m_airPs)
-      call ReadSiteTSData(wind_file, 'sfcwind', lake_info, time, m_airWind)
-      call ReadSiteTSData(rsds_file, 'rsds', lake_info, time, m_airSWRad)
-      call ReadSiteTSData(rlds_file, 'rlds', lake_info, time, m_airLWRad)
+      if (forcing_type=='site') then
+         call ReadSiteTSData(tas_file, 'tas', lake_info, time, &
+                  forcing_nhour, m_airTemp)
+         call ReadSiteTSData(hurs_file, 'hurs', lake_info, time, &
+                  forcing_nhour, m_airRH)
+         call ReadSiteTSData(pr_file, 'pr', lake_info, time, &
+                  forcing_nhour, m_airPr)
+         call ReadSiteTSData(ps_file, 'ps', lake_info, time, &
+                  forcing_nhour, m_airPs)
+         call ReadSiteTSData(wind_file, 'sfcwind', lake_info, time, &
+                  forcing_nhour, m_airWind)
+         call ReadSiteTSData(rsds_file, 'rsds', lake_info, time, &
+                  forcing_nhour, m_airSWRad)
+         call ReadSiteTSData(rlds_file, 'rlds', lake_info, time, &
+                  forcing_nhour, m_airLWRad)
+      !else
+      !   call Read2DTSData(tas_file, 'tas', 'lon', 'lat', loc180, timeIndx, m_airTemp)
+      !   !call Read2DTSData(tasmax_file, 'tasmax', loc180, timeIndx, m_airTempMax)
+      !   !call Read2DTSData(tasmin_file, 'tasmin', loc180, timeIndx, m_airTempMin)
+      !   call Read2DTSData(hurs_file, 'hurs', 'lon', 'lat', loc180, timeIndx, m_airRH)
+      !   call Read2DTSData(pr_file, 'pr', 'lon', 'lat', loc180, timeIndx, m_airPr)
+      !   call Read2DTSData(ps_file, 'ps', 'lon', 'lat', loc180, timeIndx, m_airPs)
+      !   call Read2DTSData(wind_file, 'sfcwind', 'lon', 'lat', loc180, timeIndx, m_airWind)
+      !   call Read2DTSData(rsds_file, 'rsds', 'lon', 'lat', loc180, timeIndx, m_airSWRad)
+      !   call Read2DTSData(rlds_file, 'rlds', 'lon', 'lat', loc180, timeIndx, m_airLWRad) 
+      end if
      
       call ReadGlobalTSData(co2_file, 'co2_rcp26', co2Indx, m_aCO2) 
       call Read2DTSData(o3_file, 'tro3', 'lon', 'lat', loc180, o3Indx, m_aO3)
       call Read2DTSData(aod_file, 'AOD_550', 'lon', 'lat', loc180, aodIndx, &
                m_aAOD)
       ! hydrology and chemistry input data
-      call ReadSiteHydroTSData(hydro_file, 'dzsurf', lake_info, time, m_dzsurf)
-      call ReadSiteHydroTSData(hydro_file, 'SRP', lake_info, time, m_srp)
+      call ReadSiteTSData(hydro_file, 'dzsurf', lake_info, time, 24, m_dzsurf)
+      call ReadSiteTSData(hydro_file, 'SRP', lake_info, time, 24, m_srp)
       ! rescale tree cover and wetland fraction
       call RescaleTreeCoverFraction(m_ftree)
       call RescaleWetlandFraction(m_fwlnd)
@@ -395,7 +418,8 @@ contains
       deallocate(m_srpconcHist)
       deallocate(m_icebch4Hist)
       deallocate(m_bvegHist)
-      deallocate(m_biomassHist)
+      deallocate(m_bphytoHist)
+      deallocate(m_bzooHist)
       deallocate(m_chlaHist)
       deallocate(m_pascarbHist)
       deallocate(m_actcarbHist)
@@ -408,14 +432,14 @@ contains
       deallocate(m_tmpSedTemp)
       deallocate(m_waterSubCon)
       deallocate(m_tmpWaterSubCon)
-      deallocate(m_gasExchange)
+      deallocate(m_gasExch)
       deallocate(m_sedSubCon)  
       deallocate(m_tmpSedSubCon)
       deallocate(m_sedSRPCon)
       deallocate(m_sedEHL)
-      deallocate(m_waterPOC)
-      deallocate(m_rChl2C)
+      deallocate(m_phytoC)
       deallocate(m_chla)
+      deallocate(m_zooC)
       deallocate(m_bedVegDW)
       deallocate(m_vegPUptake)
       deallocate(m_fcovBedVeg)
@@ -453,7 +477,6 @@ contains
       deallocate(m_fsphot)
       deallocate(m_wvln)
       deallocate(m_Ipar)
-      ! destroy memory for discharge data
       ! destroy the memory for depth vectors
       deallocate(m_Zs)
       deallocate(m_Zw)               
@@ -463,6 +486,7 @@ contains
       deallocate(m_dAz)
       deallocate(m_SAL)
       deallocate(m_soilColInd)
+      deallocate(m_colAz)
       deallocate(m_Rb0)
       ! destroy memory for intermediate variables
       deallocate(m_Ktb)
@@ -472,6 +496,10 @@ contains
       deallocate(m_topdflux)
       deallocate(m_sedWaterTopIndex)
       deallocate(m_sedWaterBtmIndex)
+      ! destroy memory for hypsometric curve
+      deallocate(m_hypsocurve%h)
+      deallocate(m_hypsocurve%A)
+      deallocate(m_hypsocurve%S)
    end subroutine
     
 end module data_buffer_mod

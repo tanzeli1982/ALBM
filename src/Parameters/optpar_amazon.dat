@@ -1,33 +1,72 @@
-Parameter_Id: Parameter_Value
- 1: 2.0e+02
- 2: 3.0
- 3: 5.0
- 4: 3.0
- 5: 0.12397727966308594
- 6: 0.4870433807373047
- 7: 0.00198354257974362
- 8: 4.551637880246228e-05
- 9: 0.12220020294189453
-10: 0.028372154235839844
-11: 9.0e-01
-12: 1.3e-01
-13: 2.0e-04
-14: 0.855194091796875
-15: 1.0e-05
-16: 1.0e-05
-17: 9.578914642333984
-18: 1.4574062395420553e-10
-19: 1.0e-08
-20: 3.3235709637105743e-12
-21: 1.0e-10
-22: 3.64e-10
-23: 6.790512847900391
-24: 2.0
-25: 1.2
-26: 98.25820922851562
-27: 4.490297187366281e-06
-28: 3.433942413330078
-29: 0.7531509399414062
-30: 8.0
-31: 0.025561809539794922
-32: 0.15
+/-------------------------------------------------------------------/
+/ ALBM calibrated parameter file                                    /
+/ Author: Zeli Tan (tanzeli1982@gmail.com)
+/-------------------------------------------------------------------/
+/
+/----------------------------------------------
+/  thermal related parameters
+/----------------------------------------------
+/
+SNOW DENSITY                           = 200.0 / units: kg/m3
+LIGHT ATTENUATION CORRECTION FACTOR    = 3.0
+WIND SHIELDING CORRECTION FACTOR       = 5.0
+HEAT TRANSFER SCALING FACTOR           = 3.0
+TURBULENT DIFFUSIVITY SCALING FACTOR   = 1.0
+/
+/----------------------------------------------
+/  phytoplankton related parameters
+/  for small phytoplankton, large phytoplankton, diatom
+/----------------------------------------------
+/
+MAXIMUM GROWTH RATE AT 20 CELSIUS               = 2.4,1.0,2.0 / units: d^-1
+HALF-SATURATION CONCENTRATION OF P LIMITATION   = 4.0E-3,1.0E-3,2.0E-3 / units: mol/m3
+METABOLIC LOSS RATE AT 20 CELSIUS               = 0.1,0.03,0.075 / units: d^-1
+SETTLED FRACTION OF DEPOSITED PHYTOPLANKTON     = 0.2,0.2,0.8
+TEMPERATURE PARAMETER SIGMA FOR PHYTOPLANKTON   = 15.0,15.0,16.0 / units: celsius
+TEMPERATURE PARAMETER OPT FOR PHYTOPLANKTON     = 22.0,28.0,18.0 / units: celsius
+/
+/----------------------------------------------
+/  zooplankton related parameters
+/----------------------------------------------
+/
+MAXIMUM GRAZING RATE AT 20 CELSIUS                       = 2.0 / units: d^-1
+TEMPERATURE PARAMETER SIGMA FOR ZOOPLANKTON              = 15.0 / units: celsius
+TEMPERATURE PARAMETER OPT FOR ZOOPLANKTON                = 28.0 / units: celsius
+ZOOPLANKTON MORTALITY RATE                               = 0.06 / units: d^-1
+ZOOPLANKTON MAINTENANCE RESPIRATION RATE AT 20 CELSIUS   = 0.15 / units: d^-1
+/
+/----------------------------------------------
+/  ebullition related parameters
+/----------------------------------------------
+/
+EBULLITION RATE                        = 2.0E-4 / units: s^-1
+RELATIVE CONCENTRATION FOR EBULLITION  = 0.8
+ICE-TRAPPED BUBBLE FLUX RATE           = 1.0E-5 / units: s^-1
+ICE-TRAPPED BUBBLE DISSOLUTION RATE    = 1.0E-5 / units: s^-1
+/
+/----------------------------------------------
+/  sediment C pool related parameters
+/  for passive, active, old pools
+/----------------------------------------------
+/
+E-FOLDING VERTICAL DAMPENING RATE OF PASSIVE OC    = 8.3 / units: m^-1
+AEROBIC DECOMPOSITION RATE AT 20 CELSIUS           = 1.0E-10,1.0E-8,2.38E-9 / units: s^-1
+CH4 PRODUCTION RATE AT REFERENCE TEMPERATURE       = 1.19E-13,1.0E-10,3.64E-10 / units: s^-1
+CH4 PRODUCTION Q10                                 = 6.64,1.23,1.2
+REDOX POTENTIAL CHANGE RATE                        = 100.0 / units: mV/d
+/
+/----------------------------------------------
+/  methane oxidation and OMP related parameters
+/----------------------------------------------
+/
+CH4 OXIDATION POTENTIAL                               = 5.66E-6 / units: mol/m3/s
+CH4 OXIDATION Q10                                     = 2.47
+CH4 CONCENTRATION EXPONENT COEFFICIENT FOR OXIDATION  = 0.81
+O2 INHIBITION COEFFICIENT FOR OXIDATION               = 8.0
+OXIC CH4 PRODUCTION RATE                              = 0.0086 / units: mol CH4/m3/s (gC/m3/s)^-1
+/
+/----------------------------------------------
+/  submerged macrophytes parameters
+/----------------------------------------------
+/
+MACROPHYTE MAXIMUM GROWTH RATE AT 20 CELSIUS          = 0.15 / units: d^-1

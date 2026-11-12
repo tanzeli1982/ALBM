@@ -6,7 +6,7 @@ module shr_ctrl_mod
    use shr_typedef_mod,    only : LakeInfo
 
    public
-   ! Real infinitestimal valu
+   ! Real infinitestimal value
    real(r8), parameter :: SHR_CTRL_E8 = 1.d-8
    ! Infinite numble
    real(r8), parameter :: INFINITE_E8 = 1.d+30
@@ -25,15 +25,19 @@ module shr_ctrl_mod
    ! N2, O2, CO2, CH4, TP
    integer, parameter :: NSSUB = 5
    ! # of phytoplankton function groups
-   integer, parameter :: NPOC = 2
+   integer, parameter :: NPTK = 3
    ! # of dissolved organic carbon groups
    integer, parameter :: NDOC = 2
-   ! # of carbon pools
-   integer, parameter :: NPOOL = 3
+   ! # of sediment carbon pools
+   integer, parameter :: NSEDC = 3
    ! # of lake types
-   integer, parameter :: NLAKTYPE = 1
+   integer, parameter :: NLTYPE = 11
+   ! # of trophic status class
+   integer, parameter :: NTSC = 4
    ! Wavelength number
    integer, parameter :: NSPCTM = 2002
+   ! Sediment column thickness
+   real(r8), parameter :: HSED = 25.0_r8
    ! Tolerance of temperature (units: K)
    real(r8), parameter :: Ttol = 1.0d-4
    ! Tolerance of soil temperature (units: K)
@@ -49,12 +53,12 @@ module shr_ctrl_mod
    character(cx) :: lake_file
    character(cx) :: opt_file
    character(cx) :: bathy_file
-   character(len=32) :: run_mode    ! "regular" or "sensitivity"
+   character(len=32) :: run_mode    ! "simulation" or "sensitivity"
    ! debug group
    logical :: DEBUG
    ! simulation group
    logical :: Thermal_Module, Bubble_Module, Diagenesis_Module
-   logical :: Carbon_Module
+   logical :: Carbon_Module, Hydro_Module
    logical :: Use_Leap
    integer :: Start_Year, Start_Month, Start_Day, End_Year
    integer :: End_Month, End_Day
@@ -63,6 +67,7 @@ module shr_ctrl_mod
    integer :: NWLAYER, NSLAYER, NRLAYER, NSCOL 
    integer :: WATER_LAYER, SED_LAYER
    ! run data group
+   character(len=32) :: forcing_type   ! "site" or "region"
    character(len=32) :: forcing_tstep
    character(len=32) :: forcing_time   ! "UTC" or "LT"
    integer :: forcing_nhour

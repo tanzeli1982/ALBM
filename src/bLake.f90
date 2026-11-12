@@ -1,16 +1,15 @@
 !****************************************************************************
 !
-!  PROGRAM: Generalized Lake Biogeochemical Model for temperate lakes
+!  PROGRAM: Advanced Lake Biogeochemistry Model (ALBM)
 !
-!  PURPOSE:  Entry point for the GLBM model application.
-!            It can be run in three modes: regular simulation, model calibration,
-!            and model sensitivity analysis.
+!  PURPOSE:  Entry point for the ALBM model application.
+!            It can be run in two modes: regular and sensitivity simulation.
 !
 !****************************************************************************
 
 program bLake
    use read_data_mod,   only : ReadSimulationSettings, BcastSimulationSettings 
-   use simulation_mod,  only : RunRegular
+   use simulation_mod,  only : RunSimulation
    use sensitivity_mod, only : RunSensitivity
    use shr_ctrl_mod
    use mpi
@@ -41,8 +40,12 @@ program bLake
 
    if (trim(run_mode)=='sensitivity') then
       call RunSensitivity(taskid, numprocs, arg)
+   else if (trim(run_mode)=='regular') then
+      call RunSimulation(taskid, numprocs, arg)
    else
-      call RunRegular(taskid, numprocs, arg)
+      print *, "Error: unrecognized run_mode!! Must be " // &
+         "'regular' or 'sensitivity'."
+      call MPI_ABORT(MPI_COMM_WORLD, 1, err)
    end if
 
    call MPI_FINALIZE(err)

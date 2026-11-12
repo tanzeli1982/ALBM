@@ -8,7 +8,7 @@ module soil_thermal_mod
 !          
 !---------------------------------------------------------------------------------
    use shr_kind_mod,          only : r8
-   use shr_ctrl_mod,          only : WATER_LAYER, SED_LAYER, DEBUG, lake_info
+   use shr_ctrl_mod,          only : WATER_LAYER, SED_LAYER, HSED, DEBUG, lake_info
    use shr_param_mod
    use shr_typedef_mod,       only : RungeKuttaCache2D
    use phy_utilities_mod
@@ -85,7 +85,7 @@ contains
             rad(icol) = 0._r8
             cycle
          end if
-         sumAz = sum(m_dAz(indx0:indx))
+         sumAz = m_colAz(icol) 
          do ii = 1, SED_LAYER+1, 1
             Porosity = m_sedpor(icol,ii)
             satLW = CalcSoilWaterSaturation(m_sedTemp(icol,ii))
@@ -139,7 +139,7 @@ contains
             dtemp(icol,:) = 0._r8
             cycle
          end if
-         sumAz = sum(m_dAz(indx0:indx))
+         sumAz = m_colAz(icol) 
 
          ! top boundary condition
          if (icol<NSCOL) then
@@ -292,18 +292,18 @@ contains
 
          indx = COUNT(m_soilColInd<=icol)
          ! calculate sediment bottom temperature
-         margin = (icol==1)
+         margin = (icol==1) .and. (NSCOL>1)
          call CalcSedBottomTemp(lake_info, m_radPars%tref, margin, MAGT)
          ! calculate talik depth
          if (lake_info%thrmkst>0) then
             talik = m_Zw(indx) / lake_info%excice
          else
-            talik = lake_info%hsed
+            talik = HSED 
          end if
-         talik = min(talik, lake_info%hsed)
+         talik = min(talik, HSED)
 
          ! construct temperature profile
-         if (talik>lake_info%hsed-e8) then
+         if (talik>HSED-e8) then
             Tbot = max(MAGT,T0)
             Ttop = T0 + 4.0
          else

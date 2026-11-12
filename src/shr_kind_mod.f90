@@ -13,4 +13,5 @@ module shr_kind_mod
 #else
    real(r8), parameter :: NaN = transfer(int(Z'7FF8000000000000', kind=8), 0.0_r8)
 #endif
+
 end module shr_kind_mod

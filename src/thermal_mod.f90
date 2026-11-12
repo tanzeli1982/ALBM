@@ -110,6 +110,7 @@ contains
       call CalcBruntVaisalaFreq(m_dZw, m_wrho, freq)
       if (m_Hice<e8) then
          call CalcEddyDiffusivity(m_Zw, freq, wind, lat, m_Kt)
+         m_Kt = PAR_Dscale * m_Kt
          m_Kt(1) = max(m_Kt(1), 1.0d-5)
       else
          call CalcEnhancedDiffusivity(freq, m_waterIce, m_Kt)
@@ -153,19 +154,18 @@ contains
       implicit none
       real(r8), intent(in) :: dt
       real(r8) :: rateS, rateE, fs, fe 
-      real(r8) :: snowMax, mS2E, Roun
+      real(r8) :: snowMax, mS2E
 
       call AdjustIceTemp()
       call UpdateWaterDensity()
       call ConvectiveMixing(dt)
       if (m_Hice>e8) then
-         Roun = sa_params(Param_Roun)
-         call CalcSnowBurdenLimit(m_Hice, m_Hgrayice, Roun, snowMax)
+         call CalcSnowBurdenLimit(m_Hice, m_Hgrayice, PAR_Roun, snowMax)
          call CalcSnowLayerChangeRate(rateS)
          call CalcGrayIceLayerMeltRate(rateE)
          m_Hsnow = max(m_Hsnow+rateS*dt, 0.0) 
          if (m_Hsnow>=0.1) then
-            mS2E = max(0d0, (m_Hsnow-snowMax)*Roun/Roue)
+            mS2E = max(0d0, (m_Hsnow-snowMax)*PAR_Roun/Roue)
             m_Hgrayice = max(m_Hgrayice+mS2E+rateE*dt, 0d0)
             m_Hsnow = max(0.0, min(m_Hsnow, snowMax))
          else
@@ -252,7 +252,6 @@ contains
       real(r8) :: Ttop, Twet, w10, wind, RH, Tair
       real(r8) :: icita, dtemp, temp, Rn, ps
       real(r8) :: sw_top, sw_btm, sw_remain
-      real(r8) :: Roun, Hscaler
       integer :: ii, icol, top
 
       Ttop = m_waterTemp(1)
@@ -261,8 +260,6 @@ contains
       Tair = m_surfData%temp
       RH = m_surfData%RH
       ps = m_surfData%pressure
-      Roun = sa_params(Param_Roun)
-      Hscaler = sa_params(Param_Hscale)
       !Hsa = 4.29 * max(1.d-1, wind)  ! units: W/m2/K 
       Hsa = 3.90 * max(1.d-1, wind)  ! units: W/m2/K
       if (m_Hsnow>e8 .or. m_Hgrayice>e8) then
@@ -304,16 +301,16 @@ contains
          hnet_hr = m_surfData%srd - lw_net - sh_hr - lh_hr 
       else
          lw_net = Epsw*Stefan*(Ttop**4) - Epsw*m_surfData%lw
-         lh_net = Hscaler * CalcLatentHeatWater(Ttop, Tair, RH, wind)
+         lh_net = PAR_Hscale * CalcLatentHeatWater(Ttop, Tair, RH, wind)
          !Rn = m_surfData%srd - lw_net
          !lh_net = CalcLatentHeatWater(Ttop, Tair, RH, wind, ps, Rn)
-         sh_net = Hscaler * CalcSensibleHeat(Ttop, Tair, wind)
+         sh_net = PAR_Hscale * CalcSensibleHeat(Ttop, Tair, wind)
          Twet = CalcWetBubTemp(Tair, RH, m_surfData%pressure)
          if (m_surfData%rainfall>e8) then
             runoff_net = Cpl*Roul*(Twet-Ttop)*m_surfData%rainfall
          else if (m_surfData%snowfall>e8) then
             runoff_net = (Cpn*(Twet-T0) + Cpl*(T0-Ttop) - Lf) * &
-                        m_surfData%snowfall * Roun
+                        m_surfData%snowfall * PAR_Roun
          else
             runoff_net = 0.0_r8
          end if
@@ -472,7 +469,7 @@ contains
       if (m_Hice<e8) then
          w10 = m_surfData%wind 
          As = 1.d-6 * lake_info%Asurf
-         Wstr = sa_params(Param_Wstr) * (1.0 - exp(-0.3*As))
+         Wstr = PAR_Wstr * (1.0 - exp(-0.3*As))
          call CalcTotalKineticPower(lake_info, w10, Pkin)
          m_Ekin = m_Ekin + Wstr * Pkin * dt
       else
@@ -609,7 +606,7 @@ contains
       implicit none
       real(r8), intent(out) :: rate       ! unit: m/s
       real(r8) :: rad, lh, sh, runoff
-      real(r8) :: lw, hnet, Roun, wind
+      real(r8) :: lw, hnet, wind
 
       if (m_surfData%temp>T0+e8 .or. m_radPars%season==1) then
          ! absorbed solar energy, latent heat, sensible heat and runoff heat
@@ -627,9 +624,8 @@ contains
          sh = 0.0_r8
          runoff = 0.0_r8
       end if
-      Roun = sa_params(Param_Roun)
       hnet = max(0d0, rad+lw-sh-lh+runoff)
-      rate = m_surfData%snowfall - hnet/(Roun*Lf)
+      rate = m_surfData%snowfall - hnet/(PAR_Roun*Lf)
    end subroutine
 
    subroutine CalcGrayIceLayerMeltRate(rate)

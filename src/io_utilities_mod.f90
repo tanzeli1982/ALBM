@@ -218,7 +218,7 @@ contains
    !------------------------------------------------------------------------------
    subroutine GetArchiveFullname(time, varname, tstep, fullname)
       implicit none
-      Type(SimTime), intent(in) :: time
+      type(SimTime), intent(in) :: time
       character(len=*), intent(in) :: varname
       character(len=*), intent(in) :: tstep 
       character(len=*), intent(out) :: fullname
@@ -245,6 +245,38 @@ contains
          fullname = trim(fulldir) // 'bLakeOut.' // trim(varname) // &
             '.' // trim(tmpstr) // '.nc'
       end if
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: read values from comma-delimited string
+   !
+   !------------------------------------------------------------------------------
+   subroutine ExtractValuesFromStr(valstr, nval, values, ios)
+      implicit none
+      character(len=*), intent(in) :: valstr
+      integer, intent(in) :: nval
+      real(r8), intent(out) :: values(:)
+      integer, intent(out) :: ios
+      character(cs) :: trimmed_value
+      integer :: indx, ii, epos
+
+      ios = 0
+      indx = 1
+      do ii = 1, nval, 1
+         epos = INDEX(valstr(indx:), ",")
+         if (epos<=0 .and. ii<nval) then
+            ios = -98
+            return
+         else if (epos>0) then
+            trimmed_value = trim(valstr(indx:indx+epos-2))
+            read(trimmed_value, fmt=*) values(ii)
+            indx = indx + epos
+         else
+           trimmed_value = trim(valstr(indx:))
+           read(trimmed_value, fmt=*) values(ii)
+         end if
+      end do
    end subroutine
 
    !------------------------------------------------------------------------------

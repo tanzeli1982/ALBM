@@ -1,9 +1,6 @@
 module simulation_mod
 !---------------------------------------------------------------------------------
-! Purpose: This module runs simulations locally or regionally.
-!  There are two main components in this model: thermal module and bubbling module.
-!  Thermal module includes water thermal sub module and soil thermal sub module.
-!  Bubbling module includes gas production module and gas transportation module.
+! Purpose: This module runs simulations on each specified lake.
 !
 !---------------------------------------------------------------------------------
    use shr_ctrl_mod
@@ -17,10 +14,10 @@ module simulation_mod
    use mpi
 
    private
-   public :: RunRegular
+   public :: RunSimulation
 
 contains
-   subroutine RunRegular(taskid, numprocs, arg)
+   subroutine RunSimulation(taskid, numprocs, arg)
       implicit none
       integer, intent(in) :: taskid
       integer, intent(in) :: numprocs
@@ -164,8 +161,10 @@ contains
                                  'concentration', 'g m-3', -9999.0_r4)
             call CreateOutputFile(time, NSCOL, 'cdep', 'COL', 'active organic ' // &
                                  'carbon deposition', 'gC m-2 s-1', -9999.0_r4)
-            call CreateOutputFile(time, NPOC, NWLAYER+1, 'biomass', 'POC', 'Z', &
+            call CreateOutputFile(time, NPTK, NWLAYER+1, 'bphyto', 'PTK', 'Z', &
                                  'phytoplankton biomass', 'gC m-3', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'bzoo', 'Z', &
+                                 'zooplankton biomass', 'gC m-3', -9999.0_r4)
             call CreateOutputFile(time, NWLAYER+1, 'bveg', 'Z', 'submerged ' // &
                                  'macrophyte biomass', 'gC m-2', -9999.0_r4)
          end if

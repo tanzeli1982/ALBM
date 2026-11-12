@@ -1,6 +1,6 @@
 module sensitivity_mod
 !---------------------------------------------------------------------------------
-! Purpose: this module governs the sensitivity analysis of the bLake model
+! Purpose: this module governs the sensitivity analysis of the ALBM model
 !
 !---------------------------------------------------------------------------------
    use shr_ctrl_mod
@@ -170,8 +170,10 @@ contains
                                  'concentration', 'g/m3', -9999.0_r4)
             call CreateOutputFile(time, NSCOL, 'cdep', 'COL', 'active organic ' // &
                                  'carbon deposition', 'gC/m2/s', -9999.0_r4)
-            call CreateOutputFile(time, NPOC, NWLAYER+1, 'biomass', 'POC', 'Z', &
+            call CreateOutputFile(time, NPTK, NWLAYER+1, 'bphyto', 'PTK', 'Z', &
                                  'phytoplankton biomass', 'gC/m3', -9999.0_r4)
+            call CreateOutputFile(time, NWLAYER+1, 'bzoo', 'Z', &
+                                 'zooplankton biomass', 'gC/m3', -9999.0_r4)
             call CreateOutputFile(time, NWLAYER+1, 'bveg', 'Z', 'submerged ' // &
                                  'macrophyte biomass', 'gC m-2', -9999.0_r4)
          end if
@@ -232,7 +234,7 @@ contains
             print *, ' Floating point exception: Non-IEEE type'
       end select
       !CALL TRACEBACKQQ(trim(header), USER_EXIT_CODE=-1)
-      print *, 'failed sample ', cur_sample, sa_params 
+      print *, 'failed sample ', cur_sample
       hand_fpe = 1
    end function
 #endif

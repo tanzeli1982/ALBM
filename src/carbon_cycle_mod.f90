@@ -20,8 +20,10 @@ module carbon_cycle_mod
    public :: mem_sub
    public :: InitializeCarbonModule, DestructCarbonModule
    public :: CarbonModuleSetup, CarbonModuleCallback 
-   public :: CarbonCycleEquation, PhytoplanktonDynamics 
+   public :: CarbonCycleEquation
    public :: GetProductionRates, GetRespirationRates
+   public :: PhytoplanktonDynamics
+   public :: ZooplanktonDynamics
    public :: BedVegetationDynamics
    ! memory cache for Runge-Kutta
    type(RungeKuttaCache2D) :: mem_sub
@@ -30,25 +32,28 @@ module carbon_cycle_mod
    ! particulate settling velocity (m/s)
    real(r8), allocatable :: Vsettl(:,:)
    ! heterotrophic respiration (mol/m3/s)
-   real(r8), allocatable :: rRDOC(:)
-   real(r8), allocatable :: rRDOCnew(:)
+   real(r8), allocatable :: rHR(:)
+   real(r8), allocatable :: rHRbase(:)
    ! carbon fixation rate (s-1)
    real(r8), allocatable :: rGPP(:,:)
-   ! carbon fixation rate (gC/m3/s)
-   real(r8), allocatable :: rsumGPP(:)
+   real(r8), allocatable :: rGPPbase(:,:)
    ! phytoplankton metabolic loss (s-1)
-   real(r8), allocatable :: rLPOC(:,:)
-   real(r8), allocatable :: rRLPOC(:,:)
-   real(r8), allocatable :: rRLDOC(:,:)
-   real(r8), allocatable :: rRLMort(:,:)
-   ! phytoplankton metabolic loss (gC/m3/s)
+   real(r8), allocatable :: rPhytoResp(:,:)
+   real(r8), allocatable :: rPhytoRespbase(:,:)
+   real(r8), allocatable :: rPhytoMort(:,:)
+   ! sinking-induced mortality (s-1)
+   real(r8), allocatable :: rPhytoDep(:,:)
+   ! grazing-induced mortality (s-1)
+   real(r8), allocatable :: rPhytoGraze(:,:)
+   ! summary of phytoplanton C fluxes (gC/m3/s)
+   real(r8), allocatable :: rsumGPP(:)
    real(r8), allocatable :: rsumResp(:)
-   real(r8), allocatable :: rsumLPOC(:)
-   ! sinking-induced mortality (gC/m3/s)
-   real(r8), allocatable :: rPOCMort(:,:)
+   ! zooplankton metabolism (s-1)
+   real(r8), allocatable :: rZooMort(:)
+   real(r8), allocatable :: rZooResp(:)
    ! CH4 oxidation (mol/m3/s)
    real(r8), allocatable :: rOCH4(:)
-   real(r8), allocatable :: rOCH4new(:)
+   real(r8), allocatable :: rOCH4base(:)
    ! oxic CH4 production (mol/m3/s)
    real(r8), allocatable :: rOMP(:)
    ! dissolved elements dynamcis (mol/m3/s) 
@@ -61,8 +66,12 @@ module carbon_cycle_mod
    real(r8), allocatable :: rVegMort(:)
    ! phytoplankton movement (gC/m2/s)
    real(r8), allocatable :: bmotion(:,:)
+   ! temporal zooplankton biomass (gC/m3)
+   real(r8), allocatable :: zooC_new(:)
    ! equilibrium gas concentration (mol/m3)
    real(r8), allocatable :: EQConc(:)
+   ! Chl : C ratio profile (g Chl gC-1)
+   real(r8), allocatable :: rChl2C(:,:)
    ! bottom fluxes (mol/m2/s)
    real(r8), allocatable :: qb(:,:)
    real(r8), allocatable :: qt(:)
@@ -83,28 +92,32 @@ contains
       implicit none
 
       allocate(Kg(NGAS))
-      allocate(Vsettl(NPOC,WATER_LAYER+1))
+      allocate(Vsettl(NPTK,WATER_LAYER+1))
       allocate(rDYN(NWSUB,WATER_LAYER+1))
-      allocate(rPDYN(NPOC,WATER_LAYER+1))
+      allocate(rPDYN(NPTK,WATER_LAYER+1))
       allocate(rVegProd(WATER_LAYER+1))
       allocate(rVegResp(WATER_LAYER+1))
       allocate(rVegMort(WATER_LAYER+1))
-      allocate(rGPP(NPOC,WATER_LAYER+1))
+      allocate(rGPP(NPTK,WATER_LAYER+1))
+      allocate(rGPPbase(NPTK,WATER_LAYER+1))
+      allocate(rHR(WATER_LAYER+1))
+      allocate(rHRbase(WATER_LAYER+1))
+      allocate(rPhytoResp(NPTK,WATER_LAYER+1))   
+      allocate(rPhytoRespbase(NPTK,WATER_LAYER+1))
+      allocate(rPhytoMort(NPTK,WATER_LAYER+1))
+      allocate(rPhytoDep(NPTK,WATER_LAYER+1))
+      allocate(rPhytoGraze(NPTK,WATER_LAYER+1))
       allocate(rsumGPP(WATER_LAYER+1))
-      allocate(rRDOC(WATER_LAYER+1))
-      allocate(rRDOCnew(WATER_LAYER+1))
-      allocate(rLPOC(NPOC,WATER_LAYER+1))
-      allocate(rRLPOC(NPOC,WATER_LAYER+1))   
-      allocate(rRLDOC(NPOC,WATER_LAYER+1))
-      allocate(rRLMort(NPOC,WATER_LAYER+1))
       allocate(rsumResp(WATER_LAYER+1))
-      allocate(rsumLPOC(WATER_LAYER+1))
-      allocate(rPOCMort(NPOC,WATER_LAYER+1))
+      allocate(rZooMort(WATER_LAYER+1))
+      allocate(rZooResp(WATER_LAYER+1))
       allocate(rOCH4(WATER_LAYER+1))
-      allocate(rOCH4new(WATER_LAYER+1))
+      allocate(rOCH4base(WATER_LAYER+1))
       allocate(rOMP(WATER_LAYER+1))
-      allocate(bmotion(NPOC,WATER_LAYER+1))
+      allocate(bmotion(NPTK,WATER_LAYER+1))
+      allocate(zooC_new(WATER_LAYER+1))
       allocate(EQConc(NGAS))
+      allocate(rChl2C(NPTK,WATER_LAYER+1))
       allocate(qb(NWSUB,WATER_LAYER+1))
       allocate(qt(NWSUB))
       allocate(GDDsum(WATER_LAYER+1))
@@ -127,24 +140,28 @@ contains
       rVegResp = 0.0_r8
       rVegMort = 0.0_r8
       rGPP = 0.0_r8
+      rGPPbase = 0.0_r8
+      rHR = 0.0_r8
+      rHRbase = 0.0_r8
+      rPhytoResp = 0.0_r8
+      rPhytoRespbase = 0.0_r8
+      rPhytoMort = 0.0_r8
+      rPhytoDep = 0.0_r8
+      rPhytoGraze = 0.0_r8
       rsumGPP = 0.0_r8
-      rRDOC = 0.0_r8
-      rRDOCnew = 0.0_r8
-      rLPOC = 0.0_r8
-      rRLPOC = 0.0_r8
-      rRLDOC = 0.0_r8
-      rRLMort = 0.0_r8
       rsumResp = 0.0_r8
-      rsumLPOC = 0.0_r8
-      rPOCMort = 0.0_r8
+      rZooMort = 0.0_r8
+      rZooResp = 0.0_r8
       rOCH4 = 0.0_r8
-      rOCH4new = 0.0_r8
+      rOCH4base = 0.0_r8
       rOMP = 0.0_r8
       rDYN = 0.0_r8
       rPDYN = 0.0_r8
       Kg = 0.0_r8
       Vsettl = 0.0_r8
       bmotion = 0.0_r8
+      zooC_new = 0.0_r8
+      rChl2C = 0.02_r8 
       qb = 0.0_r8
       qt = 0.0_r8
       GDDsum = 0.0_r8
@@ -166,21 +183,25 @@ contains
       deallocate(rVegResp)
       deallocate(rVegMort)
       deallocate(rGPP)
+      deallocate(rGPPbase)
+      deallocate(rHR)
+      deallocate(rHRbase)
+      deallocate(rPhytoResp)
+      deallocate(rPhytoRespbase)
+      deallocate(rPhytoMort)
+      deallocate(rPhytoDep)
+      deallocate(rPhytoGraze)
       deallocate(rsumGPP)
-      deallocate(rRDOC)
-      deallocate(rRDOCnew)
-      deallocate(rLPOC)
-      deallocate(rRLPOC)
-      deallocate(rRLDOC)
-      deallocate(rRLMort)
       deallocate(rsumResp)
-      deallocate(rsumLPOC)
-      deallocate(rPOCMort)
+      deallocate(rZooMort)
+      deallocate(rZooResp)
       deallocate(rOCH4)
-      deallocate(rOCH4new)
+      deallocate(rOCH4base)
       deallocate(rOMP)
       deallocate(bmotion)
+      deallocate(zooC_new)
       deallocate(EQConc)
+      deallocate(rChl2C)
       deallocate(qb)
       deallocate(qt)
       deallocate(GDDsum)
@@ -206,7 +227,7 @@ contains
       integer(i8), intent(in) :: hindx
       real(r8) :: pH, temp, pressure
       real(r8) :: mixing_ratio(NGAS)
-      integer :: top, gas
+      integer :: top, gas, ii
 
       top = m_lakeWaterTopIndex
 
@@ -237,7 +258,7 @@ contains
       !end if
       ! fix surface SRP
       if (m_Hice<e8) then
-         m_waterSubCon(Wsrp,top) = m_surfData%srp / MasP 
+         m_waterSubCon(Wsrp,top) = m_surfData%srp
       end if
       ! No dissolved chemicals in ice
       m_waterSubCon(:,1:top-1) = 0._r8
@@ -257,9 +278,8 @@ contains
    subroutine CarbonModuleCallback(dt)
       implicit none
       real(r8), intent(in) :: dt
-      real(r8) :: redrPOC(NPOC), sumAz
-      real(r8) :: deadPOC(NPOC)
-      integer :: top, bottom, ii, kk
+      real(r8) :: redrPOC(NPTK), redrZOC
+      integer :: top, bottom, ii
       integer :: icol, indx, indx0
  
       top = m_lakeWaterTopIndex
@@ -268,46 +288,32 @@ contains
       call ConvectiveMixing()
       call AdjustNegativeConcentrations()
 
-      ! Count deposited phytoplankton for each sediment column
+      ! Count deposited terrigenous carbon
       do icol = 1, NSCOL, 1
          indx = COUNT(m_soilColInd<=icol) 
          indx0 = COUNT(m_soilColInd<=icol-1) + 1
          if (indx0<=indx) then
-            sumAz = sum(m_dAz(indx0:indx))
-            ! dead phytoplankton
-            m_aqDepAtCarb(icol) = 0.0_r8
-            do ii = top, indx, 1
-               deadPOC = (rRLMort(:,ii) + rPOCMort(:,ii)) * m_waterPOC(:,ii)
-               if (ii<indx0) then
-                  m_aqDepAtCarb(icol) = m_aqDepAtCarb(icol) + &
-                     fPhyActC * sum(deadPOC) * m_dZw(ii)
-               else
-                  m_aqDepAtCarb(icol) = m_aqDepAtCarb(icol) + &
-                     fPhyActC * sum(deadPOC) * m_dZw(ii) * &
-                     sum(m_dAz(ii:indx)) / sumAz
-               end if
-            end do
-            ! submerged macrophyte mortality
-            m_vegDepAtCarb(icol) = 0._r8
-            do ii = indx0, indx, 1
-               m_vegDepAtCarb(icol) = m_vegDepAtCarb(icol) + fVegActC * &
-                  cCPerDW * rVegMort(ii) * m_dAz(ii) / sumAz      
-            end do
-            ! terrigenous source
             m_trDepAtCarb(icol) = fTrActC*lake_info%cdep/SECOND_OF_YEAR 
+         else
+            m_trDepAtCarb(icol) = 0._r8
          end if
       end do    
+
       ! redistribute phytoplankton in winter
       if (top<=bottom) then
-         redrPOC = 0.0_r8
+         redrPOC = 0._r8
+         redrZOC = 0._r8
          do ii = 1, top-1, 1
-            redrPOC = redrPOC + m_waterPOC(:,ii)*m_dZw(ii)*m_Az(ii)
+            redrPOC = redrPOC + m_phytoC(:,ii)*m_dZw(ii)*m_Az(ii)
+            redrZOC = redrZOC + m_zooC(ii)*m_dZw(ii)*m_Az(ii)
          end do
-         m_waterPOC(:,top) = m_waterPOC(:,top) + redrPOC/m_dZw(top)/m_Az(top)
-         m_waterPOC(:,1:top-1) = 0.0_r8
-      end if
+         
+         m_phytoC(:,top) = m_phytoC(:,top) + redrPOC/m_dZw(top)/m_Az(top)
+         m_phytoC(:,1:top-1) = 0.0_r8
 
-      call UpdatePhenologyState(dt)
+         m_zooC(top) = m_zooC(top) + redrZOC/m_dZw(top)/m_Az(top)
+         m_zooC(1:top-1) = 0.0_r8
+      end if
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -383,24 +389,45 @@ contains
       implicit none
       real(r8), intent(in) :: dt
       real(r8) :: blamda, aa, bb, cc
-      integer :: kk, ii, top, mindx, bottom
+      real(r8) :: deadPOC
+      integer :: kk, ii, jj, icol
+      integer :: top, bottom
 
       top = m_lakeWaterTopIndex
-      mindx = m_mixBotIndex 
       bottom = WATER_LAYER+1
+
+      m_aqDepAtCarb = 0.0_r8  ! initialize
       bmotion = 0.0_r8
-      do kk = 1, NPOC, 1
+      do kk = 1, NPTK, 1
+         ! Count phytoplankton deposition
          do ii = top, bottom, 1
-            ! biomass change due to metabolism
+            icol = m_soilColInd(ii)
+            if (m_phytoC(kk,ii)>phytoCmin) then
+               deadPOC = rPhytoDep(kk,ii) * m_phytoC(kk,ii) * m_dZw(ii)
+            else
+               deadPOC = 0._r8
+            end if
+            do jj = top, ii, 1
+               if (m_phytoC(kk,jj)>phytoCmin) then
+                  deadPOC = deadPOC + (rPhytoMort(kk,jj) + (1._r8 - fDAssZoo)* &
+                     rPhytoGraze(kk,jj)) * m_phytoC(kk,jj) * m_dZw(jj)
+               end if
+            end do
+            m_aqDepAtCarb(icol) = m_aqDepAtCarb(icol) + fPhyActC * deadPOC * &
+               (m_dAz(ii)/m_colAz(icol))
+         end do
+
+         ! biomass change due to metabolism
+         do ii = top, bottom, 1
             blamda = -rPDYN(kk,ii)
-            m_waterPOC(kk,ii) = m_waterPOC(kk,ii) * exp(-blamda*dt)
+            m_phytoC(kk,ii) = m_phytoC(kk,ii) * exp(-blamda*dt)
             ! phytoplankton movement
             if (Vsettl(kk,ii)>=0.0) then
                bmotion(kk,ii) = min(Vsettl(kk,ii),m_dZw(ii)/dt) * &
-                  m_waterPOC(kk,ii)
+                  m_phytoC(kk,ii)
             else
                bmotion(kk,ii) = max(Vsettl(kk,ii),-m_dZw(ii)/dt) * &
-                  m_waterPOC(kk,ii)
+                  m_phytoC(kk,ii)
             end if
          end do
          
@@ -408,10 +435,11 @@ contains
          do ii = top, bottom, 1
             if (ii==top) then
                aa = 0.0_r8
-               bb = -abs(bmotion(kk,ii))*m_Az(ii+1)
                if (ii<bottom) then
+                  bb = -abs(bmotion(kk,ii))*m_Az(ii+1)
                   cc = max(-bmotion(kk,ii+1),0.0_r8)*m_Az(ii+1)
                else
+                  bb = 0.0_r8
                   cc = 0.0_r8
                end if
             else if (ii==bottom) then
@@ -427,11 +455,58 @@ contains
                end if
                cc = max(-bmotion(kk,ii+1),0.0_r8)*m_Az(ii+1)
             end if
-            m_waterPOC(kk,ii) = max( m_waterPOC(kk,ii) + (aa+bb+cc)/ &
-               m_dZw(ii)/m_Az(ii)*dt, 0._r8 )
+            m_phytoC(kk,ii) = max( m_phytoC(kk,ii) + (aa+bb+cc)/ &
+               m_dZw(ii)/m_Az(ii)*dt, phytoCmin )
          end do
       end do
 
+      ! update phenology state
+      call UpdatePhytoPhenology()
+
+   end subroutine
+
+   !------------------------------------------------------------------------------
+   !
+   ! Purpose: Calculate the dynamics of zooplankton.
+   !
+   !------------------------------------------------------------------------------
+   subroutine ZooplanktonDynamics(dt)
+      real(r8), intent(in) :: dt
+      real(r8) :: deadZOC
+      integer :: ii, jj, icol
+      integer :: top, bottom
+
+      top = m_lakeWaterTopIndex
+      bottom = WATER_LAYER+1
+
+      ! zooplankton metabolism
+      zooC_new = m_zooC
+      do ii = top, bottom, 1
+         zooC_new(ii) = m_zooC(ii) + ( -(rZooMort(ii)+rZooResp(ii))*m_zooC(ii) & 
+            + fDAssZoo*sum(rPhytoGraze(:,ii)*m_phytoC(:,ii)) ) * dt
+         zooC_new(ii) = max(zooC_new(ii), zooCmin)
+      end do
+
+      ! Count deposited zooplankton due to mortality and overgrowth 
+      do ii = top, bottom, 1
+         icol = m_soilColInd(ii)
+         deadZOC = 0._r8
+         do jj = top, ii, 1
+            if (m_zooC(jj)>zooCmin) then
+               deadZOC = deadZOC + min(rZooMort(jj),1._r8/dt) * m_zooC(jj) * &
+                  m_dZw(jj)
+            end if
+            deadZOC = deadZOC + max(zooC_new(jj)-zooC_cap, 0._r8) / dt * &
+               m_dZw(jj)
+         end do
+         m_aqDepAtCarb(icol) = m_aqDepAtCarb(icol) + fZooActC * deadZOC * &
+            (m_dAz(ii)/m_colAz(icol))
+      end do
+
+      ! restrict by carrying capacity 
+      do ii = top, bottom, 1
+         m_zooC(ii) = min(zooC_new(ii), zooC_cap)
+      end do
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -442,32 +517,46 @@ contains
    subroutine BedVegetationDynamics(dt)
       implicit none
       real(r8), intent(in) :: dt
-      real(r8) :: shootfrac
-      integer :: ii
+      real(r8) :: shootfrac, bedVegDW_next
+      integer :: ii, icol
+
+      ! initialize
+      m_vegDepAtCarb = 0._r8
 
       do ii = 1, WATER_LAYER+1, 1
-         ! no macrophyte survived or no bed area
-         if (m_bedVegDW(ii)<e8 .or. m_dAz(ii)<e8) then
-            rVegProd(ii) = 0._r8
-            rVegResp(ii) = 0._r8
-            rVegMort(ii) = 0._r8
-            m_bedVegDW(ii) = 0._r8
-            m_fcovBedVeg(ii) = 0._r8
-            m_vegPUptake(ii) = 0._r8
-            cycle
+         if (m_dAz(ii)>e8) then
+            ! update metabolic rates
+            call MacrophyteMetabolism(m_bedVegDW(ii), m_Ipar(ii), &
+                     m_waterTemp(ii), tonfset(ii), vegPhenol(ii), shootfrac, &
+                     rVegProd(ii), rVegResp(ii), rVegMort(ii))
+
+            ! count macrophyte mortality induced deposition
+            icol = m_soilColInd(ii)
+            m_vegDepAtCarb(icol) = m_vegDepAtCarb(icol) + fVegActC * &
+               cCPerDW * rVegMort(ii) * m_dAz(ii) / m_colAz(icol)
+
+            ! update biomass
+            bedVegDW_next = m_bedVegDW(ii) + (rVegProd(ii) - rVegResp(ii) - &
+                     rVegMort(ii)) * dt
+            if (m_bedVegDW(ii)<=vegDWmin .and. bedVegDW_next<vegDWmin) then
+               m_bedVegDW(ii) = vegDWmin
+               rVegProd(ii) = 0._r8
+               rVegResp(ii) = 0._r8
+               rVegMort(ii) = 0._r8
+            else
+               m_bedVegDW(ii) = bedVegDW_next
+            end if
+
+            ! update P uptake
+            m_vegPUptake(ii) = fVegActC * cCPerDW * rVegProd(ii) / YC2P_POM 
+
+            ! update bed vegeation cover
+            m_fcovBedVeg(ii) = min(cCovSpVeg*shootfrac*m_bedVegDW(ii), 1._r8)
          end if
-         ! update metabolic rates
-         call MacrophyteMetabolism(m_bedVegDW(ii), m_Ipar(ii), m_waterTemp(ii), &
-                  tonfset(ii), vegPhenol(ii), shootfrac, rVegProd(ii), &
-                  rVegResp(ii), rVegMort(ii))
-         m_bedVegDW(ii) = m_bedVegDW(ii) + (rVegProd(ii) - rVegResp(ii) - &
-               rVegMort(ii)) * dt
-         m_bedVegDW(ii) = max(m_bedVegDW(ii), 0._r8)
-         ! update P uptake
-         m_vegPUptake(ii) = fVegActC * cCPerDW * rVegProd(ii) / YC2P_POM 
-         ! update bed vegeation cover
-         m_fcovBedVeg(ii) = min(cCovSpVeg*shootfrac*m_bedVegDW(ii), 1._r8)
       end do
+
+      ! update phenology state
+      call UpdateVegPhenology(dt)
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -506,10 +595,12 @@ contains
          end if
       end do
 
-      ! correct negative POC
-      where (m_waterPOC<0._r8) m_waterPOC = 0.0_r8
+      ! correct invalid phytoplankton biomass
+      where (m_phytoC<phytoCmin) m_phytoC = phytoCmin
 
-      !where (m_waterSubCon<0) m_waterSubCon = 0.0_r8
+      ! correct invalid zooplankton biomass
+      where (m_zooC<zooCmin) m_zooC = zooCmin
+
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -523,92 +614,116 @@ contains
    subroutine UpdateCarbonCycleRates(isUpdate)
       implicit none
       logical, intent(in) :: isUpdate
-      real(r8) :: LPOC(NPOC)
-      real(r8) :: temp, dist, hhyp
+      real(r8) :: temp, lensink, fsed
+      real(r8) :: depth, real_maxdepth, och4r
       real(r8) :: Dsrp, Dco2, Do2, Dch4
-      real(r8) :: aGPP, newGPP, minIpar
-      real(r8) :: och4dist
+      real(r8) :: tmpGPP, tmpResp, dzfactor 
+      real(r8) :: phytoC(NPTK), zooC
       integer :: ii, jj, top, btm
+      integer :: trophic
 
       top = m_lakeWaterTopIndex
       btm = WATER_LAYER + 1 
-      hhyp = sum(m_dZw(m_mixBotIndex:btm))
-      minIpar = 1.d-3 * m_Ipar(1)
-      och4dist = 1.0 - m_surfData%dzsurf/lake_info%maxdepth
+      trophic = lake_info%trophic
+      real_maxdepth = lake_info%maxdepth - m_surfData%dzsurf
 
       rGPP(:,1:top-1) = 0.0_r8
-      rLPOC(:,1:top-1) = 0.0_r8
-      rRLPOC(:,1:top-1) = 0.0_r8
-      rRLDOC(:,1:top-1) = 0.0_r8
-      rRLMort(:,1:top-1) = 0.0_r8
-      rPOCMort(:,1:top-1) = 0.0_r8
-      rRDOC(1:top-1) = 0.0_r8
-      rRDOCnew(1:top-1) = 0.0_r8
+      rGPPbase(:,1:top-1) = 0.0_r8
+      rPhytoResp(:,1:top-1) = 0.0_r8
+      rPhytoRespbase(:,1:top-1) = 0.0_r8
+      rPhytoMort(:,1:top-1) = 0.0_r8
+      rPhytoDep(:,1:top-1) = 0.0_r8
+      rPhytoGraze(:,1:top-1) = 0.0_r8
+      rZooMort(1:top-1) = 0.0_r8
+      rZooResp(1:top-1) = 0.0_r8
+      rHR(1:top-1) = 0.0_r8
+      rHRbase(1:top-1) = 0.0_r8
       rOCH4(1:top-1) = 0.0_r8
-      rOCH4new(1:top-1) = 0.0_r8
+      rOCH4base(1:top-1) = 0.0_r8
       rOMP(1:top-1) = 0.0_r8
       rPDYN(:,1:top-1) = 0.0_r8
       rsumGPP(1:top-1) = 0.0_r8
       rsumResp(1:top-1) = 0.0_r8
-      rsumLPOC(1:top-1) = 0.0_r8
       do ii = top, WATER_LAYER+1, 1
          temp = max(m_waterTemp(ii), T0)
-         dist = sum(m_dZw(ii:btm))
+         depth = sum(m_dZw(1:ii-1))
+         lensink = 0.5_r8 * m_dZw(ii)
+         fsed = m_dAz(ii) / m_Az(ii)
          Dch4 = m_waterSubCon(Wch4,ii)
          Do2 = m_waterSubCon(Wo2,ii)
          Dco2 = m_waterSubCon(Wco2,ii)
          Dsrp = m_waterSubCon(Wsrp,ii)
-         LPOC = m_waterPOC(:,ii)
+         phytoC = m_phytoC(:,ii)
+         zooC = m_zooC(ii)
 
          if (isUpdate) then
-            call Photosynthesis(temp, Dco2, Dsrp, m_Ipar(ii), rGPP(:,ii))
-            call AutotrophicR(temp, Do2, rLPOC(:,ii), rRLPOC(:,ii), &
-                     rRLDOC(:,ii), rRLMort(:,ii))
-            call HeterotrophicR(temp, Do2, rRDOCnew(ii))
-            call Methanotrophy(Dch4, Do2, temp, rOCH4new(ii))
-            call OxicMethanogenesis(rGPP(:,ii)*LPOC, rOMP(ii))
-            call DepositionMortality(dist, hhyp, rPOCMort(:,ii)) 
+            ! food web metabolism
+            call Photosynthesis(temp, Dco2, Dsrp, m_Ipar(ii), rGPPbase(:,ii))
+            call AutotrophicR(temp, rPhytoRespbase(:,ii), rPhytoMort(:,ii))
+            call GrazingMortality(temp, Do2, zooC, phytoC, rPhytoGraze(:,ii))
+            call DepositionMortality(Vsettl(:,ii), lensink, fsed, rPhytoDep(:,ii)) 
+            call ZooplanktonLoss(temp, Do2, rZooResp(ii), rZooMort(ii)) 
+            ! microbial mineralization
+            call HeterotrophicR(temp, Do2, trophic, rHRbase(ii))
+            call Methanotrophy(Dch4, Do2, temp, rOCH4base(ii))
+            call OxicMethanogenesis(rGPPbase(:,ii)*phytoC, rOMP(ii))
          end if
-         
-         ! avoid the unrealistic all death of phytoplankton
-         if (m_Hice<e8 .and. m_Ipar(ii)>=minIpar) then
-            do jj = 1, NPOC, 1
-               if (LPOC(jj)<lake_info%refPOC) then
-                  rLPOC(jj,ii) = 0.0_r8
-                  rRLPOC(jj,ii) = 0.0_r8
-                  rRLDOC(jj,ii) = 0.0_r8
-                  rRLMort(jj,ii) = 0.0_r8
+
+         rHR(ii) = min(rHRbase(ii), Do2)
+
+         if (Hydro_Module) then
+            if (m_surfData%dzsurf>e8) then
+               if (depth>real_maxdepth) then
+                  och4r = 0._r8
+               else if (real_maxdepth < depth + m_dZw(ii)) then
+                  och4r = (real_maxdepth - depth) / m_dZw(ii)
+               else
+                  och4r = 1._r8
                end if
-            end do
+            else
+               if (ii==WATER_LAYER+1) then
+                  och4r = 1._r8 - m_surfData%dzsurf/m_dZw(ii)
+               else
+                  och4r = 1._r8
+               end if
+            end if 
+            rOCH4(ii) = min(och4r*rOCH4base(ii), 0.5*min(Do2,Dch4))
+         else
+            rOCH4(ii) = min(rOCH4base(ii), 0.5*min(Do2,Dch4))
          end if
 
          ! carbon-based metabolism rates
-         rsumGPP(ii) = sum( rGPP(:,ii)*LPOC )
-         rsumResp(ii) = sum( (rRLPOC(:,ii)+rRLDOC(:,ii))*LPOC )
-         rsumLPOC(ii) = sum( rLPOC(:,ii)*LPOC )
-
-         rRDOC(ii) = min(rRDOCnew(ii), Do2)
-         rOCH4(ii) = min(och4dist*rOCH4new(ii), 0.5*min(Do2,Dch4))
-         newGPP = min(rsumGPP(ii), min(Dsrp*YC2P_POM,Dco2)*MasC)
-         if (rsumGPP(ii)<1.d-15) then
-            aGPP = 1.0_r8
+         rsumGPP(ii) = sum( rGPPbase(:,ii)*phytoC )
+         tmpGPP = min(rsumGPP(ii), min(Dsrp*YC2P_POM,Dco2)*MasC)
+         if (rsumGPP(ii)>1.d-15) then
+            rGPP(:,ii) = rGPPbase(:,ii) * tmpGPP / rsumGPP(ii)
+            rsumGPP(ii) = tmpGPP
          else
-            aGPP = newGPP / rsumGPP(ii)
+            rGPP(:,ii) = rGPPbase(:,ii)
          end if
-         rsumResp(ii) = min(rsumResp(ii), Do2*MasC)
+
+         rsumResp(ii) = sum( rPhytoRespbase(:,ii)*phytoC )
+         tmpResp = min(rsumResp(ii), Do2*MasC)
+         if (rsumResp(ii)>1.d-15) then
+            rPhytoResp(:,ii) = rPhytoRespbase(:,ii) * tmpResp / rsumResp(ii)
+            rsumResp(ii) = tmpResp
+         else
+            rPhytoResp(:,ii) = rPhytoRespbase(:,ii)
+         end if
 
          ! dynamics rates of phytoplankton
-         rPDYN(:,ii) = aGPP*rGPP(:,ii) - rLPOC(:,ii) - rPOCMort(:,ii)
+         rPDYN(:,ii) = rGPP(:,ii) - rPhytoResp(:,ii) - rPhytoMort(:,ii) - &
+            rPhytoDep(:,ii) - rPhytoGraze(:,ii)
       end do
 
       ! dynamics rates of dissolved substances
-      rDYN(Wn2,:) = m_gasExchange(Wn2,:)
-      rDYN(Wo2,:) = (rsumGPP - rsumResp)/MasC - rRDOC - 2.0*rOCH4 + &
-                     m_gasExchange(Wo2,:)
-      rDYN(Wco2,:) = (rsumResp - rsumGPP)/MasC + rRDOC + rOCH4 + &
-                     m_gasExchange(Wco2,:)
-      rDYN(Wch4,:) = -rOCH4 + rOMP + m_gasExchange(Wch4,:)
-      rDYN(Wsrp,:) = (rsumResp - rsumGPP)/MasC/YC2P_POM
+      rDYN(Wn2,:) = m_gasExch(Wn2,:)
+      rDYN(Wo2,:) = (rsumGPP - rsumResp)/MasC - rZooResp*m_zooC/MasC - rHR - &
+                     2.0*rOCH4 + m_gasExch(Wo2,:)
+      rDYN(Wco2,:) = (rsumResp - rsumGPP)/MasC + rZooResp*m_zooC/MasC + rHR + &
+                     rOCH4 - rOMP + m_gasExch(Wco2,:)
+      rDYN(Wch4,:) = -rOCH4 + rOMP + m_gasExch(Wch4,:)
+      rDYN(Wsrp,:) = (rsumResp - rsumGPP + rZooResp*m_zooC)/MasC/YC2P_POM
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -619,12 +734,9 @@ contains
    !------------------------------------------------------------------------------
    subroutine UpdatePOMSettlingVelocity()
       implicit none
-      real(r8) :: Ksrps, Ksrpl
-      real(r8) :: fsrp, Dsrp, ipar_z 
+      real(r8) :: fsrp(NPTK), Dsrp, ipar_z 
       integer :: ii, top, bottom
 
-      Ksrps = sa_params(Param_Ksrps)
-      Ksrpl = sa_params(Param_Ksrpl)
       top = m_lakeWaterTopIndex
       bottom = WATER_LAYER + 1
       Vsettl(:,1:top-1) = 0.0_r8
@@ -632,24 +744,26 @@ contains
          Dsrp = m_waterSubCon(Wsrp,ii)
          ipar_z = 1.d6 * m_Ipar(max(ii-1,1))
          if (ii<=m_mixTopIndex) then
-            Vsettl(:,ii) = 0.0_r8 
-         else if (ii<m_mixBotIndex) then
-            fsrp = Dsrp / (Ksrps + Dsrp)
-            if (fsrp<fsrp_vmdown .and. ipar_z>ipar_crit) then
-               Vsettl(small_ppk,ii) = Vswim
-            else if (fsrp>fsrp_vmup .and. ipar_z>ipar_crit) then
-               Vsettl(small_ppk,ii) = -Vswim
-            else
-               Vsettl(small_ppk,ii) = 0.0_r8
-            end if
-            fsrp = Dsrp / (Ksrpl + Dsrp)
-            if (fsrp<fsrp_vmdown .and. ipar_z>ipar_crit) then
-               Vsettl(large_ppk,ii) = Vs0(large_ppk)
-            else
-               Vsettl(large_ppk,ii) = 0.0_r8
-            end if
+            Vsettl(:,ii) = 0.0_r8
          else
-            Vsettl(:,ii) = 0.0_r8 ! replaced by a mortality factor
+            ! nutrient- or light-driven movement
+            fsrp = Dsrp / (PAR_Ksrp + Dsrp)
+            if (ipar_z>ipar_crit) then
+               where (fsrp<fsrp_vmdown)
+                  Vsettl(:,ii) = Vswim
+               elsewhere (fsrp>fsrp_vmup)
+                  Vsettl(:,ii) = -Vswim
+               elsewhere
+                  Vsettl(:,ii) = 0.0_r8
+               end where
+               Vsettl(diatom_ppk,ii) = Vs0(diatom_ppk)
+            else
+               where (DsPhyto>m_wrho(ii))
+                  Vsettl(:,ii) = Vs0
+               elsewhere   ! within high-density waters
+                  Vsettl(:,ii) = 0.1_r8 * Vs0
+               end where
+            end if
          end if
       end do 
    end subroutine
@@ -706,7 +820,7 @@ contains
             qt(gas) = Kg(gas) * (m_waterSubCon(gas,1) - EQConc(gas))
          end do
          m_topdflux = qt(1:NGAS)
-         Ceq_srp = m_surfData%srp / MasP
+         Ceq_srp = m_surfData%srp
          Kg_srp = lake_info%depth / lake_info%wrt / 8.64d4    ! m/s
          qt(Wsrp) = Kg_srp * (m_waterSubCon(Wsrp,1) - Ceq_srp) 
       end if
@@ -783,10 +897,10 @@ contains
       end if
 
       if (isUpdate) then
-         call CalcChl2CRatio(m_Ipar, m_waterTemp, m_waterSubCon(Wsrp,:), &
-               m_waterSubCon(Wco2,:), top, m_rChl2C)
+         call CalcChl2CRatio(m_Ipar(1:WATER_LAYER+1), m_waterTemp, &
+               m_waterSubCon(Wsrp,:), m_waterSubCon(Wco2,:), top, rChl2C)
       end if
-      m_chla = sum(m_waterPOC*m_rChl2C,1) 
+      m_chla = sum(m_phytoC*rChl2C,1) 
    end subroutine
 
    !------------------------------------------------------------------------------
@@ -800,7 +914,7 @@ contains
       real(r8), intent(out) :: npp   ! units: gC/m2/s
 
       gpp = sum(rsumGPP*m_dZw*m_Az) / m_Az(1)
-      npp = gpp - sum(rsumLPOC*m_dZw*m_Az) / m_Az(1)
+      npp = gpp - sum(rsumResp*m_dZw*m_Az) / m_Az(1)
    end subroutine
 
    subroutine GetRespirationRates(rch4p, rch4o)
@@ -842,22 +956,28 @@ contains
       !   end do
       !end if
 
-      ! convective mixing of phytoplankton
+      ! convective mixing of phytoplankton and zooplankton
       mindx = m_mixTopIndex
       if (mindx>top) then
-         do kk = 1, NPOC, 1
-            biomas_avg = sum(m_waterPOC(kk,top:mindx)*m_dZw(top:mindx)* &
+         do kk = 1, NPTK, 1
+            biomas_avg = sum(m_phytoC(kk,top:mindx)*m_dZw(top:mindx)* &
                m_Az(top:mindx)) / sum(m_dZw(top:mindx)*m_Az(top:mindx))
-            m_waterPOC(kk,top:mindx) = biomas_avg
+            m_phytoC(kk,top:mindx) = biomas_avg
          end do
+         biomas_avg = sum(m_zooC(top:mindx)*m_dZw(top:mindx)* &
+               m_Az(top:mindx)) / sum(m_dZw(top:mindx)*m_Az(top:mindx))
+         m_zooC(top:mindx) = biomas_avg
       end if
       !mindx = m_mixBotIndex
       !if (m_Hmix(2)>e8 .and. m_Hice<e8) then
-      !   do kk = 1, NPOC, 1
-      !      biomas_avg = sum(m_waterPOC(kk,mindx:btm)*m_dZw(mindx:btm)* &
+      !   do kk = 1, NPTK, 1
+      !      biomas_avg = sum(m_phytoC(kk,mindx:btm)*m_dZw(mindx:btm)* &
       !         m_Az(mindx:btm)) / sum(m_dZw(mindx:btm)*m_Az(mindx:btm))
-      !      m_waterPOC(kk,mindx:btm) = biomas_avg
+      !      m_phytoC(kk,mindx:btm) = biomas_avg
       !   end do
+      !   biomas_avg = sum(m_zooC(mindx:btm)*m_dZw(mindx:btm)* &
+      !      m_Az(mindx:btm)) / sum(m_dZw(mindx:btm)*m_Az(mindx:btm))
+      !   m_zooC(mindx:btm) = biomas_avg
       !end if
    end subroutine
 
@@ -866,15 +986,14 @@ contains
    ! Purpose: update phenology state of submerged macrophytes.
    !
    !------------------------------------------------------------------------------
-   subroutine UpdatePhenologyState(dt)
+   subroutine UpdateVegPhenology(dt)
       implicit none
       real(r8), intent(in) :: dt
       integer :: ii, kk
 
       ! macrophyte phenology
       do ii = 1, WATER_LAYER+1, 1
-         ! skip layers where submerged vegetation doesn't survive
-         if (m_bedVegDW(ii)<e8) then
+         if (m_dAz(ii)<e8) then
             vegPhenol(ii) = dormant_season
             cycle
          end if
@@ -933,6 +1052,10 @@ contains
             end if
          end if
       end do
+   end subroutine
+
+   subroutine UpdatePhytoPhenology()
+      implicit none
 
       ! phytoplankton phenology
       if (phytoPhenol==dormant_season) then
@@ -948,10 +1071,6 @@ contains
          if (checkPhenol .and. m_Hice<e8) then
             phytoPhenol = grow_season
             checkPhenol = .False.
-            ! prevent all dead
-            do kk = 1, NPOC, 1
-               m_waterPOC(kk,:) = m_waterPOC(kk,:) + 0.001
-            end do
          end if
       else if (phytoPhenol==grow_season) then
          if (m_radPars%Latit>=0) then
@@ -991,14 +1110,18 @@ contains
       end do
       m_waterSubCon(Wsrp,:) = lake_info%srp / MasP
       
-      m_rChl2C = 0.02_r8
-      m_chla = 0.001_r8
-      m_waterPOC = 0.05_r8
-      m_bedVegDW = 10.0_r8 
+      m_chla = 0.005_r8
+      m_phytoC = 0.5_r8
+      m_zooC = 0.25_r8
+      where (m_dAz>e8)
+         m_bedVegDW = 10.0_r8
+      elsewhere
+         m_bedVegDW = 0._r8
+      end where
       m_fcovBedVeg = 0.0_r8
       m_vegPUptake = 0.0_r8
 
-      m_gasExchange = 0.0_r8
+      m_gasExch = 0.0_r8
       m_aqDepAtCarb = 0.0_r8
       m_trDepAtCarb = 0.0_r8
       m_vegDepAtCarb = 0.0_r8

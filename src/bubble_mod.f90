@@ -109,8 +109,7 @@ contains
    subroutine BubbleModuleCallback(dt)
       implicit none
       real(r8), intent(in) :: dt
-      real(r8) :: icebflux, icebloss
-      real(r8) :: sumAz, topAz
+      real(r8) :: topAz
       integer :: ii, kk, icol, top
       integer :: indx, indx0
 
@@ -121,12 +120,11 @@ contains
          indx0 = COUNT(m_soilColInd<=icol-1) + 1
          !if (indx0<=indx .and. m_soilColBub(icol)>0) then
          if (indx0<=indx) then
-            sumAz = sum(m_dAz(indx0:indx))
-            topAz = topAz + sumAz
+            topAz = topAz + m_colAz(icol)
             if (indx<top) then
                ! effective emitting area
                m_iceBubblePool = m_iceBubblePool + m_btmbflux(:,icol)* &
-                  sumAz*dt
+                  m_colAz(icol)*dt
             end if
          end if
       end do
@@ -137,20 +135,18 @@ contains
          m_upbflux = m_topbflux(Wch4)
          m_topbflux = 0.0_r8
       else
-         icebflux = sa_params(Param_icebflux)
          m_upbflux = m_topbflux(Wch4)
-         m_topbflux = m_topbflux + m_iceBubblePool*icebflux/topAz
+         m_topbflux = m_topbflux + m_iceBubblePool*PAR_icebflux/topAz
          do kk = Wn2, Wch4, 1
             m_iceBubblePool(kk) = m_iceBubblePool(kk) * max(0.0_r8, &
-               (1.0-icebflux*dt))
+               (1.0-PAR_icebflux*dt))
          end do
       end if
 
       ! CH4 leaking from ice bubbles
-      icebloss = sa_params(Param_icebloss)
       if (m_iceBubblePool(Wch4)>e8 .and. top<=WATER_LAYER+1) then
          m_iceBubblePool(Wch4) = m_iceBubblePool(Wch4) * max(0.0_r8, &
-            (1.0-icebloss*dt))
+            (1.0-PAR_icebloss*dt))
       end if
    end subroutine
 
@@ -169,9 +165,9 @@ contains
       real(r8) :: k_ndm(NGAS), ndm(NGAS)
       real(r8) :: peclet(NGAS), reynold(NGAS), nusselt(NGAS)
       real(r8) :: pressure, gama, pos, pos_frz
-      real(r8) :: wb, rr, temp, icebloss, ex_iceb 
+      real(r8) :: wb, rr, temp, ex_iceb 
       real(r8) :: pr_tmp, dr_tmp1, dr_tmp2
-      real(r8) :: sumAz, topAz
+      real(r8) :: topAz
       integer :: rIndx, locIndx, indx, indx0
       integer :: top, ii, jj, icol
 
@@ -186,12 +182,11 @@ contains
          indx0 = COUNT(m_soilColInd<=icol-1) + 1
          !if (indx0<=indx .and. m_soilColBub(icol)>0) then
          if (indx0<=indx) then
-            sumAz = sum(m_dAz(indx0:indx))
-            topAz = topAz + sumAz
+            topAz = topAz + m_colAz(icol)
          end if
       end do
 
-      m_gasExchange = 0.0_r8
+      m_gasExch = 0.0_r8
       m_topbflux = 0.0_r8
       do icol = 1, NSCOL, 1
          indx = COUNT(m_soilColInd<=icol)
@@ -201,19 +196,17 @@ contains
          if (indx<top .or. indx0>indx) then
             cycle
          end if
-         ! effective emitting area
-         sumAz = sum(m_dAz(indx0:indx))
 
          ! too small sediment flux
          if (m_btmbflux(Wch4,icol)<1.d-12) then
             do jj = indx0, indx, 1
-               m_gasExchange(Wch4,jj) = m_gasExchange(Wch4,jj) + &
+               m_gasExch(Wch4,jj) = m_gasExch(Wch4,jj) + &
                   m_btmbflux(Wch4,icol)*m_dAz(jj)/m_Az(jj)/m_dZw(jj)
             end do
             cycle
          end if
 
-         m_topbflux = m_topbflux + m_btmbflux(:,icol)*sumAz/topAz
+         m_topbflux = m_topbflux + m_btmbflux(:,icol)*m_colAz(icol)/topAz
 
          Cbg(:,:,indx+2:WATER_LAYER+2) = 0.0_r8 
          Cbg(:,:,indx+1) = Vbg0(:,:,icol)
@@ -272,9 +265,9 @@ contains
             do rIndx = 1, NRLAYER+1, 1
                exlayer = (Cbg(:,rIndx,ii+1) - Cbg(:,rIndx,ii))*Vab(rIndx,icol)
                if (ii>=indx0) then
-                  m_gasExchange(:,ii) = m_gasExchange(:,ii) + exlayer/m_dZw(ii)
+                  m_gasExch(:,ii) = m_gasExch(:,ii) + exlayer/m_dZw(ii)
                else
-                  m_gasExchange(:,ii) = m_gasExchange(:,ii) + exlayer*sumAz/ &
+                  m_gasExch(:,ii) = m_gasExch(:,ii) + exlayer*m_colAz(icol)/ &
                      m_Az(ii)/m_dZw(ii)
                end if
             end do
@@ -283,15 +276,14 @@ contains
 
       ! update bubble flux
       do ii = WATER_LAYER+1, top, -1
-         m_topbflux = m_topbflux - m_gasExchange(:,ii)*m_dZw(ii)* &
+         m_topbflux = m_topbflux - m_gasExch(:,ii)*m_dZw(ii)* &
             m_Az(ii)/topAz
       end do
 
       ! CH4 leaking from ice bubbles
-      icebloss = sa_params(Param_icebloss)
       if (m_iceBubblePool(Wch4)>e8 .and. top<=WATER_LAYER+1) then
-         ex_iceb = m_iceBubblePool(Wch4) * icebloss / m_dZw(top) / m_Az(top)
-         m_gasExchange(Wch4,top) = m_gasExchange(Wch4,top) + ex_iceb
+         ex_iceb = m_iceBubblePool(Wch4) * PAR_icebloss / m_dZw(top) / m_Az(top)
+         m_gasExch(Wch4,top) = m_gasExch(Wch4,top) + ex_iceb
       end if
 
    end subroutine
@@ -308,7 +300,7 @@ contains
 
       minR = 2.5_r8     ! mm
       maxR = 10.0_r8    ! mm
-      dr = (maxR - minR) / dble(NRLAYER)
+      dr = (maxR - minR) / DBLE(NRLAYER)
       m_Rb0 = (/(minR+dr*(ii-1), ii = 1, NRLAYER+1)/)
       m_Rb0 = 1.0e-3_r8 * m_Rb0  ! mm => m
       rratio = minR / 0.1_r8
